@@ -1,0 +1,16 @@
+name: 'Terrateam Terrafrom Management'
+description: 'Manage Terraform Repositories with Terraform'
+inputs:
+  work-token:
+    description: 'Work token for run'
+    required: true
+  api-base-url:
+    description: 'Base URL to API'
+    required: true
+    default: 'https://app.terrateam.io'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - '${{ inputs.work-token }}'
+    - '${{ inputs.api-base-url }}'
