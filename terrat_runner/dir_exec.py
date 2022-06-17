@@ -17,6 +17,9 @@ def _run(args):
 
 def run(parallel, dirs, f, args):
     dirs = _order_dirs_by_rank(dirs)
+    res = []
     for ds in dirs:
         with multiprocessing.Pool(parallel) as p:
-            return p.map(_run, [(f,) + args + (d,) for d in ds])
+            res.extend(p.map(_run, [(f,) + args + (d,) for d in ds]))
+
+    return res
