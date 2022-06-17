@@ -22,14 +22,21 @@ def run(state, config):
 
         output_key = config.get('output_key')
 
-        # Only capture output if we want to save it somewhere
-        if output_key is not None:
-            proc, stdout = cmd.run_with_output(state, config)
-            state.output[output_key] = stdout
-        else:
-            proc = cmd.run(state, config)
+        try:
+            # Only capture output if we want to save it somewhere
+            if output_key is not None:
+                proc, stdout = cmd.run_with_output(state, config)
+                state.output[output_key] = stdout
+            else:
+                proc = cmd.run(state, config)
 
-        failed = not (proc.returncode == 0 or ignore_errors)
+            failed = not (proc.returncode == 0 or ignore_errors)
+        except cmd.MissingEnvVar as exn:
+            # On env error, add to 'error' key in output
+            errors = state.output.get('errors', b'')
+            errors += ('Missing environment variable: {}\n'.format(exn.args[0])).encode('utf-8')
+            state.output['errors'] = errors
+            failed = True
 
         return (failed, state)
     else:

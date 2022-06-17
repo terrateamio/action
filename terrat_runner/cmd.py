@@ -4,12 +4,19 @@ import string
 import subprocess
 
 
+class MissingEnvVar(Exception):
+    pass
+
+
 def _strip_ansi(s):
     return re.sub(r'\033\[(\d|;)+?m', '', s)
 
 
 def _replace_vars(s, env):
-    return string.Template(s).substitute(env)
+    try:
+        return string.Template(s).substitute(env)
+    except KeyError as exn:
+        raise MissingEnvVar(*exn.args)
 
 
 def _create_env(env, additional_env):
