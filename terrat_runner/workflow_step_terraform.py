@@ -1,15 +1,13 @@
 import os
 import subprocess
 
-import repo_config
 import workflow_step_run
 
 
 def run(state, config):
     args = config['args']
 
-    terraform_version = config.get('terraform_version',
-                                   repo_config.get_default_tf_version(state.repo_config))
+    terraform_version = state.workflow['terraform_version']
 
     terraform_bin_path = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
 
@@ -17,7 +15,7 @@ def run(state, config):
 
     env = config.get('env', {})
 
-    if config.get('terragrunt', False):
+    if state.workflow['terragrunt']:
         cmd = ['terragrunt']
         env = env.copy()
         env['TERRAGRUNT_TFPATH'] = terraform_bin_path
