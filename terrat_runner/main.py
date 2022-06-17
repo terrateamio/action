@@ -76,6 +76,8 @@ def set_secrets_context(state):
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
+    raise Exception('Fail')
+
     parser = make_parser()
     args = parser.parse_args()
 
