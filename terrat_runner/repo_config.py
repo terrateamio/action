@@ -52,6 +52,15 @@ def get_workflow(repo_config, idx):
     }
 
 
+def get_default_workflow(repo_config):
+    return {
+        'terragrunt': False,
+        'terraform_version': get_default_tf_version(repo_config),
+        'plan': default_plan_workflow(),
+        'apply': default_apply_workflow()
+    }
+
+
 def get_checkout_strategy(repo_config):
     return repo_config.get('checkout_strategy', 'merge')
 
@@ -65,4 +74,7 @@ def get_parallelism(repo_config):
 
 
 def get_create_and_select_workspace(repo_config, path):
-    return repo_config.get('dirs', {}).get(path, {}).get('create_and_select_workspace', True)
+    dirs = repo_config.get('dirs')
+    if dirs is None:
+        dirs = {}
+    return dirs.get(path, {}).get('create_and_select_workspace', True)
