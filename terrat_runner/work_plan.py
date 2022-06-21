@@ -63,15 +63,16 @@ def _f(state, results, d):
         state = state._replace(env=env)
 
         if workflow_idx is None:
-            workflow_steps = rc.default_plan_workflow()
+            workflow = rc.get_default_workflow()
         else:
-            workflow_steps = rc.get_plan_workflow(state.repo_config, workflow_idx)
+            workflow = rc.get_workflow(state.repo_config, workflow_idx)
 
         state = workflow_step.run_steps(
             state._replace(working_dir=os.path.join(state.working_dir, path),
                            path=path,
-                           workspace=workspace),
-            workflow_steps)
+                           workspace=workspace,
+                           workflow=workflow),
+            workflow['plan'])
 
         if not state.failed:
             success = _store_plan(state.work_token,

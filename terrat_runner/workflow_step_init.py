@@ -24,8 +24,7 @@ def run(state, config):
                  create_and_select_workspace)
 
     if create_and_select_workspace:
-        terraform_version = config.get('terraform_version',
-                                       repo_config.get_default_tf_version(state.repo_config))
+        terraform_version = state.workflow['terraform_version']
 
         terraform_cmd = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
         config = original_config.copy()
