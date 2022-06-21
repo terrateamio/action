@@ -52,6 +52,15 @@ def get_workflow(repo_config, idx):
     }
 
 
+def get_default_workflow(repo_config):
+    return {
+        'terragrunt': False,
+        'terraform_version': get_default_tf_version(repo_config),
+        'plan': default_plan_workflow(),
+        'apply': default_apply_workflow()
+    }
+
+
 def get_checkout_strategy(repo_config):
     return repo_config.get('checkout_strategy', 'merge')
 

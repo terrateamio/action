@@ -63,7 +63,7 @@ def _f(state, results, d):
         state = state._replace(env=env)
 
         if workflow_idx is None:
-            workflow = rc.get_default_workflow()
+            workflow = rc.get_default_workflow(state.repo_config)
         else:
             workflow = rc.get_workflow(state.repo_config, workflow_idx)
 
