@@ -1,7 +1,5 @@
 import logging
-import os
 
-import cmd
 import repo_config
 import workflow_step_terraform
 
@@ -24,18 +22,8 @@ def run(state, config):
                  create_and_select_workspace)
 
     if create_and_select_workspace:
-        terraform_version = state.workflow['terraform_version']
-
-        terraform_cmd = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
-        config = original_config.copy()
-        config['cmd'] = [terraform_cmd, 'workspace', 'select', state.workspace]
-        proc = cmd.run(state, config)
-
-        if proc.returncode != 0:
-            # TODO: Is this safe?!
-            config['cmd'] = [terraform_cmd, 'workspace', 'new', state.workspace]
-            proc = cmd.run(state, config)
-
-            return (proc.returncode != 0, state)
+        env = state.env.copy()
+        env['TF_WORKSPACE'] = state.workspace
+        state = state._replace(env=env)
 
     return (False, state)
