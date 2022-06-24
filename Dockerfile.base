@@ -21,7 +21,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
 COPY ./install-terraform-version /install-terraform-version
 ENV DEFAULT_TERRAFORM_VERSION=1.1.2
 RUN /install-terraform-version latest && \
-	rm -rf /install-terraform-version
+	rm -f /install-terraform-version
 
 ADD https://github.com/gruntwork-io/terragrunt/releases/download/v0.36.10/terragrunt_linux_amd64 /usr/local/bin/terragrunt
 RUN chmod +x /usr/local/bin/terragrunt
