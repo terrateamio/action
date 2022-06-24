@@ -26,12 +26,12 @@ def default_apply_workflow():
 
 def get_plan_hooks(repo_config):
     hooks = repo_config.get('hooks', {})
-    return hooks.get('plan', {'pre': [], 'post': []})
+    return hooks.get('plan', {})
 
 
 def get_apply_hooks(repo_config):
     hooks = repo_config.get('hooks', {})
-    return hooks.get('apply', {'pre': [], 'post': []})
+    return hooks.get('apply', {})
 
 
 def get_plan_workflow(repo_config, idx):
@@ -48,7 +48,7 @@ def get_workflow(repo_config, idx):
         'terragrunt': workflow.get('terragrunt', False),
         'terraform_version': workflow.get('terraform_version', get_default_tf_version(repo_config)),
         'plan': workflow.get('plan', default_plan_workflow()),
-        'apply': workflow.get('apply', default_apply_workflow)
+        'apply': workflow.get('apply', default_apply_workflow())
     }
 
 
