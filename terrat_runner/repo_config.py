@@ -26,12 +26,12 @@ def default_apply_workflow():
 
 def get_plan_hooks(repo_config):
     hooks = repo_config.get('hooks', {})
-    return hooks.get('plan', {'pre': [], 'post': []})
+    return hooks.get('plan', {})
 
 
 def get_apply_hooks(repo_config):
     hooks = repo_config.get('hooks', {})
-    return hooks.get('apply', {'pre': [], 'post': []})
+    return hooks.get('apply', {})
 
 
 def get_plan_workflow(repo_config, idx):
@@ -40,6 +40,25 @@ def get_plan_workflow(repo_config, idx):
 
 def get_apply_workflow(repo_config, idx):
     return repo_config['workflows'][idx].get('apply', default_apply_workflow())
+
+
+def get_workflow(repo_config, idx):
+    workflow = repo_config['workflows'][idx]
+    return {
+        'terragrunt': workflow.get('terragrunt', False),
+        'terraform_version': workflow.get('terraform_version', get_default_tf_version(repo_config)),
+        'plan': workflow.get('plan', default_plan_workflow()),
+        'apply': workflow.get('apply', default_apply_workflow())
+    }
+
+
+def get_default_workflow(repo_config):
+    return {
+        'terragrunt': False,
+        'terraform_version': get_default_tf_version(repo_config),
+        'plan': default_plan_workflow(),
+        'apply': default_apply_workflow()
+    }
 
 
 def get_checkout_strategy(repo_config):
@@ -55,4 +74,7 @@ def get_parallelism(repo_config):
 
 
 def get_create_and_select_workspace(repo_config, path):
-    return repo_config.get('dirs', {}).get(path, {}).get('create_and_select_workspace', True)
+    dirs = repo_config.get('dirs')
+    if dirs is None:
+        dirs = {}
+    return dirs.get(path, {}).get('create_and_select_workspace', True)

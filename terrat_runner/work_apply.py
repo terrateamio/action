@@ -72,15 +72,16 @@ def _f(state, results, d):
         state = state._replace(env=env)
 
         if workflow_idx is None:
-            workflow_steps = rc.default_apply_workflow()
+            workflow = rc.get_default_workflow(state.repo_config)
         else:
-            workflow_steps = rc.get_apply_workflow(state.repo_config, workflow_idx)
+            workflow = rc.get_workflow(state.repo_config, workflow_idx)
 
         state = workflow_step.run_steps(
             state._replace(working_dir=os.path.join(state.working_dir, path),
                            path=path,
-                           workspace=workspace),
-            workflow_steps)
+                           workspace=workspace,
+                           workflow=workflow),
+            workflow['apply'])
 
         result = {
             'path': path,

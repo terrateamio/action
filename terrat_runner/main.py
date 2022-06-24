@@ -93,6 +93,10 @@ def main():
     rc = repo_config.load(os.path.join(args.workspace, '.terrateam', 'config.yml'))
     state = run_state.create(args.work_token, rc, args.workspace, args.api_base_url, wm)
 
+    env = state.env.copy()
+    env['TERRATEAM_ROOT'] = state.working_dir
+    state = state._replace(env=env)
+
     state = set_secrets_context(state)
 
     checkout_strategy = repo_config.get_checkout_strategy(rc)
