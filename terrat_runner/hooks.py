@@ -11,8 +11,8 @@ def run_hooks(state, steps):
 
 
 def run_pre_hooks(state, hooks):
-    return run_hooks(state, hooks['pre'])
+    return run_hooks(state, hooks.get('pre', []))
 
 
 def run_post_hooks(state, hooks):
-    return run_hooks(state, hooks['post'])
+    return run_hooks(state, hooks.get('post', []))
