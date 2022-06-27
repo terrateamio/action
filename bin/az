@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# Install azure-cli prerequisites
+apt-get update > /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get -yq install ca-certificates curl apt-transport-https lsb-release gnupg > /dev/null
+
+# Install Microsoft signing key
+curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+
+# Add azure-cli apt repo
+AZ_REPO=$(lsb_release -cs)
+echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | tee /etc/apt/sources.list.d/azure-cli.list > /dev/null
+
+# Install azure-cli
+DEBIAN_FRONTEND=noninteractive apt-get -yqq install azure-cli > /dev/null 2> /dev/null
+
+# Replace myself with a symlink
+rm -f /usr/local/bin/az
+ln -s /usr/local/bin/az /usr/bin/az
+
+# Execute
+exec /usr/bin/az "$@"

@@ -1,62 +1,33 @@
-FROM alpine:3.13
+FROM	debian:bullseye-20220622-slim
 
+RUN	apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+	apt-utils \
+	bash \
+	ca-certificates \
+	curl \
+	git \
+	git-lfs \
+	gnupg \
+	groff \
+	less \
+	libcap2 \
+	openssh-client \
+	openssl \
+	python3 \
+	python3-pycryptodome \
+	python3-requests \
+	python3-yaml \
+	unzip \
+	&& rm -rf /var/lib/apt/lists/*
 
-RUN apk add --no-cache \
-    ca-certificates \
-    gnupg \
-    curl \
-    git \
-    git-lfs \
-    unzip \
-    bash \
-    openssh \
-    libcap \
-    openssl \
-    python3 \
-    py3-pycryptodome \
-    py3-requests \
-    py3-yaml \
-    openssh
+RUN	curl "https://github.com/gruntwork-io/terragrunt/releases/download/v0.36.10/terragrunt_linux_amd64" -L -o "/usr/local/bin/terragrunt-0.36.10" \
+	&& chmod +x /usr/local/bin/terragrunt-0.36.10 \
+	&& ln -s /usr/local/bin/terragrunt-0.36.10 /usr/local/bin/terragrunt
 
-ARG GLIBC_VERSION=2.34-r0
-ARG AWSCLI_VERSION=2.7.9
+COPY	./bin/ /usr/local/bin
 
-RUN apk --no-cache add \
-        binutils \
-        curl \
-    && curl -sL https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub -o /etc/apk/keys/sgerrand.rsa.pub \
-    && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk \
-    && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-bin-${GLIBC_VERSION}.apk \
-    && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-i18n-${GLIBC_VERSION}.apk \
-    && apk add --no-cache \
-        glibc-${GLIBC_VERSION}.apk \
-        glibc-bin-${GLIBC_VERSION}.apk \
-        glibc-i18n-${GLIBC_VERSION}.apk \
-    && /usr/glibc-compat/bin/localedef -i en_US -f UTF-8 en_US.UTF-8 \
-    && curl -sL https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip -o awscliv2.zip \
-    && unzip awscliv2.zip \
-    && aws/install \
-    && rm -rf \
-        awscliv2.zip \
-        aws \
-        /usr/local/aws-cli/v2/current/dist/aws_completer \
-        /usr/local/aws-cli/v2/current/dist/awscli/data/ac.index \
-        /usr/local/aws-cli/v2/current/dist/awscli/examples \
-        glibc-*.apk \
-    && find /usr/local/aws-cli/v2/current/dist/awscli/botocore/data -name examples-1.json -delete \
-    && apk --no-cache del \
-        binutils \
-    && rm -rf /var/cache/apk/*
-
-COPY install-terraform-version /install-terraform-version
-
-ENV DEFAULT_TERRAFORM_VERSION=1.1.2
-
-# Other versions
-# 0.8.8 0.9.11 0.10.8 0.11.15 0.12.31 0.13.7 0.14.11 0.15.5 1.0.7
-
-RUN /install-terraform-version latest
-
-ADD https://github.com/gruntwork-io/terragrunt/releases/download/v0.36.10/terragrunt_linux_amd64 /usr/local/bin/terragrunt
-
-RUN chmod +x /usr/local/bin/terragrunt
+ENV     DEFAULT_TERRAFORM_VERSION       1.1.2
+COPY    ./install-terraform-version /install-terraform-version
+RUN     /install-terraform-version latest \
+        && rm -f /install-terraform-version

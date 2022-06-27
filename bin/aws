@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+AWSCLI_VERSION="2.7.11"
+
+# Install awscli
+pushd /tmp > /dev/null
+curl -L -s "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o awscliv2.zip
+unzip -q awscliv2.zip > /dev/null
+rm -f awscliv2.zip
+./aws/install > /dev/null
+rm -rf ./aws/
+popd > /dev/null
+
+# Execute
+exec /usr/local/aws-cli/v2/current/bin/aws "$@"
