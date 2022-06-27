@@ -5,7 +5,7 @@ AWSCLI_VERSION="2.7.11"
 
 # Install awscli
 pushd /tmp > /dev/null
-curl -L -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o awscliv2.zip
+curl -L -s "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o awscliv2.zip
 unzip -q awscliv2.zip > /dev/null
 rm -f awscliv2.zip
 ./aws/install > /dev/null

@@ -5,7 +5,7 @@ GCLOUD_VERSION="391.0.0"
 
 # Install gcloud
 pushd /tmp > /dev/null
-curl -s "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz" -o "google-cloud-cli.tar.gz"
+curl -L -s "https://github.com/terrateamio/packages/raw/main/gcloud/google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz" -o google-cloud-cli.tar.gz
 tar -xf google-cloud-cli.tar.gz -C /usr/local/
 popd > /dev/null
 
