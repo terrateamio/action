@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# Install kubectl
+gcloud components install --no-user-output-enabled --quiet kubectl > /dev/null
+
+# Replace myself with a symlink
+rm -f /usr/local/bin/kubectl
+ln -s /usr/local/google-cloud-sdk/bin/kubectl /usr/local/bin/kubectl
+
+# Execute
+exec /usr/local/google-cloud-sdk/bin/kubectl "$@"

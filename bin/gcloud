@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+GCLOUD_VERSION="391.0.0"
+
+# Install gcloud
+pushd /tmp > /dev/null
+curl -s "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz" -o "google-cloud-cli.tar.gz"
+tar -xf google-cloud-cli.tar.gz -C /usr/local/
+popd > /dev/null
+
+# Replace myself with a symlink
+rm -f /usr/local/bin/gcloud
+ln -s /usr/local/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud
+
+# Execute
+exec /usr/local/google-cloud-sdk/bin/gcloud "$@"
