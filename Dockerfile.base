@@ -29,5 +29,4 @@ COPY	./bin/ /usr/local/bin
 
 ENV     DEFAULT_TERRAFORM_VERSION       1.1.2
 COPY    ./install-terraform-version /install-terraform-version
-RUN     /install-terraform-version latest \
-        && rm -f /install-terraform-version
+RUN     /install-terraform-version latest
