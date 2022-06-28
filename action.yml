@@ -1,5 +1,5 @@
-name: 'Terrateam Terrafrom Management'
-description: 'Manage Terraform Repositories with Terraform'
+name: 'Terrateam Workflow'
+description: 'Terraform Automation with GitHub Pull Requests'
 inputs:
   work-token:
     description: 'Work token for run'
