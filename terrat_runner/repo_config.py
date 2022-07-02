@@ -94,3 +94,12 @@ def get_create_and_select_workspace(repo_config, path):
     if dirs is None:
         dirs = {}
     return dirs.get(path, {}).get('create_and_select_workspace', True)
+
+
+def get_cost_estimation(repo_config):
+    cost_estimation = _get(repo_config, 'cost_estimation', {})
+    return {
+        'enabled': cost_estimation.get('enabled', True),
+        'provider': cost_estimation.get('provider', 'infracost'),
+        'currency': cost_estimation.get('currency', 'USD')
+    }
