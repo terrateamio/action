@@ -37,7 +37,17 @@ def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
 
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
-        return [{'type': 'checkout'}] + rc.get_plan_hooks(state.repo_config)['pre']
+        cost_estimation = []
+        cost_estimation_config = rc.get_cost_estimation(state.repo_config)
+        if cost_estimation_config['enabled']:
+            if cost_estimation_config['provider'] == 'infracost':
+                cost_estimation = [
+                    {
+                        'type': 'infracost_setup',
+                        'currency': cost_estimation_config['currency']
+                    }
+                ]
+        return cost_estimation + [{'type': 'checkout'}] + rc.get_plan_hooks(state.repo_config)['pre']
 
     def post_hooks(self, state):
         return rc.get_plan_hooks(state.repo_config)['post']
