@@ -86,7 +86,7 @@ def _f(state, results, d):
             'path': path,
             'workspace': workspace,
             'success': not state.failed,
-            'output': {k: v.decode('utf-8') for k, v in state.output.items()}
+            'output': state.output.copy()
         }
 
         return (state, result)

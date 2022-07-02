@@ -47,4 +47,4 @@ def run_with_output(state, config):
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
     stdout, _ = proc.communicate()
-    return (proc, _strip_ansi(stdout.decode('utf-8')).encode('utf-8'))
+    return (proc, _strip_ansi(stdout.decode('utf-8')))
