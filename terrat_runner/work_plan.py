@@ -93,6 +93,13 @@ def _f(state, results, d):
 
 
 def run(state):
+    results = {
+        'dirspaces': [],
+        'overall': {
+            'success': True
+        },
+    }
+
     plan_hooks = rc.get_plan_hooks(state.repo_config)
 
     logging.debug('EXEC : HOOKS : PRE_PLAN')
@@ -100,16 +107,6 @@ def run(state):
 
     if state.failed:
         raise Exception('Failed executing pre plan hooks')
-
-    # We want to run all directories even if one failed, so we need to reset the
-    # state failure at the beginning of each one but we want to fail the total
-    # operation if any one of them fails.
-    results = {
-        'dirspaces': [],
-        'overall': {
-            'success': True
-        },
-    }
 
     original_state = state
 
