@@ -7,6 +7,7 @@ import subprocess
 import repo_config
 import run_state
 import work_apply
+import work_exec
 import work_manifest
 import work_plan
 
@@ -15,8 +16,8 @@ DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
 
 
 WORK_MANIFEST_DISPATCH = {
-    'plan': work_plan.run,
-    'apply': work_apply.run
+    'plan': work_plan.Exec,
+    'apply': work_apply.Exec
 }
 
 
@@ -107,7 +108,7 @@ def main():
         perform_merge(args.workspace, wm['base_ref'], args.sha)
 
     logging.debug('EXEC : %s', wm['type'])
-    WORK_MANIFEST_DISPATCH[wm['type']](state)
+    work_exec.run(state, WORK_MANIFEST_DISPATCH[wm['type']]())
 
 
 if __name__ == '__main__':
