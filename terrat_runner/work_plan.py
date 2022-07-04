@@ -1,15 +1,13 @@
 import base64
 import hashlib
-import json
 import logging
 import os
 import tempfile
 
 import requests
 
-import dir_exec
-import hooks
 import repo_config as rc
+import work_exec
 import workflow_step
 
 
@@ -37,107 +35,54 @@ def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
         return False
 
 
-def _store_results(work_token, api_base_url, results):
-    res = requests.put(api_base_url + '/v1/work-manifests/' + work_token,
-                       json=results)
+class Exec(work_exec.ExecInterface):
+    def hooks(self, state):
+        return rc.get_plan_hooks(state.repo_config)
 
-    return res.status_code == 200
+    def exec(self, state, d):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logging.debug('EXEC : DIR : %s', d['path'])
 
+            # Need to reset output every iteration unfortunately because we do not
+            # have immutable dicts
+            state = state._replace(output={})
 
-def _f(state, results, d):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        logging.debug('EXEC : DIR : %s', d['path'])
+            path = d['path']
+            workspace = d['workspace']
+            workflow_idx = d.get('workflow')
 
-        # Need to reset output every iteration unfortunately because we do not
-        # have immutable dicts
-        state = state._replace(output={})
+            env = state.env.copy()
+            env['TERRATEAM_PLAN_FILE'] = os.path.join(tmpdir, 'plan')
+            env['TERRATEAM_DIR'] = path
+            env['TERRATEAM_WORKSPACE'] = workspace
+            env['TERRATEAM_TMPDIR'] = tmpdir
+            state = state._replace(env=env)
 
-        path = d['path']
-        workspace = d['workspace']
-        workflow_idx = d.get('workflow')
+            if workflow_idx is None:
+                workflow = rc.get_default_workflow(state.repo_config)
+            else:
+                workflow = rc.get_workflow(state.repo_config, workflow_idx)
 
-        env = state.env.copy()
-        env['TERRATEAM_PLAN_FILE'] = os.path.join(tmpdir, 'plan')
-        env['TERRATEAM_DIR'] = path
-        env['TERRATEAM_WORKSPACE'] = workspace
-        state = state._replace(env=env)
+            state = workflow_step.run_steps(
+                state._replace(working_dir=os.path.join(state.working_dir, path),
+                               path=path,
+                               workspace=workspace,
+                               workflow=workflow),
+                workflow['plan'])
 
-        if workflow_idx is None:
-            workflow = rc.get_default_workflow(state.repo_config)
-        else:
-            workflow = rc.get_workflow(state.repo_config, workflow_idx)
+            if not state.failed:
+                success = _store_plan(state.work_token,
+                                      state.api_base_url,
+                                      path,
+                                      workspace,
+                                      os.path.join(tmpdir, 'plan'))
+                state = state._replace(failed=not success)
 
-        state = workflow_step.run_steps(
-            state._replace(working_dir=os.path.join(state.working_dir, path),
-                           path=path,
-                           workspace=workspace,
-                           workflow=workflow),
-            workflow['plan'])
+            result = {
+                'path': path,
+                'workspace': workspace,
+                'success': not state.failed,
+                'output': state.output.copy()
+            }
 
-        if not state.failed:
-            success = _store_plan(state.work_token,
-                                  state.api_base_url,
-                                  path,
-                                  workspace,
-                                  os.path.join(tmpdir, 'plan'))
-            state = state._replace(failed=not success)
-
-        result = {
-            'path': path,
-            'workspace': workspace,
-            'success': not state.failed,
-            'output': state.output.copy()
-        }
-
-        return (state, result)
-
-
-def run(state):
-    results = {
-        'dirspaces': [],
-        'overall': {
-            'success': True
-        },
-    }
-
-    plan_hooks = rc.get_plan_hooks(state.repo_config)
-
-    logging.debug('EXEC : HOOKS : PRE_PLAN')
-    state = hooks.run_pre_hooks(state, plan_hooks)
-
-    if state.failed:
-        raise Exception('Failed executing pre plan hooks')
-
-    original_state = state
-
-    res = dir_exec.run(rc.get_parallelism(state.repo_config),
-                       state.work_manifest['dirs'],
-                       _f,
-                       (original_state, results))
-
-    for (s, r) in res:
-        state = state._replace(failed=state.failed or s.failed)
-        results['dirspaces'].append(r)
-
-    results['overall']['success'] = not state.failed
-
-    # Run post plans no matter what, some of they may run on failure
-    logging.debug('EXEC : HOOKS : POST_PLAN')
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with open(os.path.join(tmpdir, 'results'), 'w') as f:
-            f.write(json.dumps(results))
-
-        env = state.env.copy()
-        env['TERRATEAM_RESULTS_FILE'] = os.path.join(tmpdir, 'results')
-        state = state._replace(env=env)
-        state = hooks.run_post_hooks(state, plan_hooks)
-
-    ret = _store_results(state.work_token, state.api_base_url, results)
-
-    if not ret:
-        raise Exception('Failed to send results')
-
-    if not results['overall']['success']:
-        raise Exception('Failed executing plan')
-
-    return state
+            return (state, result)
