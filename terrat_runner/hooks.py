@@ -3,7 +3,7 @@
 import workflow_step
 
 
-ALLOWED_HOOK_STEPS = ['run', 'env']
+ALLOWED_HOOK_STEPS = ['run', 'env', 'checkout']
 
 
 def run_hooks(state, steps):
