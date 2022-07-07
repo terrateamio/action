@@ -31,11 +31,13 @@ def run_steps(state, steps, restrict_types=None):
         else:
             try:
                 (failed, state) = STEPS[step['type']](state, step)
-            except:
-                logging.exception('STEP : FAIL : %r', step)
+            except Exception as exn:
+                logging.exception(exn)
+                logging.error('STEP : FAIL : %r', step)
                 failed = True
 
             if failed:
+                logging.error('STEP : FAIL : %r', step)
                 state = state._replace(failed=True)
 
     return state
