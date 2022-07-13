@@ -20,8 +20,8 @@ RUN	apt-get update \
 	python3-yaml \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
-	
-RUN     curl -fsSL -o /usr/local/bin/terragrunt-0.36.10 "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_v0.36.10_linux_amd64" \
+
+RUN	curl -fsSL -o /usr/local/bin/terragrunt-0.36.10 "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_v0.36.10_linux_amd64" \
 	&& chmod +x /usr/local/bin/terragrunt-0.36.10 \
 	&& ln -s /usr/local/bin/terragrunt-0.36.10 /usr/local/bin/terragrunt
 
