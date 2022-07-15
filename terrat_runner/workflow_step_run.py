@@ -33,9 +33,9 @@ def run(state, config):
             failed = not (proc.returncode == 0 or ignore_errors)
         except cmd.MissingEnvVar as exn:
             # On env error, add to 'error' key in output
-            errors = state.output.get('errors', b'')
-            errors += ('Missing environment variable: {}\n'.format(exn.args[0])).encode('utf-8')
-            state.output['errors'] = errors
+            state.output.setdefault('errors', []).append(
+                'Missing environment variable: {}'.format(exn.args[0])
+            )
             failed = True
 
         return (failed, state)
