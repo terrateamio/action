@@ -20,6 +20,21 @@ WORK_MANIFEST_DISPATCH = {
 }
 
 
+BANNER = r"""
+ ____  _____    _    ____
+|  _ \| ____|  / \  |  _ \
+| |_) |  _|   / _ \ | | | |
+|  _ <| |___ / ___ \| |_| |
+|_| \_\_____/_/   \_\____/
+
+ __  __ _____
+|  \/  | ____|
+| |\/| |  _|
+| |  | | |___
+|_|  |_|_____|
+"""
+
+
 def make_parser():
     parser = argparse.ArgumentParser(description='Terrateam Runner')
     parser.add_argument('--work-token',
@@ -66,6 +81,16 @@ def set_secrets_context(state):
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
+
+    print(BANNER)
+    print('*** These are not the logs you are looking for ***')
+    print('***')
+    print('*** The output of the action is not meant for debugging purposes ***')
+    print('*** If you are reading this to debug an issue please: ***')
+    print('- Join our Slack community https://slack.terrateam.io/ (Fastest)')
+    print('- Email us directly at support@terrateam.io')
+    print('***')
+    print('***')
 
     parser = make_parser()
     args = parser.parse_args()
