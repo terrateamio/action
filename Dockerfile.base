@@ -31,6 +31,6 @@ RUN	curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terratea
 
 COPY	./bin/ /usr/local/bin
 
-ENV     DEFAULT_TERRAFORM_VERSION       1.1.2
+ENV     DEFAULT_TERRAFORM_VERSION       1.2.5
 COPY    ./install-terraform-version /install-terraform-version
 RUN     /install-terraform-version latest
