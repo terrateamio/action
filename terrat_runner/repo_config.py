@@ -92,7 +92,7 @@ def get_parallelism(repo_config):
 def get_create_and_select_workspace(repo_config, path):
     dirs = repo_config.get('dirs')
     if dirs is None:
-        dirs = {}
+        return False
     return dirs.get(path, {}).get('create_and_select_workspace', True)
 
 
