@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import re
 import subprocess
 import tempfile
 
@@ -88,13 +87,6 @@ def run(state, config):
 
     if failed:
         return (failed, state)
-
-    # Do a little translation to make it match diff syntax
-    plan_diff = state.output['plan_text']
-    plan_diff = re.sub(r'^( +)([-+~])', r'\2\1', plan_diff, flags=re.MULTILINE)
-    plan_diff = re.sub(r'^~', r'!', plan_diff, flags=re.MULTILINE)
-
-    state.output['plan_diff'] = plan_diff
 
     cost_estimation = rc.get_cost_estimation(state.repo_config)
     if cost_estimation['enabled']:
