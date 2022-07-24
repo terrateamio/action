@@ -59,6 +59,18 @@ class Exec(work_exec.ExecInterface):
             env['TERRATEAM_DIR'] = path
             env['TERRATEAM_WORKSPACE'] = workspace
             env['TERRATEAM_TMPDIR'] = tmpdir
+
+            create_and_select_workspace = rc.get_create_and_select_workspace(
+                state.repo_config,
+                path)
+
+            logging.info('APPLY : CREATE_AND_SELECT_WORKSPACE : %s : %r',
+                         path,
+                         create_and_select_workspace)
+
+            if create_and_select_workspace:
+                env['TF_WORKSPACE'] = workspace
+
             state = state._replace(env=env)
 
             if workflow_idx is None:
