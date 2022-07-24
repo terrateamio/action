@@ -49,7 +49,7 @@ def _run(state, exec_cb):
         raise Exception('Failed executing pre hooks')
 
     res = dir_exec.run(rc.get_parallelism(state.repo_config),
-                       state.work_manifest['dirs'],
+                       state.work_manifest.get('changed_dirspaces', state.work_manifest.get('dirs')),
                        exec_cb.exec,
                        (state,))
 
