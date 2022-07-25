@@ -1,5 +1,9 @@
+import json
 import logging
+import os
 import subprocess
+
+import infracost
 
 
 INFRACOST_API_KEY = 'INFRACOST_API_KEY'
@@ -7,6 +11,7 @@ INFRACOST_CURRENCY = 'INFRACOST_CURRENCY'
 
 
 def run(state, config):
+    failed = False
     env = state.env
 
     logging.info('INFRACOST : SETUP')
@@ -36,4 +41,40 @@ def run(state, config):
                            'currency',
                            env.get(INFRACOST_CURRENCY, config['currency'])])
 
-    return (False, state)
+    infracost_dir = os.path.join(state.tmpdir, 'infracost')
+    os.makedirs(infracost_dir, exist_ok=True)
+
+    total_monthly_cost = 0.0
+
+    for dirspace in state.work_manifest['dirspaces']:
+        path = dirspace['path']
+        workspace = dirspace['workspace']
+
+        outname = os.path.join(state.tmpdir, infracost.json_filename_of_dirspace(dirspace))
+
+        output = subprocess.check_output(['infracost',
+                                          'breakdown',
+                                          '--path={}'.format(os.path.join(state.working_dir, path)),
+                                          '--terraform-workspace={}'.format(workspace),
+                                          '--format=json',
+                                          '--out-file={}'.format(outname)],
+                                         stderr=subprocess.STDOUT)
+
+        output = output.decode('utf-8')
+
+        if 'level=error' in output:
+            state.output.setdefault('errors', []).append(output)
+            failed = True
+            break
+        else:
+            with open(outname) as f:
+                breakdown = json.load(f)
+
+            total_monthly_cost += float(breakdown['totalMonthlyCost'])
+
+    state.output['cost_estimation'] = {
+        'total_monthly_cost': total_monthly_cost,
+        'currency': config['currency']
+    }
+
+    return (failed, state)
