@@ -90,10 +90,6 @@ def get_parallelism(repo_config):
     return repo_config.get('parallel_runs', 3)
 
 
-def get_realtime_logs(repo_config):
-    return repo_config.get('realtime_logs', True)
-
-
 def get_create_and_select_workspace(repo_config, path):
     dirs = repo_config.get('dirs')
     if dirs is None:

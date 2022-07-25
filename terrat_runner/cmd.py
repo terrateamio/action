@@ -1,3 +1,4 @@
+import io
 import logging
 import re
 import string
@@ -47,16 +48,15 @@ def run_with_output(state, config):
                             env=env,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    if config.get('realtime_logs', False):
-        stdout = b''
-        while True:
-            b = proc.stdout.read(1)
-            if b == b'' and proc.poll() != None:
-                break
-            if b != b'':
-                stdout = stdout + b
-                sys.stdout.buffer.write(b)
-                sys.stdout.flush()
-    else:
-        stdout, _ = proc.communicate()
-    return (proc, _strip_ansi(stdout.decode('utf-8')))
+
+    line = proc.stdout.readline()
+    output = io.StringIO()
+    while line:
+        line = line.decode('utf-8')
+        output.write(line)
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        line = proc.stdout.readline()
+
+    proc.wait()
+    return (proc, _strip_ansi(output.getvalue()))
