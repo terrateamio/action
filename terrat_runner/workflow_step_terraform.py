@@ -1,6 +1,7 @@
 import os
 import subprocess
 
+import repo_config as rc
 import workflow_step_run
 
 
@@ -26,6 +27,7 @@ def run(state, config):
     config = {
         'cmd': cmd + args + extra_args,
         'output_key': config.get('output_key'),
-        'env': env
+        'env': env,
+        'realtime_logs': rc.get_realtime_logs(state.repo_config)
     }
     return workflow_step_run.run(state, config)
