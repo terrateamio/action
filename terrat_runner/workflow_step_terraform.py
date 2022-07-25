@@ -26,6 +26,6 @@ def run(state, config):
     config = {
         'cmd': cmd + args + extra_args,
         'output_key': config.get('output_key'),
-        'env': env
+        'env': env,
     }
     return workflow_step_run.run(state, config)

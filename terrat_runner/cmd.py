@@ -1,7 +1,9 @@
+import io
 import logging
 import re
 import string
 import subprocess
+import sys
 
 
 class MissingEnvVar(Exception):
@@ -46,5 +48,15 @@ def run_with_output(state, config):
                             env=env,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    stdout, _ = proc.communicate()
-    return (proc, _strip_ansi(stdout.decode('utf-8')))
+
+    line = proc.stdout.readline()
+    output = io.StringIO()
+    while line:
+        line = line.decode('utf-8')
+        output.write(line)
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        line = proc.stdout.readline()
+
+    proc.wait()
+    return (proc, _strip_ansi(output.getvalue()))
