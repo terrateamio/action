@@ -91,7 +91,7 @@ def get_parallelism(repo_config):
 
 
 def get_realtime_logs(repo_config):
-    return repo_config.get('realtime_logs', False)
+    return repo_config.get('realtime_logs', True)
 
 
 def get_create_and_select_workspace(repo_config, path):
