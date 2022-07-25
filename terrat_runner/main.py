@@ -13,6 +13,11 @@ import work_plan
 
 DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
 
+REPO_CONFIG_PATHS = [
+    os.path.join('.terrateam', 'config.yml'),
+    os.path.join('.terrateam', 'config.yaml')
+]
+
 
 WORK_MANIFEST_DISPATCH = {
     'plan': work_plan.Exec,
@@ -106,7 +111,7 @@ def main():
     wm = work_manifest.get(args.api_base_url, args.work_token, args.run_id, args.sha)
 
     logging.debug('LOADING: REPO_CONFIG')
-    rc = repo_config.load(os.path.join(args.workspace, '.terrateam', 'config.yml'))
+    rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
     state = run_state.create(args.work_token, rc, args.workspace, args.api_base_url, wm, args.sha)
 
     env = state.env.copy()
