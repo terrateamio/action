@@ -10,12 +10,13 @@ def _get(d, k, default):
         return v
 
 
-def load(path):
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            return yaml.safe_load(f.read())
-    else:
-        return {}
+def load(paths):
+    for path in paths:
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return yaml.safe_load(f.read())
+
+    return {}
 
 
 def default_plan_workflow():
