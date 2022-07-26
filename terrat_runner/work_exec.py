@@ -33,35 +33,57 @@ def _store_results(work_token, api_base_url, results):
 
 
 def _run(state, exec_cb):
-    results = {
-        'dirspaces': [],
-        'overall': {
-            'success': True
-        },
-    }
 
     pre_hooks = exec_cb.pre_hooks(state)
 
     logging.debug('EXEC : HOOKS : PRE')
     state = hooks.run_pre_hooks(state, pre_hooks)
 
+    # Bail out if we failed in prehooks
     if state.failed:
-        raise Exception('Failed executing pre hooks')
+        results = {
+            'dirspaces': [
+                {
+                    'path': ds['path'],
+                    'workspace': ds['workspace'],
+                    'success': False,
+                    'output': {}
+                }
+                for ds in state.work_manifest['changed_dirspaces']
+            ],
+            'overall': {
+                'success': False,
+                'output': state.output
+            },
+        }
+        ret = _store_results(state.work_token, state.api_base_url, results)
+
+        if not ret:
+            raise Exception('Failed to send results')
+        else:
+            raise Exception('Failed executing pre hooks')
 
     res = dir_exec.run(rc.get_parallelism(state.repo_config),
-                       state.work_manifest.get('changed_dirspaces', state.work_manifest.get('dirs')),
+                       state.work_manifest['changed_dirspaces'],
                        exec_cb.exec,
                        (state,))
 
+    dirspaces = []
     for (s, r) in res:
         state = state._replace(failed=state.failed or s.failed)
-        results['dirspaces'].append(r)
-
-    results['overall']['success'] = not state.failed
+        dirspaces.append(r)
 
     logging.debug('EXEC : HOOKS : POST')
 
     results_json = os.path.join(state.tmpdir, 'results.json')
+
+    results = {
+        'dirspaces': dirspaces,
+        'overall': {
+            'success': not state.failed,
+            'output': state.output
+        }
+    }
 
     with open(results_json, 'w') as f:
         f.write(json.dumps(results))
@@ -71,6 +93,8 @@ def _run(state, exec_cb):
     state = state._replace(env=env)
     post_hooks = exec_cb.post_hooks(state)
     state = hooks.run_post_hooks(state, post_hooks)
+
+    results['overall']['output'] = state.output
 
     ret = _store_results(state.work_token, state.api_base_url, results)
 
