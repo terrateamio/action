@@ -10,7 +10,7 @@ def perform_merge(git_workspace, base_ref, head_ref):
     subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
     subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
     subprocess.check_call(['git', 'branch'], cwd=git_workspace)
-    subprocess.check_call(['git', 'checkout', base_ref], cwd=git_workspace)
+    subprocess.check_call(['git', 'checkout', base_ref, '--'], cwd=git_workspace)
     subprocess.check_call(['git', 'merge', '--no-commit', head_ref], cwd=git_workspace)
 
 
