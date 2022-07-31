@@ -16,6 +16,8 @@ def _exec_infracost(state):
         with open(diff_infracost) as f:
             diff = json.load(f)
 
+        outputs = []
+
         p = [p for p in diff['projects']
              if (p['metadata']['path'] == state.path and
                  p['metadata']['terraformWorkspace'] == state.workspace)]
@@ -47,10 +49,15 @@ def run(state, config):
     config = config.copy()
     config['args'] = ['plan', '-out', '$TERRATEAM_PLAN_FILE']
     config['output_key'] = 'plan'
-    (failed, state) = workflow_step_terraform.run(state, config)
 
-    if failed:
-        return (failed, state)
+    outputs = {}
+
+    result = workflow_step_terraform.run(state, config)
+
+    if result.failed:
+        return result._replace(workflow_step={'type': 'plan'})
+
+    outputs['plan'] = result.outputs['text']
 
     # Grab just the plan output.  If running the plan succeded, we want to just
     # show the plan text.  If it failed above, we want to be able to show the
@@ -61,10 +68,13 @@ def run(state, config):
     result = workflow_step_terraform.run(state, config)
 
     if result.failed:
-        return result
+        return result._replace(workflow_step={'type': 'plan'})
+
+    outputs['plan_text'] = result.outputs['text']
 
     cost_estimation = rc.get_cost_estimation(state.repo_config)
     if cost_estimation['enabled']:
         _exec_cost_estimation(state, cost_estimation)
 
-    return result
+    return result._replace(workflow_step={'type': 'plan'},
+                           outputs=outputs)

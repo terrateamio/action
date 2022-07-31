@@ -12,6 +12,7 @@ State = collections.namedtuple('State', ['work_token',
                                          'path',
                                          'env',
                                          'output',
+                                         'outputs',
                                          'failed',
                                          'sha',
                                          'tmpdir'])
@@ -28,6 +29,7 @@ def create(work_token, repo_config, working_dir, api_base_url, work_manifest, sh
                  workflow=None,
                  env=os.environ.copy(),
                  output={},
+                 outputs=[],
                  failed=False,
                  sha=sha,
                  tmpdir=None)

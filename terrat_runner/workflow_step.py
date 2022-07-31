@@ -2,6 +2,7 @@
 # which each take their own configuration parameters.
 import logging
 
+import workflow
 import workflow_step_apply
 import workflow_step_checkout_strategy
 import workflow_step_env
@@ -23,6 +24,8 @@ STEPS = {
 
 
 def run_steps(state, steps, restrict_types=None):
+    results = []
+
     for step in steps:
         if 'type' not in step:
             raise Exception('Step must contain a type')
@@ -36,12 +39,22 @@ def run_steps(state, steps, restrict_types=None):
             except Exception as exn:
                 logging.exception(exn)
                 logging.error('STEP : FAIL : %r', step)
-                result = result._replace(failed=True)
+                # TODO: Fixme, this is not a valid result
+                result = workflow.Result(failed=True,
+                                         state=state,
+                                         workflow_step={},
+                                         outputs=[])
 
-            state = result.state
+            results.append(result)
 
             if result.failed:
                 logging.error('STEP : FAIL : %r', step)
                 state = state._replace(failed=True)
 
-    return state
+    return state._replace(outputs=[
+        {
+            'workflow_step': r.workflow_step,
+            'success': not r.failed,
+            'outputs': r.outputs
+        }
+        for r in results])

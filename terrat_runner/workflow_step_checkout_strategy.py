@@ -31,4 +31,7 @@ def run(state, config):
             # TODO Handle
             raise
 
-    return workflow.Result(failed=False, state=state)
+    return workflow.Result(failed=False,
+                           state=state,
+                           workflow_step={'type': 'checkout'},
+                           outputs={'text': 'Checkout'})

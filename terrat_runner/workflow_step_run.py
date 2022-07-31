@@ -22,12 +22,20 @@ def run(state, config):
        or (not state.failed and run_on == RUN_ON_SUCCESS):
 
         output_key = config.get('output_key')
+        capture_output = config.get('capture_output', False)
+
+        outputs = None
 
         try:
-            # Only capture output if we want to save it somewhere
-            if output_key is not None:
+            # Only capture output if we want to save it somewhere or we have
+            # explicitly enabled it.
+            if output_key is not None or capture_output:
                 proc, stdout = cmd.run_with_output(state, config)
-                state.output[output_key] = stdout
+                if output_key:
+                    state.output[output_key] = stdout
+                    outputs = {'output_key': output_key, 'text': stdout}
+                else:
+                    outputs = {'text': stdout}
             else:
                 proc = cmd.run(state, config)
 
@@ -39,6 +47,12 @@ def run(state, config):
             )
             failed = True
 
-        return workflow.Result(failed=failed, state=state)
+        return workflow.Result(failed=failed,
+                               state=state,
+                               workflow_step={'type': 'run', 'cmd': config['cmd']},
+                               outputs=outputs)
     else:
-        return workflow.Result(failed=False, state=state)
+        return workflow.Result(failed=True,
+                               state=state,
+                               workflow_step={'type': 'run', 'cmd': config['cmd']},
+                               outputs=None)

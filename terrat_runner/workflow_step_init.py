@@ -7,4 +7,6 @@ def run(state, config):
     config['args'] = ['init']
     config['output_key'] = 'init'
 
-    return workflow_step_terraform.run(state, config)
+    result = workflow_step_terraform.run(state, config)
+
+    return result._replace(workflow_step={'type': 'init'})

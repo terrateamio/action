@@ -47,13 +47,18 @@ def _run(state, exec_cb):
                     'path': ds['path'],
                     'workspace': ds['workspace'],
                     'success': False,
-                    'output': {}
+                    'output': {},
+                    'outputs': [],
                 }
                 for ds in state.work_manifest['changed_dirspaces']
             ],
             'overall': {
                 'success': False,
-                'output': state.output
+                'output': state.output,
+                'outputs': {
+                    'pre': state.outputs,
+                    'post': []
+                }
             },
         }
         ret = _store_results(state.work_token, state.api_base_url, results)
@@ -62,6 +67,10 @@ def _run(state, exec_cb):
             raise Exception('Failed to send results')
         else:
             raise Exception('Failed executing pre hooks')
+
+    pre_hook_outputs = state.outputs
+
+    state = state._replace(outputs=[])
 
     res = dir_exec.run(rc.get_parallelism(state.repo_config),
                        state.work_manifest['changed_dirspaces'],
@@ -81,7 +90,7 @@ def _run(state, exec_cb):
         'dirspaces': dirspaces,
         'overall': {
             'success': not state.failed,
-            'output': state.output
+            'output': state.output,
         }
     }
 
@@ -91,10 +100,15 @@ def _run(state, exec_cb):
     env = state.env.copy()
     env['TERRATEAM_RESULTS_FILE'] = results_json
     state = state._replace(env=env)
+
     post_hooks = exec_cb.post_hooks(state)
-    state = hooks.run_post_hooks(state, post_hooks)
+    state = hooks.run_post_hooks(state._replace(outputs=[]), post_hooks)
 
     results['overall']['output'] = state.output
+    results['overall']['outputs'] = {
+        'pre': pre_hook_outputs,
+        'post': state.outputs
+    }
 
     ret = _store_results(state.work_token, state.api_base_url, results)
 
