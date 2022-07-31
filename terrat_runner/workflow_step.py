@@ -32,13 +32,15 @@ def run_steps(state, steps, restrict_types=None):
             raise Exception('Step type {} not allowed in this mode'.format(step['type']))
         else:
             try:
-                (failed, state) = STEPS[step['type']](state, step)
+                result = STEPS[step['type']](state, step)
             except Exception as exn:
                 logging.exception(exn)
                 logging.error('STEP : FAIL : %r', step)
-                failed = True
+                result = result._replace(failed=True)
 
-            if failed:
+            state = result.state
+
+            if result.failed:
                 logging.error('STEP : FAIL : %r', step)
                 state = state._replace(failed=True)
 

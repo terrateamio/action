@@ -4,6 +4,7 @@ import os
 import subprocess
 
 import infracost
+import workflow
 
 
 INFRACOST_API_KEY = 'INFRACOST_API_KEY'
@@ -158,4 +159,4 @@ def run(state, config):
         logging.exception('INFRACOST : ERROR')
         logging.error('%s', exn.stdout)
 
-    return (False, state)
+    return workflow.Result(failed=failed, state=state)

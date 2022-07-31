@@ -7,8 +7,4 @@ def run(state, config):
     config['args'] = ['init']
     config['output_key'] = 'init'
 
-    (failed, state) = workflow_step_terraform.run(state, config)
-    if failed:
-        return (failed, state)
-
-    return (False, state)
+    return workflow_step_terraform.run(state, config)

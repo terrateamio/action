@@ -4,6 +4,7 @@ import os
 
 import infracost
 import repo_config as rc
+import workflow
 import workflow_step_terraform
 
 
@@ -57,13 +58,13 @@ def run(state, config):
     config['args'] = ['show', '$TERRATEAM_PLAN_FILE']
     config['output_key'] = 'plan_text'
 
-    (failed, state) = workflow_step_terraform.run(state, config)
+    result = workflow_step_terraform.run(state, config)
 
-    if failed:
-        return (failed, state)
+    if result.failed:
+        return result
 
     cost_estimation = rc.get_cost_estimation(state.repo_config)
     if cost_estimation['enabled']:
         _exec_cost_estimation(state, cost_estimation)
 
-    return (failed, state)
+    return result

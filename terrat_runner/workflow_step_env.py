@@ -1,3 +1,4 @@
+import workflow
 import workflow_step_run
 
 
@@ -20,18 +21,18 @@ def run(state, config):
     if 'run_on' in config:
         run_config['run_on'] = config['run_on']
 
-    (failed, state) = workflow_step_run.run(state._replace(output={}), run_config)
+    result = workflow_step_run.run(state._replace(output={}), run_config)
 
-    cmd_output = state.output['output']
+    cmd_output = result.state.output['output']
 
     if config.get('trim_trailing_newlines', True):
         cmd_output = cmd_output.rstrip('\n')
 
-    state = state._replace(output=output)
+    state = result.state._replace(output=output)
 
-    if not failed:
+    if not result.failed:
         env = state.env.copy()
         env[config['name']] = cmd_output
         state = state._replace(env=env)
 
-    return (failed, state)
+    return workflow.Result(failed=result.failed, state=state)

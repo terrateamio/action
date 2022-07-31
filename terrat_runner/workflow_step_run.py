@@ -1,4 +1,5 @@
 import cmd
+import workflow
 
 
 RUN_ON_SUCCESS = 'success'
@@ -38,6 +39,6 @@ def run(state, config):
             )
             failed = True
 
-        return (failed, state)
+        return workflow.Result(failed=failed, state=state)
     else:
-        return (False, state)
+        return workflow.Result(failed=False, state=state)

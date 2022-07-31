@@ -2,6 +2,7 @@ import logging
 import subprocess
 
 import repo_config
+import workflow
 
 
 def setup_repo(git_workspace):
@@ -30,4 +31,4 @@ def run(state, config):
             # TODO Handle
             raise
 
-    return (False, state)
+    return workflow.Result(failed=False, state=state)
