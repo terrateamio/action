@@ -50,6 +50,8 @@ def run(state, config):
         path = dirspace['path']
         workspace = dirspace['workspace']
 
+        logging.info('INFRACOST : SETUP : %s', path)
+
         outname = os.path.join(state.tmpdir, infracost.json_filename_of_dirspace(dirspace))
 
         output = subprocess.check_output(['infracost',
@@ -62,6 +64,9 @@ def run(state, config):
 
         output = output.decode('utf-8')
 
+        for line in output.splitlines():
+            logging.info('INFRACOST : SETUP : %s : %s', path, line)
+
         if 'level=error' in output:
             state.output.setdefault('errors', []).append(output)
             failed = True
@@ -70,7 +75,7 @@ def run(state, config):
             with open(outname) as f:
                 breakdown = json.load(f)
 
-            total_monthly_cost += float(breakdown['totalMonthlyCost'])
+            total_monthly_cost += infracost.convert_cost(breakdown['totalMonthlyCost'])
 
     state.output['cost_estimation'] = {
         'total_monthly_cost': total_monthly_cost,

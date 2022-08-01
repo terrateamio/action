@@ -4,6 +4,7 @@ import os
 import subprocess
 import tempfile
 
+import infracost
 import repo_config as rc
 import workflow_step_terraform
 
@@ -44,9 +45,9 @@ def _exec_infracost(state):
                         breakdown = json.load(f)
 
                     state.output['cost_estimation'] = {
-                        'prev_monthly_cost': float(breakdown['pastTotalMonthlyCost']),
-                        'total_monthly_cost': float(breakdown['totalMonthlyCost']),
-                        'diff_monthly_cost': float(breakdown['diffTotalMonthlyCost']),
+                        'prev_monthly_cost': infracost.convert_cost(breakdown['pastTotalMonthlyCost']),
+                        'total_monthly_cost': infracost.convert_cost(breakdown['totalMonthlyCost']),
+                        'diff_monthly_cost': infracost.convert_cost(breakdown['diffTotalMonthlyCost']),
                         'currency': breakdown['currency']
                     }
             except subprocess.CalledProcessError as exn:
