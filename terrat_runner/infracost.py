@@ -1,4 +1,5 @@
 import hashlib
+import yaml
 
 
 def json_filename_of_dirspace(dirspace):
@@ -14,3 +15,19 @@ def convert_cost(cost):
             return 0.0
     else:
         return 0.0
+
+
+def create_infracost_yml(outname, dirspaces):
+    config = {
+        'version': '0.1',
+        'projects': [
+            {
+                'path': ds['path'],
+                'terraform_workspace': ds['workspace']
+                }
+            for ds in dirspaces
+        ]
+    }
+
+    with open(outname, 'w') as f:
+        yaml.dump(config, f)
