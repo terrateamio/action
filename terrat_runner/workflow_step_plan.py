@@ -11,7 +11,7 @@ def _exec_infracost(state):
     infracost_dir = os.path.join(state.tmpdir, 'infracost')
     diff_infracost = os.path.join(infracost_dir, 'infracost-diff.json')
 
-    if diff_infracost:
+    if os.path.exists(diff_infracost):
         with open(diff_infracost) as f:
             diff = json.load(f)
 
