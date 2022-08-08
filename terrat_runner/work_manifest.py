@@ -1,3 +1,4 @@
+import logging
 import requests
 
 
@@ -9,6 +10,7 @@ def get(api_base_url, work_token, run_id, sha):
                       })
 
     if r.status_code != 200:
+        logging.error('%s', r.text)
         raise Exception('Invalid work manifest response code')
 
     work_manifest = r.json()
