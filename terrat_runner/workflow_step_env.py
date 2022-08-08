@@ -25,7 +25,7 @@ def run(state, config):
     cmd_output = state.output['output']
 
     if config.get('trim_trailing_newlines', True):
-        cmd_output = cmd_output.rstrip(b'\n')
+        cmd_output = cmd_output.rstrip('\n')
 
     state = state._replace(output=output)
 

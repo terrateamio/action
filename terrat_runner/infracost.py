@@ -24,7 +24,7 @@ def create_infracost_yml(outname, dirspaces):
             {
                 'path': ds['path'],
                 'terraform_workspace': ds['workspace']
-                }
+            }
             for ds in dirspaces
         ]
     }
