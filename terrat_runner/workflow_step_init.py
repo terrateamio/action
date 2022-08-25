@@ -7,8 +7,6 @@ def run(state, config):
     config['args'] = ['init']
     config['output_key'] = 'init'
 
-    (failed, state) = workflow_step_terraform.run(state, config)
-    if failed:
-        return (failed, state)
+    result = workflow_step_terraform.run(state, config)
 
-    return (False, state)
+    return result._replace(workflow_step={'type': 'init'})

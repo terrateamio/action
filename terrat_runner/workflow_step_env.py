@@ -1,3 +1,4 @@
+import workflow
 import workflow_step_run
 
 
@@ -12,7 +13,7 @@ def run(state, config):
     # acquires new configuration, we have to remember to thread them through.
     run_config = {
         'cmd': config['cmd'],
-        'output_key': 'output'
+        'capture_output': True
     }
 
     if 'ignore_errors' in config:
@@ -20,18 +21,24 @@ def run(state, config):
     if 'run_on' in config:
         run_config['run_on'] = config['run_on']
 
-    (failed, state) = workflow_step_run.run(state._replace(output={}), run_config)
+    result = workflow_step_run.run(state._replace(output={}), run_config)
 
-    cmd_output = state.output['output']
+    state = result.state._replace(output=output)
 
-    if config.get('trim_trailing_newlines', True):
-        cmd_output = cmd_output.rstrip('\n')
+    if not result.failed:
+        cmd_output = result.outputs[-1]['text']
 
-    state = state._replace(output=output)
+        if config.get('trim_trailing_newlines', True):
+            cmd_output = cmd_output.rstrip('\n')
 
-    if not failed:
         env = state.env.copy()
         env[config['name']] = cmd_output
         state = state._replace(env=env)
+        result = result._replace(state=state, outputs=[])
 
-    return (failed, state)
+    return result._replace(
+        workflow_step={
+            'type': 'env',
+            'name': config['name'],
+            'cmd': config['cmd']
+        })

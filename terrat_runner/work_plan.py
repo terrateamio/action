@@ -59,7 +59,7 @@ class Exec(work_exec.ExecInterface):
 
             # Need to reset output every iteration unfortunately because we do not
             # have immutable dicts
-            state = state._replace(output={})
+            state = state._replace(output={}, outputs=[])
 
             path = d['path']
             workspace = d['workspace']
@@ -108,7 +108,8 @@ class Exec(work_exec.ExecInterface):
                 'path': path,
                 'workspace': workspace,
                 'success': not state.failed,
-                'output': state.output.copy()
+                'output': state.output.copy(),
+                'outputs': state.outputs.copy(),
             }
 
             return (state, result)
