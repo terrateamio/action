@@ -4,7 +4,6 @@ import os
 
 import infracost
 import repo_config as rc
-import workflow
 import workflow_step_terraform
 
 
@@ -15,8 +14,6 @@ def _exec_infracost(state):
     if os.path.exists(diff_infracost):
         with open(diff_infracost) as f:
             diff = json.load(f)
-
-        outputs = []
 
         p = [p for p in diff['projects']
              if (p['metadata']['path'] == state.path and

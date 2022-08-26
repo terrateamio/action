@@ -105,3 +105,13 @@ def get_cost_estimation(repo_config):
         'provider': cost_estimation.get('provider', 'infracost'),
         'currency': cost_estimation.get('currency', 'USD')
     }
+
+
+def get_retry(config):
+    retry = _get(config, 'retry', {})
+    return {
+        'enabled': _get(retry, 'enabled', False),
+        'tries': _get(retry, 'tries', 3),
+        'backoff': _get(retry, 'backoff', 3.0),
+        'initial_sleep': _get(retry, 'initial_sleep', 5)
+    }
