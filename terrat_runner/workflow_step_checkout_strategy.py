@@ -1,3 +1,4 @@
+import io
 import logging
 import subprocess
 
@@ -5,33 +6,63 @@ import repo_config
 import workflow
 
 
-def setup_repo(git_workspace):
-    subprocess.check_call(['git', 'config', '--global', '--add', 'safe.directory', git_workspace])
-    subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
-    subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
-    subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
+def _accum_output(output_buffer, cmd, *args, **kwargs):
+    output = subprocess.check_output(cmd, *args, **kwargs)
+    output = output.decode('utf-8')
+    output_buffer.write(output)
 
 
-def perform_merge(git_workspace, base_ref, head_ref):
-    subprocess.check_call(['git', 'branch'], cwd=git_workspace)
-    subprocess.check_call(['git', 'checkout', base_ref, '--'], cwd=git_workspace)
-    subprocess.check_call(['git', 'checkout', '-b', 'terrateam/main', base_ref], cwd=git_workspace)
-    subprocess.check_call(['git', 'merge', '--no-commit', head_ref], cwd=git_workspace)
+def _setup_repo(output_buffer, git_workspace):
+    _accum_output(output_buffer,
+                  ['git', 'config', '--global', '--add', 'safe.directory', git_workspace],
+                  stderr=subprocess.STDOUT)
+    _accum_output(output_buffer,
+                  ['git', 'config', '--global', 'user.email', 'hello@terrateam.com'],
+                  stderr=subprocess.STDOUT)
+    _accum_output(output_buffer,
+                  ['git', 'config', '--global', 'user.name', 'Terrateam Action'],
+                  stderr=subprocess.STDOUT)
+    _accum_output(output_buffer,
+                  ['git', 'config', '--global', 'advice.detachedHead', 'false'],
+                  stderr=subprocess.STDOUT)
+
+
+def _perform_merge(output_buffer, git_workspace, base_ref, head_ref):
+    _accum_output(output_buffer,
+                  ['git', 'branch'],
+                  stderr=subprocess.STDOUT,
+                  cwd=git_workspace)
+    _accum_output(output_buffer,
+                  ['git', 'checkout', base_ref, '--'],
+                  stderr=subprocess.STDOUT,
+                  cwd=git_workspace)
+    _accum_output(output_buffer,
+                  ['git', 'checkout', '-b', 'terrateam/main', base_ref],
+                  stderr=subprocess.STDOUT,
+                  cwd=git_workspace)
+    _accum_output(output_buffer,
+                  ['git', 'merge', '--no-commit', head_ref],
+                  stderr=subprocess.STDOUT,
+                  cwd=git_workspace)
 
 
 def run(state, config):
-    setup_repo(state.working_dir)
+    failed = False
+    output = io.StringIO()
+
+    _setup_repo(output, state.working_dir)
 
     checkout_strategy = repo_config.get_checkout_strategy(state.repo_config)
     logging.debug('CHECKOUT_STRATEGY : %s', checkout_strategy)
     if checkout_strategy == 'merge':
         try:
-            perform_merge(state.working_dir, state.work_manifest['base_ref'], state.sha)
-        except subprocess.CalledProcessError:
-            # TODO Handle
-            raise
+            _perform_merge(output, state.working_dir, state.work_manifest['base_ref'], state.sha)
+        except subprocess.CalledProcessError as exn:
+            failed = True
+            output.write(exn.stdout.decode('utf-8'))
+            output.write(exn.stderr.decode('utf-8'))
 
-    return workflow.Result(failed=False,
+    return workflow.Result(failed=failed,
                            state=state,
                            workflow_step={'type': 'checkout'},
-                           outputs={'text': 'Checkout'})
+                           outputs={'text': output.getvalue()})
