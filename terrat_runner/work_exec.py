@@ -101,6 +101,7 @@ def _run(state, exec_cb):
     post_hooks = exec_cb.post_hooks(state)
     state = hooks.run_post_hooks(state._replace(outputs=[]), post_hooks)
 
+    results['overall']['success'] = not state.failed
     results['overall']['outputs'] = {
         'pre': pre_hook_outputs,
         'post': state.outputs
