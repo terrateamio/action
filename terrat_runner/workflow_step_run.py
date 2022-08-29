@@ -1,3 +1,5 @@
+import logging
+
 import cmd
 import workflow
 
@@ -39,8 +41,18 @@ def run(state, config):
                 proc = cmd.run(state, config)
 
             failed = not (proc.returncode == 0 or ignore_errors)
-        except cmd.MissingEnvVar:
+        except cmd.MissingEnvVar as exn:
             failed = True
+            logging.error('Missing environment variable: %s', exn.args[0])
+            if output_key:
+                outputs = {
+                    'output_key': output_key,
+                    'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0])
+                }
+            else:
+                outputs = {
+                    'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0])
+                }
 
         return workflow.Result(failed=failed,
                                state=state,
