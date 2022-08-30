@@ -47,14 +47,12 @@ def _run(state, exec_cb):
                     'path': ds['path'],
                     'workspace': ds['workspace'],
                     'success': False,
-                    'output': {},
                     'outputs': [],
                 }
                 for ds in state.work_manifest['changed_dirspaces']
             ],
             'overall': {
                 'success': False,
-                'output': state.output,
                 'outputs': {
                     'pre': state.outputs,
                     'post': []
@@ -90,7 +88,6 @@ def _run(state, exec_cb):
         'dirspaces': dirspaces,
         'overall': {
             'success': not state.failed,
-            'output': state.output,
         }
     }
 
@@ -104,7 +101,7 @@ def _run(state, exec_cb):
     post_hooks = exec_cb.post_hooks(state)
     state = hooks.run_post_hooks(state._replace(outputs=[]), post_hooks)
 
-    results['overall']['output'] = state.output
+    results['overall']['success'] = not state.failed
     results['overall']['outputs'] = {
         'pre': pre_hook_outputs,
         'post': state.outputs
