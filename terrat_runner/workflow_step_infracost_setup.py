@@ -148,13 +148,6 @@ def run(state, config):
             with open(diff_infracost) as f:
                 diff = json.load(f)
 
-            state.output['cost_estimation'] = {
-                'prev_monthly_cost': infracost.convert_cost(diff['pastTotalMonthlyCost']),
-                'total_monthly_cost': infracost.convert_cost(diff['totalMonthlyCost']),
-                'diff_monthly_cost': infracost.convert_cost(diff['diffTotalMonthlyCost']),
-                'currency': diff['currency'],
-            }
-
         changed_dirspaces = set([(ds['path'], ds['workspace'])
                                  for ds in state.work_manifest['changed_dirspaces']])
 
