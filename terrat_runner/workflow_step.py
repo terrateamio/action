@@ -36,6 +36,7 @@ def run_steps(state, steps, restrict_types=None):
         else:
             try:
                 result = STEPS[step['type']](state, step)
+                state = result.state
             except Exception as exn:
                 logging.exception(exn)
                 logging.error('STEP : FAIL : %r', step)
