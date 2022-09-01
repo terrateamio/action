@@ -4,11 +4,16 @@ import os
 import subprocess
 
 import infracost
+import retry
 import workflow
 
 
 INFRACOST_API_KEY = 'INFRACOST_API_KEY'
 INFRACOST_CURRENCY = 'INFRACOST_CURRENCY'
+
+TRIES = 3
+INITIAL_SLEEP = 2
+BACKOFF = 1.5
 
 
 def _dedup_infracost_projects(breakdown_fname):
@@ -36,6 +41,18 @@ def _dedup_infracost_projects(breakdown_fname):
         f.write(json.dumps(breakdown))
 
 
+def _run_retry(cmd, *args, **kwargs):
+    ret = retry.run(
+        lambda: subprocess.run(cmd, *args, **kwargs),
+        retry.finite_tries(TRIES, lambda ret: ret.returncode == 0),
+        retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
+
+    if ret.returncode != 0:
+        raise subprocess.CalledProcessError(ret.returncode, cmd, ret.stdout, ret.stderr)
+
+    return ret
+
+
 def _checkout_base(state):
     base_branch = subprocess.check_output(['git', 'branch', '--show-current'],
                                           cwd=state.working_dir)
@@ -49,29 +66,29 @@ def _configure_infracost(state, config):
     env = state.env
     if INFRACOST_API_KEY in env:
         logging.info('INFRACOST : SETUP : PUBLIC_ENDPOINT')
-        subprocess.check_call(['infracost',
-                               'configure',
-                               'set',
-                               'api_key',
-                               env[INFRACOST_API_KEY].strip()])
+        _run_retry(['infracost',
+                    'configure',
+                    'set',
+                    'api_key',
+                    env[INFRACOST_API_KEY].strip()])
     else:
         logging.info('INFRACOST : SETUP : SELF_HOSTED_ENDPOINT')
-        subprocess.check_call(['infracost',
-                               'configure',
-                               'set',
-                               'pricing_api_endpoint',
-                               state.api_base_url + '/infracost'])
-        subprocess.check_call(['infracost',
-                               'configure',
-                               'set',
-                               'api_key',
-                               state.work_token])
+        _run_retry(['infracost',
+                    'configure',
+                    'set',
+                    'pricing_api_endpoint',
+                    state.api_base_url + '/infracost'])
+        _run_retry(['infracost',
+                    'configure',
+                    'set',
+                    'api_key',
+                    state.work_token])
 
-    subprocess.check_call(['infracost',
-                           'configure',
-                           'set',
-                           'currency',
-                           env.get(INFRACOST_CURRENCY, config['currency'])])
+    _run_retry(['infracost',
+                'configure',
+                'set',
+                'currency',
+                env.get(INFRACOST_CURRENCY, config['currency'])])
 
 
 def _create_base_infracost(state, config, infracost_dir, infracost_json):
@@ -81,15 +98,16 @@ def _create_base_infracost(state, config, infracost_dir, infracost_json):
 
         infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['base_dirspaces'])
 
-        output = subprocess.check_output(['infracost',
-                                          'breakdown',
-                                          '--config-file={}'.format(infracost_config_yml),
-                                          '--format=json',
-                                          '--out-file={}'.format(infracost_json)],
-                                         cwd=state.working_dir,
-                                         stderr=subprocess.STDOUT)
+        ret = _run_retry(['infracost',
+                          'breakdown',
+                          '--config-file={}'.format(infracost_config_yml),
+                          '--format=json',
+                          '--out-file={}'.format(infracost_json)],
+                         cwd=state.working_dir,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT)
 
-        output = output.decode('utf-8')
+        output = ret.stdout.decode('utf-8')
 
         _dedup_infracost_projects(infracost_json)
 
@@ -117,29 +135,32 @@ def run(state, config):
 
         infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['dirspaces'])
 
-        output = subprocess.check_output(['infracost',
-                                          'breakdown',
-                                          '--config-file={}'.format(infracost_config_yml),
-                                          '--format=json',
-                                          '--out-file={}'.format(curr_infracost)],
-                                         cwd=state.working_dir,
-                                         stderr=subprocess.STDOUT)
-        output = output.decode('utf-8')
+        ret = _run_retry(['infracost',
+                          'breakdown',
+                          '--config-file={}'.format(infracost_config_yml),
+                          '--format=json',
+                          '--out-file={}'.format(curr_infracost)],
+                         cwd=state.working_dir,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT)
+
+        output = ret.stdout.decode('utf-8')
 
         for line in output.splitlines():
             logging.info('INFRACOST : SETUP : %s', line)
 
         _dedup_infracost_projects(curr_infracost)
 
-        diff_output = subprocess.check_output(['infracost',
-                                               'diff',
-                                               '--format=json',
-                                               '--path={}'.format(curr_infracost),
-                                               '--compare-to={}'.format(prev_infracost),
-                                               '--out-file={}'.format(diff_infracost)],
-                                              stderr=subprocess.STDOUT)
+        diff_ret = _run_retry(['infracost',
+                               'diff',
+                               '--format=json',
+                               '--path={}'.format(curr_infracost),
+                               '--compare-to={}'.format(prev_infracost),
+                               '--out-file={}'.format(diff_infracost)],
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT)
 
-        diff_output = diff_output.decode('utf-8')
+        diff_output = diff_ret.stdout.decode('utf-8')
 
         for line in diff_output.splitlines():
             logging.info('INFRACOST : SETUP : %s', line)
