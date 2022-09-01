@@ -16,7 +16,8 @@ def betwixt_sleep_with_backoff(initial_sleep, backoff):
 
 
 def finite_tries(tries, f):
-    """Try for a number of tries and once reached, return whatever the value is
+    """Try for a number of tries and once reached, return whatever the value is.
+    [f] should return [False] if another try should be attempted.
 
     """
     count = [0]
