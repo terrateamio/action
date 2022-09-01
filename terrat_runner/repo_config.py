@@ -19,14 +19,14 @@ def load(paths):
     return {}
 
 
-def default_plan_workflow():
+def _default_plan_workflow():
     return [
         {'type': 'init'},
         {'type': 'plan'}
     ]
 
 
-def default_apply_workflow():
+def _default_apply_workflow():
     return [
         {'type': 'init'},
         {'type': 'apply'}
@@ -52,11 +52,11 @@ def get_apply_hooks(repo_config):
 
 
 def get_plan_workflow(repo_config, idx):
-    return repo_config['workflows'][idx].get('plan', default_plan_workflow())
+    return repo_config['workflows'][idx].get('plan', _default_plan_workflow())
 
 
 def get_apply_workflow(repo_config, idx):
-    return repo_config['workflows'][idx].get('apply', default_apply_workflow())
+    return repo_config['workflows'][idx].get('apply', _default_apply_workflow())
 
 
 def get_workflow(repo_config, idx):
@@ -64,8 +64,8 @@ def get_workflow(repo_config, idx):
     return {
         'terragrunt': workflow.get('terragrunt', False),
         'terraform_version': workflow.get('terraform_version', get_default_tf_version(repo_config)),
-        'plan': workflow.get('plan', default_plan_workflow()),
-        'apply': workflow.get('apply', default_apply_workflow())
+        'plan': workflow.get('plan', _default_plan_workflow()),
+        'apply': workflow.get('apply', _default_apply_workflow()),
     }
 
 
@@ -73,8 +73,8 @@ def get_default_workflow(repo_config):
     return {
         'terragrunt': False,
         'terraform_version': get_default_tf_version(repo_config),
-        'plan': default_plan_workflow(),
-        'apply': default_apply_workflow()
+        'plan': _default_plan_workflow(),
+        'apply': _default_apply_workflow(),
     }
 
 
