@@ -9,6 +9,7 @@ import work_apply
 import work_exec
 import work_manifest
 import work_plan
+import work_unsafe_apply
 
 
 DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
@@ -21,7 +22,8 @@ REPO_CONFIG_PATHS = [
 
 WORK_MANIFEST_DISPATCH = {
     'plan': work_plan.Exec,
-    'apply': work_apply.Exec
+    'apply': work_apply.Exec,
+    'unsafe-apply': work_unsafe_apply.Exec,
 }
 
 
