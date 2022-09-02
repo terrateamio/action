@@ -15,7 +15,7 @@ def get(api_base_url, work_token, run_id, sha):
 
     work_manifest = r.json()
 
-    if work_manifest['type'] in ['apply', 'plan']:
+    if work_manifest['type'] in ['unsafe-apply', 'apply', 'plan']:
         return work_manifest
     else:
         raise Exception('Unknown work manifest type: {}'.format(work_manifest['type']))

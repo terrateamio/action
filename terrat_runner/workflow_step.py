@@ -10,6 +10,7 @@ import workflow_step_infracost_setup
 import workflow_step_init
 import workflow_step_plan
 import workflow_step_run
+import workflow_step_unsafe_apply
 
 
 STEPS = {
@@ -20,6 +21,7 @@ STEPS = {
     'init': workflow_step_init.run,
     'plan': workflow_step_plan.run,
     'run': workflow_step_run.run,
+    'unsafe_apply': workflow_step_unsafe_apply.run,
 }
 
 
