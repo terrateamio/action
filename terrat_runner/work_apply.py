@@ -71,8 +71,6 @@ class Exec(work_exec.ExecInterface):
             if create_and_select_workspace:
                 env['TF_WORKSPACE'] = workspace
 
-            state = state._replace(env=env)
-
             if workflow_idx is None:
                 workflow = rc.get_default_workflow(state.repo_config)
             else:
