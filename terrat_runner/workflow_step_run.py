@@ -12,6 +12,7 @@ RUN_ON_ALWAYS = 'always'
 def run(state, config):
     ignore_errors = config.get('ignore_errors', False)
     run_on = config.get('run_on', RUN_ON_SUCCESS)
+    os.environ["PATH"] += os.pathsep + os.path.join('/usr', 'local', 'tf', 'versions', os.environ['TERRATEAM_TERRAFORM_VERSION'])
 
     if ignore_errors not in [True, False]:
         raise Exception('Invalid hook ignore_errors configuration: {}'.format(config))
