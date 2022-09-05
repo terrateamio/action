@@ -54,12 +54,13 @@ class Exec(work_exec.ExecInterface):
             if create_and_select_workspace:
                 env['TF_WORKSPACE'] = workspace
 
-            state = state._replace(env=env)
-
             if workflow_idx is None:
                 workflow = rc.get_default_workflow(state.repo_config)
             else:
                 workflow = rc.get_workflow(state.repo_config, workflow_idx)
+
+            env['TERRATEAM_TERRAFORM_VERSION'] = workflow['terraform_version']
+            state = state._replace(env=env)
 
             state = workflow_step.run_steps(
                 state._replace(working_dir=os.path.join(state.working_dir, path),
