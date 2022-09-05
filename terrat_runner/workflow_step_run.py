@@ -33,13 +33,13 @@ def run(state, config):
             # Only capture output if we want to save it somewhere or we have
             # explicitly enabled it.
             if output_key is not None or capture_output:
-                proc, stdout = cmd.run_with_output(cmd_state, config)
+                proc, stdout = cmd.run_with_output(state, config)
                 if output_key:
                     outputs = {'output_key': output_key, 'text': stdout}
                 else:
                     outputs = {'text': stdout}
             else:
-                proc = cmd.run(cmd_state, config)
+                proc = cmd.run(state, config)
 
             failed = not (proc.returncode == 0 or ignore_errors)
         except cmd.MissingEnvVar as exn:

@@ -3,6 +3,7 @@ import subprocess
 
 import workflow_step_run
 
+
 def run(state, config):
     args = config['args']
 
