@@ -34,6 +34,10 @@ def _store_results(work_token, api_base_url, results):
 
 def _run(state, exec_cb):
 
+    env = state.env.copy()
+    env['TERRATEAM_TERRAFORM_VERSION'] = rc.get_default_tf_version(state.repo_config)
+    state = state._replace(env=env)
+
     pre_hooks = exec_cb.pre_hooks(state)
 
     logging.debug('EXEC : HOOKS : PRE')

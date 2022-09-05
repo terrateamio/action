@@ -9,9 +9,7 @@ def run(state, config):
 
     terraform_version = state.workflow['terraform_version']
 
-    terraform_bin_path = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
-
-    subprocess.check_call(['/install-terraform-version', terraform_version])
+    terraform_bin_path = os.path.join('/usr', 'local', 'bin', 'terraform')
 
     env = config.get('env', {})
 
