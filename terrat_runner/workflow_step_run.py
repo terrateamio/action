@@ -14,7 +14,7 @@ def run(state, config):
     ignore_errors = config.get('ignore_errors', False)
     run_on = config.get('run_on', RUN_ON_SUCCESS)
     env = state.env.copy()
-    env['PATH'] += os.pathsep + os.path.join('/usr', 'local', 'tf', 'versions', os.environ['TERRATEAM_TERRAFORM_VERSION'])
+    env['PATH'] += os.pathsep + os.path.join('/usr', 'local', 'tf', 'versions', env['TERRATEAM_TERRAFORM_VERSION'])
     state = state._replace(env=env)
 
     if ignore_errors not in [True, False]:
