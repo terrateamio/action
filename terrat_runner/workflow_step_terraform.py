@@ -10,8 +10,6 @@ def run(state, config):
 
     terraform_bin_path = os.path.join('/usr', 'local', 'bin', 'terraform')
 
-    subprocess.check_call(['/install-terraform-version', terraform_version])
-
     env = config.get('env', {})
 
     if state.workflow['terragrunt']:
