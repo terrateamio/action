@@ -15,7 +15,7 @@ def run(state, config):
     run_on = config.get('run_on', RUN_ON_SUCCESS)
     env = state.env.copy()
     env['PATH'] += os.pathsep + os.path.join('/usr', 'local', 'tf', 'versions', env['TERRATEAM_TERRAFORM_VERSION'])
-    state = state._replace(env=env)
+    cmd_state = state._replace(env=env)
 
     if ignore_errors not in [True, False]:
         raise Exception('Invalid hook ignore_errors configuration: {}'.format(config))
@@ -36,13 +36,13 @@ def run(state, config):
             # Only capture output if we want to save it somewhere or we have
             # explicitly enabled it.
             if output_key is not None or capture_output:
-                proc, stdout = cmd.run_with_output(state, config)
+                proc, stdout = cmd.run_with_output(cmd_state, config)
                 if output_key:
                     outputs = {'output_key': output_key, 'text': stdout}
                 else:
                     outputs = {'text': stdout}
             else:
-                proc = cmd.run(state, config)
+                proc = cmd.run(cmd_state, config)
 
             failed = not (proc.returncode == 0 or ignore_errors)
         except cmd.MissingEnvVar as exn:
