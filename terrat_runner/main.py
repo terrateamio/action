@@ -87,8 +87,6 @@ def set_secrets_context(state):
 
 
 def main():
-    print('JP')
-    print(os.environ['PATH'])
     logging.basicConfig(level=logging.DEBUG)
 
     print(BANNER)

@@ -3,13 +3,12 @@ import subprocess
 
 import workflow_step_run
 
-
 def run(state, config):
     args = config['args']
 
     terraform_version = state.workflow['terraform_version']
 
-    terraform_bin_path = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
+    terraform_bin_path = os.path.join('/usr', 'local', 'bin', 'terraform')
 
     subprocess.check_call(['/install-terraform-version', terraform_version])
 
