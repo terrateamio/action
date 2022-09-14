@@ -57,6 +57,8 @@ def _checkout_base(state):
     base_branch = subprocess.check_output(['git', 'branch', '--show-current'],
                                           cwd=state.working_dir)
     subprocess.check_call(['git', 'branch'], cwd=state.working_dir)
+    # If they made any changes to the repo, stash it for now
+    subprocess.call(['git', 'stash', 'push'])
     subprocess.check_call(['git', 'checkout', state.work_manifest['base_ref'], '--'],
                           cwd=state.working_dir)
     return base_branch.strip()
@@ -116,6 +118,7 @@ def _create_base_infracost(state, config, infracost_dir, infracost_json):
 
     finally:
         subprocess.check_call(['git', 'checkout', base_branch, '--'], cwd=state.working_dir)
+        subprocess.call(['git', 'stash', 'pop'])
 
 
 def run(state, config):
@@ -200,7 +203,13 @@ def run(state, config):
     except subprocess.CalledProcessError as exn:
         logging.exception('INFRACOST : ERROR')
         logging.error('%s', exn.stdout)
+
+        if exn.stdout is None:
+            text = 'See action output'
+        else:
+            text = exn.stdout.decode('utf-8')
+
         return workflow.Result(failed=False,
                                state=state,
                                workflow_step={'type': 'cost-estimation'},
-                               outputs={'text': exn.stdout.decode('utf-8')})
+                               outputs={'text': text})
