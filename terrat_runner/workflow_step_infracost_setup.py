@@ -200,7 +200,13 @@ def run(state, config):
     except subprocess.CalledProcessError as exn:
         logging.exception('INFRACOST : ERROR')
         logging.error('%s', exn.stdout)
+
+        if exn.stdout is None:
+            text = 'See action output'
+        else:
+            text = exn.stdout.decode('utf-8')
+
         return workflow.Result(failed=False,
                                state=state,
                                workflow_step={'type': 'cost-estimation'},
-                               outputs={'text': exn.stdout.decode('utf-8')})
+                               outputs={'text': text})
