@@ -18,8 +18,10 @@ def run(state, config):
     # Grab just the plan output.  If running the plan succeded, we want to just
     # show the plan text.  If it failed above, we want to be able to show the
     # user the entire terminal output.
-    config['args'] = ['show', '$TERRATEAM_PLAN_FILE']
-    config['output_key'] = 'plan_text'
+    config = {
+        'args': ['show', '$TERRATEAM_PLAN_FILE'],
+        'output_key': 'plan_text'
+    }
 
     result = workflow_step_terraform.run(state, config)
 
