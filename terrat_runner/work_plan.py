@@ -4,10 +4,8 @@ import logging
 import os
 import tempfile
 
-import requests
-
 import repo_config as rc
-import retry
+import requests_retry
 import work_exec
 import workflow_step
 
@@ -15,13 +13,6 @@ import workflow_step
 TRIES = 3
 INITIAL_SLEEP = 1
 BACKOFF = 1.5
-
-
-def _wrap_post(*args, **kwargs):
-    try:
-        return (True, requests.post(*args, **kwargs))
-    except Exception as exn:
-        return (False, exn)
 
 
 def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
@@ -35,18 +26,12 @@ def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
                       workspace,
                       hashlib.md5(plan_raw_data).hexdigest())
 
-        (success, res) = retry.run(
-            lambda: _wrap_post(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
-                               json={
-                                   'path': dir_path,
-                                   'workspace': workspace,
-                                   'plan_data': plan_data
-                               }),
-            retry.finite_tries(TRIES, lambda v: v[0]),
-            retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
-
-        if not success:
-            raise res
+        res = requests_retry.post(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
+                                  json={
+                                      'path': dir_path,
+                                      'workspace': workspace,
+                                      'plan_data': plan_data
+                                  })
 
         return res.status_code == 200
     except Exception as exn:
