@@ -4,11 +4,10 @@ import logging
 import os
 import tempfile
 
-import requests
-
 import dir_exec
 import hooks
 import repo_config as rc
+import requests_retry
 
 
 class ExecInterface(abc.ABC):
@@ -26,8 +25,8 @@ class ExecInterface(abc.ABC):
 
 
 def _store_results(work_token, api_base_url, results):
-    res = requests.put(api_base_url + '/v1/work-manifests/' + work_token,
-                       json=results)
+    res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
+                             json=results)
 
     return res.status_code == 200
 
