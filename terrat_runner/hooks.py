@@ -3,7 +3,7 @@
 import workflow_step
 
 
-ALLOWED_HOOK_STEPS = ['run', 'env', 'checkout', 'infracost_setup']
+ALLOWED_HOOK_STEPS = ['run', 'env', 'checkout', 'infracost_setup', 'tf_cloud_setup']
 
 
 def run_hooks(state, steps):
