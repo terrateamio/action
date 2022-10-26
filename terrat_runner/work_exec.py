@@ -116,7 +116,7 @@ def _run(state, exec_cb):
         raise Exception('Failed to send results')
 
     if not results['overall']['success']:
-        raise Exception('Failed executing plan')
+        raise Exception('Failed executing operation')
 
     return state
 
