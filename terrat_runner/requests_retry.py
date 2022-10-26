@@ -26,8 +26,8 @@ def _test_success(v):
 
 def _wrap(f):
     (success, res) = retry.run(
-        f,
-        retry.finite_tries(TRIES, lambda v: v[0]),
+        lambda: _wrap_call(f),
+        retry.finite_tries(TRIES, _test_success),
         retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
     if not success:
