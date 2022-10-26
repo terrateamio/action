@@ -1,13 +1,10 @@
 import os
-import subprocess
 
 import workflow_step_run
 
 
 def run(state, config):
     args = config['args']
-
-    terraform_version = state.workflow['terraform_version']
 
     terraform_bin_path = os.path.join('/usr', 'local', 'bin', 'terraform')
 
