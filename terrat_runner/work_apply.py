@@ -4,15 +4,16 @@ import logging
 import os
 import tempfile
 
+import requests
+
 import repo_config as rc
-import requests_retry
 import work_exec
 import workflow_step
 
 
 def _load_plan(work_token, api_base_url, dir_path, workspace, plan_path):
-    res = requests_retry.get(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
-                             params={'path': dir_path, 'workspace': workspace})
+    res = requests.get(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
+                       params={'path': dir_path, 'workspace': workspace})
 
     if res.status_code != 200:
         raise Exception('Could not load plan')

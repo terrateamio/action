@@ -4,10 +4,11 @@ import logging
 import os
 import tempfile
 
+import requests
+
 import dir_exec
 import hooks
 import repo_config as rc
-import requests_retry
 
 
 class ExecInterface(abc.ABC):
@@ -25,8 +26,8 @@ class ExecInterface(abc.ABC):
 
 
 def _store_results(work_token, api_base_url, results):
-    res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
-                             json=results)
+    res = requests.put(api_base_url + '/v1/work-manifests/' + work_token,
+                       json=results)
 
     return res.status_code == 200
 
@@ -116,7 +117,7 @@ def _run(state, exec_cb):
         raise Exception('Failed to send results')
 
     if not results['overall']['success']:
-        raise Exception('Failed executing operation')
+        raise Exception('Failed executing plan')
 
     return state
 
