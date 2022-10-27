@@ -25,7 +25,7 @@ RUN     curl -fsSL -o /usr/local/bin/terragrunt-0.36.10 "https://github.com/terr
         && chmod +x /usr/local/bin/terragrunt-0.36.10 \
         && ln -s /usr/local/bin/terragrunt-0.36.10 /usr/local/bin/terragrunt
 
-RUN	curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-v0.10.9-linux-amd64.tar.gz" \
+RUN	curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-v0.10.13-linux-amd64.tar.gz" \
         && tar -C /tmp -xzf /tmp/infracost-linux-amd64.tar.gz \
         && mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost
 
