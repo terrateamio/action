@@ -5,7 +5,7 @@ import requests
 import retry
 
 
-TRIES = 3
+TRIES = 5
 INITIAL_SLEEP = 1
 BACKOFF = 1.5
 
@@ -18,10 +18,12 @@ def _wrap_call(f):
 
 
 def _test_success(v):
-    if not v[0]:
-        logging.error('REQUESTS : FAILED : {}', v[1])
+    success, ret = v
+    if not success or (ret.status_code >= 500 and ret.status_code < 600):
+        logging.error('REQUESTS : FAILED : {}', ret)
+        return False
 
-    return v[0]
+    return True
 
 
 def _wrap(f):
