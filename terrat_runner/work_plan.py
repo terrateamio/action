@@ -8,6 +8,7 @@ import repo_config as rc
 import requests_retry
 import work_exec
 import workflow_step
+import workflow_step_terrateam_ssh_key_setup
 
 
 TRIES = 3
@@ -45,6 +46,8 @@ class Exec(work_exec.ExecInterface):
         env = state.env
         if 'TF_API_TOKEN' in env:
             pre_hooks.append({'type': 'tf_cloud_setup'})
+        if workflow_step_terrateam_ssh_key_setup.ssh_keys(env):
+            pre_hooks.append({'type': 'terrateam_ssh_key_setup'})
         pre_hooks.extend([{'type': 'checkout'}] + rc.get_plan_hooks(state.repo_config)['pre'])
         cost_estimation_config = rc.get_cost_estimation(state.repo_config)
         if cost_estimation_config['enabled']:
