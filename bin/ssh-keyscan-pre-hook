@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+SSH_DIR="${SSH_DIR:=/root/.ssh/}"
+SSH_KNOWN_HOSTS="${SSH_DIR}/known_hosts"
+
+if [ ! -d "$SSH_DIR" ]; then
+  mkdir -p "$SSH_DIR"
+fi
+
+for host in "$@"; do
+  ssh-keyscan "$host" >> "${SSH_KNOWN_HOSTS}"
+done
