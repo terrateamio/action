@@ -59,8 +59,10 @@ def run(state, config):
             _perform_merge(output, state.working_dir, state.work_manifest['base_ref'], state.sha)
         except subprocess.CalledProcessError as exn:
             failed = True
-            output.write(exn.stdout.decode('utf-8'))
-            output.write(exn.stderr.decode('utf-8'))
+            if exn.stdout:
+                output.write(exn.stdout.decode('utf-8'))
+            if exn.stderr:
+                output.write(exn.stderr.decode('utf-8'))
 
     return workflow.Result(failed=failed,
                            state=state,
