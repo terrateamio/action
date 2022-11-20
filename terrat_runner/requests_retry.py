@@ -20,7 +20,7 @@ def _wrap_call(f):
 def _test_success(v):
     success, ret = v
     if not success or (ret.status_code >= 500 and ret.status_code < 600):
-        logging.error('REQUESTS : FAILED : {}', ret)
+        logging.error('REQUESTS : FAILED : %r', ret)
         return False
 
     return True
