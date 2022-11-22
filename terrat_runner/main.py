@@ -118,6 +118,7 @@ def main():
 
     env = state.env.copy()
     env['TERRATEAM_ROOT'] = state.working_dir
+    env['INFRACOST_PARALLELISM'] = '1'
     state = state._replace(env=env)
 
     state = set_secrets_context(state)
