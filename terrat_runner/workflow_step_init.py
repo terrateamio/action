@@ -1,3 +1,6 @@
+import os
+import shutil
+
 import retry
 import workflow_step_terraform
 
@@ -11,6 +14,16 @@ def run(state, config):
     config = original_config.copy()
     config['args'] = ['init']
     config['output_key'] = 'init'
+
+    # If there is already a .terraform dir, delete it
+    terraform_path = os.path.join(state.working_dir, '.terraform')
+    if os.path.exists(terraform_path):
+        shutil.rmtree(terraform_path)
+
+        # If there is already a .terraform.lock.hcl file, delete it
+    terraform_lock_path = os.path.join(state.working_dir, '.terraform.lock.hcl')
+    if os.path.exists(terraform_lock_path):
+        os.remove(terraform_lock_path)
 
     result = retry.run(
         lambda: workflow_step_terraform.run(state, config),
