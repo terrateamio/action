@@ -41,10 +41,16 @@ def _dedup_infracost_projects(breakdown_fname):
         f.write(json.dumps(breakdown))
 
 
+def _retry_test(cmd, ret):
+    logging.debug('INFRACOST : RETRY_TEST : %r', cmd)
+    return (ret.returncode == 0
+            and (not ret.stdout or 'level=error' not in ret.stdout.decode('utf-8')))
+
+
 def _run_retry(cmd, *args, **kwargs):
     ret = retry.run(
         lambda: subprocess.run(cmd, *args, **kwargs),
-        retry.finite_tries(TRIES, lambda ret: ret.returncode == 0),
+        retry.finite_tries(TRIES, lambda ret: _retry_test(cmd, ret)),
         retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
     if ret.returncode != 0:
