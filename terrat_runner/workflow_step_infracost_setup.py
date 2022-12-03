@@ -116,12 +116,13 @@ def run(state, config):
 
         infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['dirspaces'])
 
-        output = _run_retry(state,
-                            ['infracost',
-                             'breakdown',
-                             '--config-file={}'.format(infracost_config_yml),
-                             '--format=json',
-                             '--out-file={}'.format(curr_infracost)])
+        for i in range(10):
+            output = _run_retry(state,
+                                ['infracost',
+                                 'breakdown',
+                                 '--config-file={}'.format(infracost_config_yml),
+                                 '--format=json',
+                                 '--out-file={}'.format(curr_infracost)])
 
         _run_retry(state,
                    ['infracost',
