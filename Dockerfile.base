@@ -10,6 +10,7 @@ RUN	apt-get update \
 	git-lfs \
 	gnupg \
 	groff \
+	jq \
 	less \
 	libcap2 \
 	openssh-client \
