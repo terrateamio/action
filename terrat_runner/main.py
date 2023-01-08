@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 
 import repo_config
 import run_state
@@ -111,6 +112,15 @@ def main():
 
     logging.debug('LOADING : WORK_MANIFEST')
     wm = work_manifest.get(args.api_base_url, args.work_token, args.run_id, args.sha)
+
+    # We only support a merge-based evaluation.  We must perform the merge first
+    # because we load the repo config next and we want it to be the merged
+    # version.
+    subprocess.check_call(['git', 'config', '--global', '--add', 'safe.directory', args.workspace])
+    subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
+    subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
+    subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
+    subprocess.check_call(['git', 'merge', '--no-edit', 'origin/' + wm['base_ref']])
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])

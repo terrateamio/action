@@ -60,14 +60,14 @@ def _run_retry(cmd, *args, **kwargs):
 
 
 def _checkout_base(state):
-    base_branch = subprocess.check_output(['git', 'branch', '--show-current'],
-                                          cwd=state.working_dir)
+    current_branch = subprocess.check_output(['git', 'branch', '--show-current'],
+                                             cwd=state.working_dir)
     subprocess.check_call(['git', 'branch'], cwd=state.working_dir)
     # If they made any changes to the repo, stash it for now
     subprocess.call(['git', 'stash', 'push'])
     subprocess.check_call(['git', 'checkout', state.work_manifest['base_ref'], '--'],
                           cwd=state.working_dir)
-    return base_branch.strip()
+    return current_branch.strip()
 
 
 def _configure_infracost(state, config):
@@ -100,7 +100,7 @@ def _configure_infracost(state, config):
 
 
 def _create_base_infracost(state, config, infracost_dir, infracost_json):
-    base_branch = _checkout_base(state)
+    current_branch = _checkout_base(state)
     try:
         infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
 
@@ -123,7 +123,7 @@ def _create_base_infracost(state, config, infracost_dir, infracost_json):
             logging.info('INFRACOST : SETUP : %s', line)
 
     finally:
-        subprocess.check_call(['git', 'checkout', base_branch, '--'], cwd=state.working_dir)
+        subprocess.check_call(['git', 'checkout', current_branch, '--'], cwd=state.working_dir)
         subprocess.call(['git', 'stash', 'pop'])
 
 
