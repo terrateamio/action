@@ -21,10 +21,12 @@ def _fix_up_apply(steps):
 
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
-        return rc.get_apply_hooks(state.repo_config)['pre']
+        return (rc.get_all_hooks(state.repo_config)['pre']
+                + rc.get_apply_hooks(state.repo_config)['pre'])
 
     def post_hooks(self, state):
-        return rc.get_apply_hooks(state.repo_config)['post']
+        return (rc.get_all_hooks(state.repo_config)['post']
+                + rc.get_apply_hooks(state.repo_config)['post'])
 
     def exec(self, state, d):
         with tempfile.TemporaryDirectory() as tmpdir:

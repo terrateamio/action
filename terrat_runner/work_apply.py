@@ -31,7 +31,7 @@ def _load_plan(work_token, api_base_url, dir_path, workspace, plan_path):
 
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
-        pre_hooks = []
+        pre_hooks = rc.get_all_hooks(state.repo_config)['pre']
         env = state.env
         if 'TF_API_TOKEN' in env:
             pre_hooks.append({'type': 'tf_cloud_setup'})
@@ -41,7 +41,8 @@ class Exec(work_exec.ExecInterface):
         return pre_hooks
 
     def post_hooks(self, state):
-        return rc.get_apply_hooks(state.repo_config)['post']
+        return (rc.get_all_hooks(state.repo_config)['post']
+                + rc.get_apply_hooks(state.repo_config)['post'])
 
     def exec(self, state, d):
         with tempfile.TemporaryDirectory() as tmpdir:
