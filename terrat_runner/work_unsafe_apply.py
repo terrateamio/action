@@ -21,7 +21,7 @@ def _fix_up_apply(steps):
 
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
-        return [{'type': 'checkout'}] + rc.get_apply_hooks(state.repo_config)['pre']
+        return rc.get_apply_hooks(state.repo_config)['pre']
 
     def post_hooks(self, state):
         return rc.get_apply_hooks(state.repo_config)['post']

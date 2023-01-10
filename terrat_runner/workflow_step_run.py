@@ -44,15 +44,19 @@ def run(state, config):
         except cmd.MissingEnvVar as exn:
             failed = True
             logging.error('Missing environment variable: %s', exn.args[0])
+            outputs = {
+                'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0])
+            }
             if output_key:
-                outputs = {
-                    'output_key': output_key,
-                    'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0])
-                }
-            else:
-                outputs = {
-                    'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0])
-                }
+                outputs['output_key'] = output_key
+        except FileNotFoundError:
+            failed = True
+            logging.exception('Could not find program to run %r', config['cmd'])
+            outputs = {
+                'text': 'ERROR: Could not find program to run: {}'.format(config['cmd'])
+            }
+            if output_key:
+                outputs['output_key'] = output_key
 
         return workflow.Result(failed=failed,
                                state=state,

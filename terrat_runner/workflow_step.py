@@ -4,7 +4,6 @@ import logging
 
 import workflow
 import workflow_step_apply
-import workflow_step_checkout_strategy
 import workflow_step_env
 import workflow_step_infracost_setup
 import workflow_step_init
@@ -17,7 +16,6 @@ import workflow_step_unsafe_apply
 
 STEPS = {
     'apply': workflow_step_apply.run,
-    'checkout': workflow_step_checkout_strategy.run,
     'env': workflow_step_env.run,
     'infracost_setup': workflow_step_infracost_setup.run,
     'init': workflow_step_init.run,
