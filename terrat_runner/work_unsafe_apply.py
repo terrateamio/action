@@ -5,6 +5,7 @@ import tempfile
 import repo_config as rc
 import work_exec
 import workflow_step
+import workflow_step_terrateam_ssh_key_setup
 
 
 def _fix_up_apply(steps):
@@ -21,8 +22,17 @@ def _fix_up_apply(steps):
 
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
-        return (rc.get_all_hooks(state.repo_config)['pre']
-                + rc.get_apply_hooks(state.repo_config)['pre'])
+        pre_hooks = rc.get_all_hooks(state.repo_config)['pre']
+
+        env = state.env
+        if 'TF_API_TOKEN' in env:
+            pre_hooks.append({'type': 'tf_cloud_setup'})
+        if workflow_step_terrateam_ssh_key_setup.ssh_keys(env):
+            pre_hooks.append({'type': 'terrateam_ssh_key_setup'})
+
+        pre_hooks.extend(rc.get_apply_hooks(state.repo_config)['pre'])
+
+        return pre_hooks
 
     def post_hooks(self, state):
         return (rc.get_all_hooks(state.repo_config)['post']

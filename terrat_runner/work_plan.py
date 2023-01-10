@@ -43,12 +43,15 @@ def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
         pre_hooks = rc.get_all_hooks(state.repo_config)['pre']
+
         env = state.env
         if 'TF_API_TOKEN' in env:
             pre_hooks.append({'type': 'tf_cloud_setup'})
         if workflow_step_terrateam_ssh_key_setup.ssh_keys(env):
             pre_hooks.append({'type': 'terrateam_ssh_key_setup'})
+
         pre_hooks.extend(rc.get_plan_hooks(state.repo_config)['pre'])
+
         cost_estimation_config = rc.get_cost_estimation(state.repo_config)
         if cost_estimation_config['enabled']:
             if cost_estimation_config['provider'] == 'infracost':
@@ -58,6 +61,7 @@ class Exec(work_exec.ExecInterface):
                         'currency': cost_estimation_config['currency']
                     }
                 )
+
         return pre_hooks
 
     def post_hooks(self, state):
