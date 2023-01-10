@@ -78,10 +78,6 @@ def get_default_workflow(repo_config):
     }
 
 
-def get_checkout_strategy(repo_config):
-    return repo_config.get('checkout_strategy', 'merge')
-
-
 def get_default_tf_version(repo_config):
     return repo_config.get('default_tf_version', 'latest')
 
