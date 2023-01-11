@@ -43,6 +43,10 @@ def _get_hooks(hooks):
         }
 
 
+def get_all_hooks(repo_config):
+    return _get_hooks(_get(_get(repo_config, 'hooks', {}), 'all', {}))
+
+
 def get_plan_hooks(repo_config):
     return _get_hooks(_get(_get(repo_config, 'hooks', {}), 'plan', {}))
 
