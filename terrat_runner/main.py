@@ -127,6 +127,11 @@ def main():
     state = run_state.create(args.work_token, rc, args.workspace, args.api_base_url, wm, args.sha)
 
     env = state.env.copy()
+    # Setup Terraform environment variables for automation
+    env['TF_IN_AUTOMATION'] = 'true'
+    env['TF_INPUT'] = 'false'
+
+    # Setup Terrateam environment variables
     env['TERRATEAM_ROOT'] = state.working_dir
     state = state._replace(env=env)
 
