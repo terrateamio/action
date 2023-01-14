@@ -159,6 +159,7 @@ def main():
 
     # Setup Terrateam environment variables
     env['TERRATEAM_ROOT'] = state.working_dir
+    env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
 
     maybe_setup_cdktf(rc, wm, env)
     set_secrets_context(env)

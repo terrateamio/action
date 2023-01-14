@@ -1,43 +1,11 @@
-import base64
-import hashlib
 import logging
 import os
 import tempfile
 
 import repo_config as rc
-import requests_retry
 import work_exec
 import workflow_step
 import workflow_step_terrateam_ssh_key_setup
-
-
-TRIES = 3
-INITIAL_SLEEP = 1
-BACKOFF = 1.5
-
-
-def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
-    try:
-        with open(plan_path, 'rb') as f:
-            plan_raw_data = f.read()
-            plan_data = base64.b64encode(plan_raw_data).decode('utf-8')
-
-        logging.debug('PLAN : STORE_PLAN : dir_path=%s : workspace=%s : md5=%s',
-                      dir_path,
-                      workspace,
-                      hashlib.md5(plan_raw_data).hexdigest())
-
-        res = requests_retry.post(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
-                                  json={
-                                      'path': dir_path,
-                                      'workspace': workspace,
-                                      'plan_data': plan_data
-                                  })
-
-        return res.status_code == 200
-    except Exception as exn:
-        print('Failed: {}'.format(exn))
-        return False
 
 
 class Exec(work_exec.ExecInterface):
@@ -80,8 +48,10 @@ class Exec(work_exec.ExecInterface):
             workspace = d['workspace']
             workflow_idx = d.get('workflow')
 
+            plan_file = os.path.join(tmpdir, 'plan')
+
             env = state.env.copy()
-            env['TERRATEAM_PLAN_FILE'] = os.path.join(tmpdir, 'plan')
+            env['TERRATEAM_PLAN_FILE'] = plan_file
             env['TERRATEAM_DIR'] = path
             env['TERRATEAM_WORKSPACE'] = workspace
             env['TERRATEAM_TMPDIR'] = tmpdir
@@ -119,14 +89,6 @@ class Exec(work_exec.ExecInterface):
                                workspace=workspace,
                                workflow=workflow),
                 workflow['plan'])
-
-            if not state.failed:
-                success = _store_plan(state.work_token,
-                                      state.api_base_url,
-                                      path,
-                                      workspace,
-                                      os.path.join(tmpdir, 'plan'))
-                state = state._replace(failed=not success)
 
             result = {
                 'path': path,
