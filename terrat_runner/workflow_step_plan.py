@@ -6,7 +6,7 @@ import requests_retry
 import workflow_step_terraform
 
 
-def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
+def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
     try:
         with open(plan_path, 'rb') as f:
             plan_raw_data = f.read()
@@ -21,7 +21,8 @@ def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
                                   json={
                                       'path': dir_path,
                                       'workspace': workspace,
-                                      'plan_data': plan_data
+                                      'plan_data': plan_data,
+                                      'has_changes': has_changes
                                   })
 
         return res.status_code == 200
@@ -32,15 +33,20 @@ def _store_plan(work_token, api_base_url, dir_path, workspace, plan_path):
 
 def run(state, config):
     config = config.copy()
-    config['args'] = ['plan', '-out', '$TERRATEAM_PLAN_FILE']
+    config['args'] = ['plan', '-detailed-exitcode', '-out', '$TERRATEAM_PLAN_FILE']
     config['output_key'] = 'plan'
 
     outputs = {}
 
     result = workflow_step_terraform.run(state, config)
 
-    if result.failed:
+    if (result.failed and (
+            'exit_code' not in result.workflow_step
+            or result.workflow_step['exit_code'] == 1)):
         return result._replace(workflow_step={'type': 'plan'})
+
+    # The terraform CLI has an exit code of 2 if the plan contains changes.
+    has_changes = result.workflow_step.get('exit_code') == 2
 
     outputs['plan'] = result.outputs['text']
 
@@ -58,12 +64,14 @@ def run(state, config):
         return result._replace(workflow_step={'type': 'plan'})
 
     outputs['plan_text'] = result.outputs['text']
+    outputs['has_changes'] = has_changes
 
     success = _store_plan(state.work_token,
                           state.api_base_url,
                           state.env['TERRATEAM_DIR'],
                           state.env['TERRATEAM_WORKSPACE'],
-                          state.env['TERRATEAM_PLAN_FILE'])
+                          state.env['TERRATEAM_PLAN_FILE'],
+                          has_changes)
     result = result._replace(failed=not success)
 
     return result._replace(workflow_step={'type': 'plan'},
