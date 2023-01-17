@@ -87,6 +87,23 @@ def set_secrets_context(state):
     return state
 
 
+# Iterate the environment and convert any environment variables starting with
+# TF_VAR_ to TF_VAR_<lower case>.  If the lower-case name already exists in env,
+# do nothing.
+def transform_tf_vars(env):
+    new_keys = {}
+    for k, v in env.items():
+        if k.startswith('TF_VAR_') and k != 'TF_VAR_':
+            # Get the name
+            name = k.split('_', 2)[2]
+            # Create a new env variable with the lower version name
+            new_name = 'TF_VAR_{}'.format(name.lower())
+            if new_name not in env:
+                new_keys[new_name] = v
+
+    env.update(new_keys)
+
+
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
@@ -133,6 +150,9 @@ def main():
 
     # Setup Terrateam environment variables
     env['TERRATEAM_ROOT'] = state.working_dir
+
+    transform_tf_vars(env)
+
     state = state._replace(env=env)
 
     state = set_secrets_context(state)
