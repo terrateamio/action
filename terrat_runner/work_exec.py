@@ -24,6 +24,22 @@ class ExecInterface(abc.ABC):
         pass
 
 
+def determine_tf_version(repo_root, working_dir, workflow_version):
+    working_dir_path = os.path.join(working_dir, '.terraform-version')
+    repo_root_path = os.path.join(repo_root, '.terraform-version')
+
+    def _read(fname):
+        with open(fname) as f:
+            return f.read().strip()
+
+    if os.path.exists(working_dir_path):
+        return _read(working_dir_path)
+    elif os.path.exists(repo_root_path):
+        return _read(repo_root_path)
+    else:
+        return workflow_version
+
+
 def _store_results(work_token, api_base_url, results):
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
                              json=results)
@@ -32,9 +48,15 @@ def _store_results(work_token, api_base_url, results):
 
 
 def _run(state, exec_cb):
-
+    # Setup the global terraform version, for use if terraform is called in any hooks.
     env = state.env.copy()
-    env['TERRATEAM_TERRAFORM_VERSION'] = rc.get_default_tf_version(state.repo_config)
+    # Using state.working_dir twice as a bit of a hack because
+    # determine_tf_version expects the directory that we are running the command
+    # in as an option as well, but at this point there is none.
+    env['TERRATEAM_TERRAFORM_VERSION'] = determine_tf_version(
+        state.working_dir,
+        state.working_dir,
+        rc.get_default_tf_version(state.repo_config))
     state = state._replace(env=env)
 
     pre_hooks = exec_cb.pre_hooks(state)
