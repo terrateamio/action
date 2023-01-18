@@ -102,7 +102,11 @@ class Exec(work_exec.ExecInterface):
             else:
                 workflow = rc.get_workflow(state.repo_config, workflow_idx)
 
-            env['TERRATEAM_TERRAFORM_VERSION'] = workflow['terraform_version']
+            env['TERRATEAM_TERRAFORM_VERSION'] = work_exec.determine_tf_version(
+                state.working_dir,
+                os.path.join(state.working_dir, path),
+                workflow['terraform_version'])
+
             state = state._replace(env=env)
 
             state = workflow_step.run_steps(
