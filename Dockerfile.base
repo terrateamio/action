@@ -37,6 +37,11 @@ RUN     mkdir /tmp/conftest \
         && mv /tmp/conftest/conftest /usr/local/bin/conftest \
         && rm -rf /tmp/conftest
 
+RUN     mkdir /tmp/awscli \
+        && curl -fsSL -o /tmp/awscli/awscli.zip "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-2.7.11.zip" \
+        && unzip /tmp/awscli/awscli.zip -d /tmp/awscli/ \
+        && /tmp/awscli/aws/install > /dev/null \
+        && rm -rf /tmp/awscli
 
 COPY	./bin/ /usr/local/bin
 
