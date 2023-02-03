@@ -7,6 +7,7 @@ import workflow_step_apply
 import workflow_step_env
 import workflow_step_infracost_setup
 import workflow_step_init
+import workflow_step_oidc
 import workflow_step_plan
 import workflow_step_run
 import workflow_step_terrateam_ssh_key_setup
@@ -19,6 +20,7 @@ STEPS = {
     'env': workflow_step_env.run,
     'infracost_setup': workflow_step_infracost_setup.run,
     'init': workflow_step_init.run,
+    'oidc': workflow_step_oidc.run,
     'plan': workflow_step_plan.run,
     'run': workflow_step_run.run,
     'terrateam_ssh_key_setup': workflow_step_terrateam_ssh_key_setup.run,
