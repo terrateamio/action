@@ -6,6 +6,7 @@ import workflow_step
 ALLOWED_HOOK_STEPS = [
     'env',
     'infracost_setup',
+    'oidc',
     'run',
     'terrateam_ssh_key_setup',
     'tf_cloud_setup',
