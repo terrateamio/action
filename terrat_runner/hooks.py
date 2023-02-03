@@ -3,7 +3,13 @@
 import workflow_step
 
 
-ALLOWED_HOOK_STEPS = ['run', 'env', 'infracost_setup', 'tf_cloud_setup', 'terrateam_ssh_key_setup']
+ALLOWED_HOOK_STEPS = [
+    'env',
+    'infracost_setup',
+    'run',
+    'terrateam_ssh_key_setup',
+    'tf_cloud_setup',
+]
 
 
 def run_hooks(state, steps):
