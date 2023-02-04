@@ -66,19 +66,21 @@ def get_apply_workflow(repo_config, idx):
 def get_workflow(repo_config, idx):
     workflow = repo_config['workflows'][idx]
     return {
-        'terragrunt': workflow.get('terragrunt', False),
-        'terraform_version': workflow.get('terraform_version', get_default_tf_version(repo_config)),
-        'plan': workflow.get('plan', _default_plan_workflow()),
         'apply': workflow.get('apply', _default_apply_workflow()),
+        'cdktf': workflow.get('cdktf', False),
+        'plan': workflow.get('plan', _default_plan_workflow()),
+        'terraform_version': workflow.get('terraform_version', get_default_tf_version(repo_config)),
+        'terragrunt': workflow.get('terragrunt', False),
     }
 
 
 def get_default_workflow(repo_config):
     return {
-        'terragrunt': False,
-        'terraform_version': get_default_tf_version(repo_config),
-        'plan': _default_plan_workflow(),
         'apply': _default_apply_workflow(),
+        'cdktf': False,
+        'plan': _default_plan_workflow(),
+        'terraform_version': get_default_tf_version(repo_config),
+        'terragrunt': False,
     }
 
 
