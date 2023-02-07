@@ -42,6 +42,15 @@ RUN     mkdir /tmp/awscli \
         && unzip /tmp/awscli/awscli.zip -d /tmp/awscli/ \
         && /tmp/awscli/aws/install > /dev/null \
         && rm -rf /tmp/awscli
+	
+RUN     curl -fsSL -o /tmp/node-v18.14.0.tar.gz "https://github.com/terrateamio/packages/raw/main/node/node-v18.14.0-linux-x64.tar.gz" \
+        && tar -C /usr/local/ -xzf /tmp/node-v18.14.0.tar.gz \
+        && ln -s /usr/local/node-v18.14.0-linux-x64 /usr/local/node \
+        && ln -s /usr/local/node/bin/* /usr/local/bin/ \
+        && rm -f /tmp/node-v18.14.0.tar.gz
+
+RUN     npm install -g cdktf-cli@latest \
+        && ln -s /usr/local/node/bin/cdktf /usr/local/bin/cdktf
 
 COPY	./bin/ /usr/local/bin
 
