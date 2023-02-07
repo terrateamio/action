@@ -1,5 +1,6 @@
 FROM ghcr.io/terrateamio/action-base:latest
 
+COPY ./cdktf-setup.sh /cdktf-setup.sh
 COPY entrypoint.sh /entrypoint.sh
 COPY terrat_runner /terrat_runner
 
