@@ -54,8 +54,8 @@ def run_with_output(state, config):
     while line:
         line = line.decode('utf-8')
         output.write(line)
-        sys.stdout.write(line)
-        sys.stdout.flush()
+        sys.stderr.write(line)
+        sys.stderr.flush()
         line = proc.stdout.readline()
 
     proc.wait()
