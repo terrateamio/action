@@ -104,6 +104,20 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
+def maybe_setup_cdktf(rc, work_manifest, env):
+    # Determine if any workflows use cdktf and only install it if it is
+    # required.
+    cdktf_used = False
+    for d in work_manifest['changed_dirspaces']:
+        if 'workflow' in d:
+            workflow = repo_config.get_workflow(rc, d['workflow'])
+            cdktf_used = cdktf_used or workflow['cdktf']
+
+    if cdktf_used:
+        subprocess.check_call(['/cdktf-setup.sh'])
+        env['PATH'] = env['PATH'] + ':' + os.path.join(env['TERRATEAM_ROOT'], 'node_modules', '.bin')
+
+
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
@@ -150,6 +164,8 @@ def main():
 
     # Setup Terrateam environment variables
     env['TERRATEAM_ROOT'] = state.working_dir
+
+    maybe_setup_cdktf(rc, wm, env)
 
     transform_tf_vars(env)
 
