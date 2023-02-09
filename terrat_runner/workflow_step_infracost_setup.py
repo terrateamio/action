@@ -137,31 +137,38 @@ def run(state, config):
             changed_dirspaces = set([(ds['path'], ds['workspace'])
                                      for ds in state.work_manifest['changed_dirspaces']])
 
-            dirspaces = [
-                {
-                    'path': p['metadata']['path'],
-                    'workspace': p['metadata']['terraformWorkspace'],
-                    'prev_monthly_cost': infracost.convert_cost(p['pastBreakdown']['totalMonthlyCost']),
-                    'total_monthly_cost': infracost.convert_cost(p['breakdown']['totalMonthlyCost']),
-                    'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
-                }
-                for p in diff['projects']
-                if (p['metadata']['path'], p['metadata']['terraformWorkspace']) in changed_dirspaces
-            ]
+            try:
+                dirspaces = [
+                    {
+                        'path': p['metadata']['path'],
+                        'workspace': p['metadata']['terraformWorkspace'],
+                        'prev_monthly_cost': infracost.convert_cost(p['pastBreakdown']['totalMonthlyCost']),
+                        'total_monthly_cost': infracost.convert_cost(p['breakdown']['totalMonthlyCost']),
+                        'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
+                    }
+                    for p in diff['projects']
+                    if (p['metadata']['path'], p['metadata']['terraformWorkspace']) in changed_dirspaces
+                ]
 
-            return workflow.Result(
-                failed=False,
-                state=state,
-                workflow_step={'type': 'cost-estimation'},
-                outputs={
-                    'cost_estimation': {
-                        'prev_monthly_cost': infracost.convert_cost(diff['pastTotalMonthlyCost']),
-                        'total_monthly_cost': infracost.convert_cost(diff['totalMonthlyCost']),
-                        'diff_monthly_cost': infracost.convert_cost(diff['diffTotalMonthlyCost']),
-                        'currency': diff['currency'],
-                        'dirspaces': dirspaces
-                    },
-                })
+                return workflow.Result(
+                    failed=False,
+                    state=state,
+                    workflow_step={'type': 'cost-estimation'},
+                    outputs={
+                        'cost_estimation': {
+                            'prev_monthly_cost': infracost.convert_cost(diff['pastTotalMonthlyCost']),
+                            'total_monthly_cost': infracost.convert_cost(diff['totalMonthlyCost']),
+                            'diff_monthly_cost': infracost.convert_cost(diff['diffTotalMonthlyCost']),
+                            'currency': diff['currency'],
+                            'dirspaces': dirspaces
+                        },
+                    })
+            except Exception as exn:
+                return workflow.Result(
+                    failed=False,
+                    state=state,
+                    workflow_step={'type': 'cost-estimation'},
+                    outputs={'text': str(exn)})
         else:
             return workflow.Result(failed=False,
                                    state=state,
