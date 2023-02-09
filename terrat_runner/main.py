@@ -68,23 +68,18 @@ def make_parser():
 # into the actual environment.  This value is assumed to be JSON encoding
 # key-value pairs of secrets.  If it does not successfully decode from JSON, the
 # value is ignored.
-def set_secrets_context(state):
-    secrets_context = state.env.get('SECRETS_CONTEXT')
+def set_secrets_context(env):
+    secrets_context = env.get('SECRETS_CONTEXT')
 
     if secrets_context is not None:
-        env = state.env.copy()
         try:
             secrets = json.loads(secrets_context)
 
             for k, v in secrets.items():
                 env[k] = str(v)
-
-            return state._replace(env=env)
         except json.decoder.JSONDecodeError as exn:
             logging.error('Failed to decode SECRETS_CONTEXT')
             logging.exception(exn)
-
-    return state
 
 
 # Iterate the environment and convert any environment variables starting with
@@ -166,12 +161,9 @@ def main():
     env['TERRATEAM_ROOT'] = state.working_dir
 
     maybe_setup_cdktf(rc, wm, env)
-
+    set_secrets_context(env)
     transform_tf_vars(env)
-
     state = state._replace(env=env)
-
-    state = set_secrets_context(state)
 
     logging.debug('EXEC : %s', wm['type'])
     work_exec.run(state, WORK_MANIFEST_DISPATCH[wm['type']]())
