@@ -41,6 +41,14 @@ def run(state, config):
                 proc = cmd.run(state, config)
 
             failed = not (proc.returncode == 0 or ignore_errors)
+            return workflow.Result(failed=failed,
+                                   state=state,
+                                   workflow_step={
+                                       'type': 'run',
+                                       'cmd': config['cmd'],
+                                       'exit_code': proc.returncode
+                                   },
+                                   outputs=outputs)
         except cmd.MissingEnvVar as exn:
             failed = True
             logging.error('Missing environment variable: %s', exn.args[0])
@@ -49,6 +57,14 @@ def run(state, config):
             }
             if output_key:
                 outputs['output_key'] = output_key
+
+            return workflow.Result(failed=failed,
+                                   state=state,
+                                   workflow_step={
+                                       'type': 'run',
+                                       'cmd': config['cmd'],
+                                   },
+                                   outputs=outputs)
         except FileNotFoundError:
             failed = True
             logging.exception('Could not find program to run %r', config['cmd'])
@@ -58,10 +74,14 @@ def run(state, config):
             if output_key:
                 outputs['output_key'] = output_key
 
-        return workflow.Result(failed=failed,
-                               state=state,
-                               workflow_step={'type': 'run', 'cmd': config['cmd']},
-                               outputs=outputs)
+            return workflow.Result(failed=True,
+                                   state=state,
+                                   workflow_step={
+                                       'type': 'run',
+                                       'cmd': config['cmd'],
+                                   },
+                                   outputs=outputs)
+
     else:
         return workflow.Result(failed=True,
                                state=state,
