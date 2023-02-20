@@ -1,6 +1,5 @@
-FROM	debian:bullseye-20220622-slim
-
-RUN	apt-get update \
+FROM debian:bullseye-20220622-slim
+RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	apt-utils \
 	bash \
@@ -22,29 +21,31 @@ RUN	apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-RUN     curl -fsSL -o /usr/local/bin/terragrunt-0.36.10 "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_v0.36.10_linux_amd64" \
-        && chmod +x /usr/local/bin/terragrunt-0.36.10 \
-        && ln -s /usr/local/bin/terragrunt-0.36.10 /usr/local/bin/terragrunt
+ENV TERRAGRUNT_VERSION v0.36.10
+RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
+    && chmod +x /usr/local/bin/terragrunt
 
-RUN     curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-v0.10.17-linux-amd64.tar.gz" \
-        && tar -C /tmp -xzf /tmp/infracost-linux-amd64.tar.gz \
-        && mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost \
-        && rm -f /tmp/infracost-linux-amd64.tar.gz
+ENV INFRACOST_VERSION v0.10.17
+RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-${INFRACOST_VERSION}-linux-amd64.tar.gz" \
+    && tar -C /tmp -xzf /tmp/infracost-linux-amd64.tar.gz \
+    && mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost \
+    && rm -f /tmp/infracost-linux-amd64.tar.gz
 
-RUN     mkdir /tmp/conftest \
-        && curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/terrateamio/packages/raw/main/conftest/conftest_0.35.0_Linux_x86_64.tar.gz" \
-        && tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz \
-        && mv /tmp/conftest/conftest /usr/local/bin/conftest \
-        && rm -rf /tmp/conftest
+ENV CONFTEST_VERSION 0.39.0
+RUN mkdir /tmp/conftest \
+    && curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/terrateamio/packages/raw/main/conftest/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+    && tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz \
+    && mv /tmp/conftest/conftest /usr/local/bin/conftest \
+    && rm -rf /tmp/conftest
 
-RUN     mkdir /tmp/awscli \
-        && curl -fsSL -o /tmp/awscli/awscli.zip "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-2.7.11.zip" \
-        && unzip /tmp/awscli/awscli.zip -d /tmp/awscli/ \
-        && /tmp/awscli/aws/install > /dev/null \
-        && rm -rf /tmp/awscli
+ENV AWSCLI_VERSION 2.9.22
+RUN mkdir /tmp/awscli \
+    && curl -fsSL -o /tmp/awscli/awscli.zip "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" \
+    && unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ \
+    && /tmp/awscli/aws/install > /dev/null \
+    && rm -rf /tmp/awscli
 
-COPY	./bin/ /usr/local/bin
-
-ENV     DEFAULT_TERRAFORM_VERSION       1.2.5
-COPY    ./install-terraform-version /install-terraform-version
-RUN     /install-terraform-version latest
+COPY ./bin/ /usr/local/bin
+ENV DEFAULT_TERRAFORM_VERSION 1.3.8
+COPY ./install-terraform-version /install-terraform-version
+RUN /install-terraform-version latest
