@@ -25,7 +25,7 @@ curl -LOs https://releases.hashicorp.com/terraform/${VERSION}/terraform_${VERSIO
 curl -LOs https://releases.hashicorp.com/terraform/${VERSION}/terraform_${VERSION}_SHA256SUMS
 grep -F "terraform_${VERSION}_linux_amd64.zip" terraform_${VERSION}_SHA256SUMS | sha256sum -c
 mkdir -p /usr/local/tf/versions/${VERSION}
-unzip terraform_${VERSION}_linux_amd64.zip
+unzip -q terraform_${VERSION}_linux_amd64.zip
 chmod +x terraform
 mv terraform /usr/local/tf/versions/${VERSION}/
 rm terraform_${VERSION}_linux_amd64.zip
