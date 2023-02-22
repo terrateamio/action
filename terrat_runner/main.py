@@ -151,7 +151,11 @@ def main():
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
+
     run_time = github_actions.run_time.Run_time()
+
+    run_time.set_secret(wm['token'])
+
     state = run_state.create(
         args.work_token,
         wm['token'],
@@ -162,7 +166,7 @@ def main():
         args.sha,
         run_time)
 
-    run_time.set_secret(wm['token'])
+    state = run_time.initialize(state)
 
     env = state.env.copy()
     # Setup Terraform environment variables for automation
