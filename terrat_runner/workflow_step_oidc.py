@@ -52,6 +52,9 @@ def assume_role(state, config, web_identity_token):
         env['AWS_ACCESS_KEY_ID'] = output['Credentials']['AccessKeyId']
         env['AWS_SECRET_ACCESS_KEY'] = output['Credentials']['SecretAccessKey']
         env['AWS_SESSION_TOKEN'] = output['Credentials']['SessionToken']
+        state.run_time.set_secret(env['AWS_ACCESS_KEY_ID'])
+        state.run_time.set_secret(env['AWS_SECRET_ACCESS_KEY'])
+        state.run_time.set_secret(env['AWS_SESSION_TOKEN'])
         state = state._replace(env=env)
 
         return workflow.Result(failed=False,
@@ -86,6 +89,9 @@ def run_aws(state, config):
     if res.status_code == 200:
         logging.info('OIDC : %s : SUCCESS', role_arn)
         web_identity_token = res.json()['value']
+
+        state.run_time.set_secret(web_identity_token)
+
         web_identity_token_file = os.path.join(state.tmpdir, 'oidc_token_file')
         with open(web_identity_token_file, 'w') as f:
             f.write(web_identity_token)
