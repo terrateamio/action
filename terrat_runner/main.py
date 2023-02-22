@@ -154,12 +154,15 @@ def main():
     run_time = github_actions.run_time.Run_time()
     state = run_state.create(
         args.work_token,
+        wm['token'],
         rc,
         args.workspace,
         args.api_base_url,
         wm,
         args.sha,
         run_time)
+
+    run_time.set_secret(wm['token'])
 
     env = state.env.copy()
     # Setup Terraform environment variables for automation
