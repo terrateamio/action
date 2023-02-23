@@ -4,6 +4,7 @@ import workflow_step
 
 
 ALLOWED_HOOK_STEPS = [
+    'drift_create_issue',
     'env',
     'infracost_setup',
     'oidc',
