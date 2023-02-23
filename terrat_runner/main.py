@@ -11,6 +11,7 @@ import work_exec
 import work_manifest
 import work_plan
 import work_unsafe_apply
+import github_actions.run_time
 
 
 DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
@@ -150,7 +151,22 @@ def main():
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
-    state = run_state.create(args.work_token, rc, args.workspace, args.api_base_url, wm, args.sha)
+
+    run_time = github_actions.run_time.Run_time()
+
+    run_time.set_secret(wm['token'])
+
+    state = run_state.create(
+        args.work_token,
+        wm['token'],
+        rc,
+        args.workspace,
+        args.api_base_url,
+        wm,
+        args.sha,
+        run_time)
+
+    state = run_time.initialize(state)
 
     env = state.env.copy()
     # Setup Terraform environment variables for automation
