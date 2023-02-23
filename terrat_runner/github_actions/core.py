@@ -55,4 +55,4 @@ def issue_cmd(cmd, properties, msg):
 
 
 def set_secret(secret):
-    return issue_cmd('add-mas', {}, secret)
+    return issue_cmd('add-mask', {}, secret)

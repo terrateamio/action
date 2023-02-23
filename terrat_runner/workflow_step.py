@@ -2,6 +2,7 @@
 # which each take their own configuration parameters.
 import logging
 
+import github_actions.workflow_step_drift_create_issue
 import workflow
 import workflow_step_apply
 import workflow_step_env
@@ -17,6 +18,7 @@ import workflow_step_unsafe_apply
 
 STEPS = {
     'apply': workflow_step_apply.run,
+    'drift_create_issue': github_actions.workflow_step_drift_create_issue.run,
     'env': workflow_step_env.run,
     'infracost_setup': workflow_step_infracost_setup.run,
     'init': workflow_step_init.run,
