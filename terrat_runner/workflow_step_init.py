@@ -25,6 +25,8 @@ def run(state, config):
     if os.path.exists(terraform_lock_path):
         os.remove(terraform_lock_path)
 
+    state = state.run_time.update_authentication(state)
+
     result = retry.run(
         lambda: workflow_step_terraform.run(state, config),
         retry.finite_tries(TRIES, lambda result: not result.failed),
