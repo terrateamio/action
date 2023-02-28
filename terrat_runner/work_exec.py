@@ -57,6 +57,8 @@ def _run(state, exec_cb):
         state.working_dir,
         state.working_dir,
         rc.get_default_tf_version(state.repo_config))
+
+    env['TERRATEAM_TMPDIR'] = state.tmpdir
     state = state._replace(env=env)
 
     pre_hooks = exec_cb.pre_hooks(state)

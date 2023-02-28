@@ -100,7 +100,7 @@ def run_aws(state, config):
 
         state.run_time.set_secret(web_identity_token)
 
-        web_identity_token_file = os.path.join(state.tmpdir, 'aws_oidc_token_file')
+        web_identity_token_file = os.path.join(state.env['TERRATEAM_TMPDIR'], 'aws_oidc_token_file')
         with open(web_identity_token_file, 'w') as f:
             f.write(web_identity_token)
 
@@ -300,7 +300,8 @@ def run_gcp(state, config):
             google_oauth_access_token = oauth_token_data['access_token']
             state.run_time.set_secret(google_oauth_access_token)
 
-            google_oauth_access_token_file = os.path.join(state.tmpdir, 'gcp_oidc_token_file')
+            google_oauth_access_token_file = os.path.join(state.env['TERRATEAM_TMPDIR'],
+                                                          'gcp_oidc_token_file')
             with open(google_oauth_access_token_file, 'w') as f:
                 f.write(google_oauth_access_token)
 
