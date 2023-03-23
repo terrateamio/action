@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+terraform show -json ${TERRATEAM_PLAN_FILE} > ${TERRATEAM_PLAN_FILE}.json
+
+ARGS="$@"
+if [ -z "$ARGS" ]; then
+  checkov --quiet --compact -f ${TERRATEAM_PLAN_FILE}.json
+else
+  checkov "$ARGS" -f ${TERRATEAM_PLAN_FILE}.json
+fi
