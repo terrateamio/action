@@ -70,7 +70,7 @@ def assume_role(state, config, web_identity_token):
                                workflow_step={'type': 'oidc'},
                                outputs=None)
     else:
-        logging.error('OIDC : %s : ERROR : %s', role_arn, output)
+        logging.error('OIDC : %s : ERROR', role_arn)
         return workflow.Result(failed=True,
                                state=state,
                                workflow_step={'type': 'oidc'},
