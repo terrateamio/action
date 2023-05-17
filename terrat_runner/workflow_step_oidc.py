@@ -29,9 +29,8 @@ class Auth_error(Exception):
     pass
 
 
-def assume_role(state, config, web_identity_token):
+def assume_role_with_web_identity(state, config, web_identity_token):
     role_arn = config['role_arn']
-    assume_role_arn = config.get('assume_role_arn', role_arn)
     duration = config.get('duration', DEFAULT_DURATION)
     session_name = config.get('session_name', DEFAULT_SESSION_NAME)
 
@@ -41,7 +40,7 @@ def assume_role(state, config, web_identity_token):
                 'aws',
                 'sts',
                 'assume-role-with-web-identity',
-                '--role-arn', assume_role_arn,
+                '--role-arn', role_arn,
                 '--role-session-name', session_name,
                 '--web-identity-token', web_identity_token,
                 '--duration-seconds', str(duration),
@@ -79,6 +78,54 @@ def assume_role(state, config, web_identity_token):
                                })
 
 
+def assume_role(state, config):
+    assume_role_arn = config['assume_role_arn']
+    duration = config.get('duration', DEFAULT_DURATION)
+    session_name = config.get('session_name', DEFAULT_SESSION_NAME)
+
+    proc = retry.run(
+        lambda: subprocess.run(
+            [
+                'aws',
+                'sts',
+                'assume-role',
+                '--role-arn', assume_role_arn,
+                '--role-session-name', session_name,
+                '--duration-seconds', str(duration),
+                '--output', 'json'
+            ],
+            cwd=state.working_dir,
+            env=state.env,
+            capture_output=True
+        ),
+        retry.finite_tries(TRIES, lambda ret: ret.returncode == 0),
+        retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
+
+    if proc.returncode == 0:
+        output = json.loads(proc.stdout.decode('utf-8'))
+        env = state.env.copy()
+        env['AWS_ACCESS_KEY_ID'] = output['Credentials']['AccessKeyId']
+        env['AWS_SECRET_ACCESS_KEY'] = output['Credentials']['SecretAccessKey']
+        env['AWS_SESSION_TOKEN'] = output['Credentials']['SessionToken']
+        state.run_time.set_secret(env['AWS_ACCESS_KEY_ID'])
+        state.run_time.set_secret(env['AWS_SECRET_ACCESS_KEY'])
+        state.run_time.set_secret(env['AWS_SESSION_TOKEN'])
+        state = state._replace(env=env)
+
+        return workflow.Result(failed=False,
+                               state=state,
+                               workflow_step={'type': 'oidc'},
+                               outputs=None)
+    else:
+        logging.error('OIDC : %s : ERROR', assume_role_arn)
+        return workflow.Result(failed=True,
+                               state=state,
+                               workflow_step={'type': 'oidc'},
+                               outputs={
+                                   'text': proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
+                               })
+
+
 def run_aws(state, config):
     role_arn = config['role_arn']
     audience = config.get('audience', DEFAULT_AWS_AUDIENCE)
@@ -107,16 +154,18 @@ def run_aws(state, config):
         region = config.get('region', DEFAULT_REGION)
 
         env = state.env.copy()
-        env['AWS_ROLE_ARN'] = role_arn
         env['AWS_REGION'] = region
-        env['AWS_WEB_IDENTITY_TOKEN_FILE'] = web_identity_token_file
         state = state._replace(env=env)
-        if config.get('assume_role_enabled', True):
-            logging.info('OIDC : %s : ASSUMING_ROLE', role_arn)
-            return assume_role(state, config, web_identity_token)
+        logging.info('OIDC : %s : ASSUMING_ROLE_WITH_WEB_IDENTITY', role_arn)
+        result = assume_role_with_web_identity(state, config, web_identity_token)
+        if result.failed:
+            return result
+        elif config.get('assume_role_enabled', True) and 'assume_role_arn' in config:
+            logging.info('OIDC : %s : ASSUMING_ROLE', config['assume_role_arn'])
+            return assume_role(result.state, config)
         else:
             return workflow.Result(failed=False,
-                                   state=state,
+                                   state=result.state,
                                    workflow_step={'type': 'oidc'},
                                    outputs=None)
 
