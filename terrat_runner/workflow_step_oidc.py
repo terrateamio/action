@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import string
 import subprocess
 import time
 
@@ -30,7 +31,7 @@ class Auth_error(Exception):
 
 
 def assume_role_with_web_identity(state, config, web_identity_token):
-    role_arn = config['role_arn']
+    role_arn = string.Template(config['role_arn']).substitute(state.env)
     duration = config.get('duration', DEFAULT_DURATION)
     session_name = config.get('session_name', DEFAULT_SESSION_NAME)
 
@@ -79,7 +80,7 @@ def assume_role_with_web_identity(state, config, web_identity_token):
 
 
 def assume_role(state, config):
-    assume_role_arn = config['assume_role_arn']
+    assume_role_arn = string.Template(config['assume_role_arn']).substitute(state.env)
     duration = config.get('duration', DEFAULT_DURATION)
     session_name = config.get('session_name', DEFAULT_SESSION_NAME)
 
@@ -127,8 +128,8 @@ def assume_role(state, config):
 
 
 def run_aws(state, config):
-    role_arn = config['role_arn']
-    audience = config.get('audience', DEFAULT_AWS_AUDIENCE)
+    role_arn = string.Template(config['role_arn']).substitute(state.env)
+    audience = string.Template(config.get('audience', DEFAULT_AWS_AUDIENCE)).substitute(state.env)
 
     request_url = state.env[REQUEST_URL_VAR]
     request_token = state.env[REQUEST_TOKEN_VAR]
@@ -313,13 +314,14 @@ def create_token(web_identity_token,
 
 
 def run_gcp(state, config):
-    service_account = config['service_account']
-    workload_identity_provider = config['workload_identity_provider']
+    service_account = string.Template(config['service_account']).substitute(state.env)
+    workload_identity_provider = string.Template(config['workload_identity_provider']).substitute(state.env)
     access_token_lifetime = config.get('access_token_lifetime', 3600)
     audience = config.get('audience', 'https://iam.googleapis.com/' + workload_identity_provider)
-    access_token_subject = config.get('access_token_subject')
-    access_token_scopes = config.get('access_token_scopes',
-                                     ['https://www.googleapis.com/auth/cloud-platform'])
+    access_token_subject = string.Template(config.get('access_token_subject')).substitute(state.env)
+    access_token_scopes = string.Template(
+        config.get('access_token_scopes',
+                   ['https://www.googleapis.com/auth/cloud-platform'])).substitute(state.env)
 
     request_url = state.env[REQUEST_URL_VAR]
     request_token = state.env[REQUEST_TOKEN_VAR]
