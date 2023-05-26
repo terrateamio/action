@@ -20,11 +20,6 @@ def run(state, config):
     if os.path.exists(terraform_path):
         shutil.rmtree(terraform_path)
 
-        # If there is already a .terraform.lock.hcl file, delete it
-    terraform_lock_path = os.path.join(state.working_dir, '.terraform.lock.hcl')
-    if os.path.exists(terraform_lock_path):
-        os.remove(terraform_lock_path)
-
     state = state.run_time.update_authentication(state)
 
     result = retry.run(
