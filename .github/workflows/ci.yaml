@@ -21,9 +21,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       -
-        name: Build and push
+        name: Build and push base
         uses: docker/build-push-action@v3
         with:
           push: true
           file: Dockerfile.base
           tags: ghcr.io/terrateamio/action-base:latest
+
+      -
+        name: Build and push action
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: Dockerfile
+          tags: ghcr.io/terrateamio/action:v1
