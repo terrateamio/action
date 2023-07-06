@@ -114,6 +114,22 @@ def maybe_setup_cdktf(rc, work_manifest, env):
         env['PATH'] = env['PATH'] + ':' + os.path.join(env['TERRATEAM_ROOT'], 'node_modules', '.bin')
 
 
+def perform_merge(base_ref):
+    for i in range(100):
+        try:
+            subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
+                                    stderr=subprocess.STDOUT)
+            return
+        except subprocess.CalledProcessError as exn:
+            if 'not something we can merge' in exn.output.decode('utf-8'):
+                logging.debug('MERGE : DEEPENING')
+                subprocess.check_call(['git', 'fetch', '--deepen=100'])
+            else:
+                raise
+
+    raise Exception('Could not merge destination branch')
+
+
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
@@ -147,7 +163,7 @@ def main():
     subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
     subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
     subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
-    subprocess.check_call(['git', 'merge', '--no-edit', 'origin/' + wm['base_ref']])
+    perform_merge(wm['base_ref'])
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
