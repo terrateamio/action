@@ -318,7 +318,7 @@ def run_gcp(state, config):
     workload_identity_provider = string.Template(config['workload_identity_provider']).substitute(state.env)
     access_token_lifetime = config.get('access_token_lifetime', 3600)
     audience = config.get('audience', 'https://iam.googleapis.com/' + workload_identity_provider)
-    access_token_scopes = [string.Template(s).subsitute(state.env)
+    access_token_scopes = [string.Template(s).substitute(state.env)
                            for s in config.get('access_token_scopes',
                                                ['https://www.googleapis.com/auth/cloud-platform'])]
 
