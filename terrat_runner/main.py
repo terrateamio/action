@@ -114,16 +114,21 @@ def maybe_setup_cdktf(rc, work_manifest, env):
         env['PATH'] = env['PATH'] + ':' + os.path.join(env['TERRATEAM_ROOT'], 'node_modules', '.bin')
 
 
-def perform_merge(base_ref):
+def perform_merge(working_dir, base_ref):
+    current_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                             cwd=working_dir).decode('utf-8').strip()
+    subprocess.check_call(['git', 'fetch', '--depth=1', 'origin', base_ref])
     for i in range(100):
         try:
             subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
                                     stderr=subprocess.STDOUT)
             return
         except subprocess.CalledProcessError as exn:
-            if 'not something we can merge' in exn.output.decode('utf-8'):
+            logging.info('%s', exn.output.decode('utf-8'))
+            if 'not something we can merge' in exn.output.decode('utf-8') \
+               or 'refusing to merge unrelated histories' in exn.output.decode('utf-8'):
                 logging.debug('MERGE : DEEPENING')
-                subprocess.check_call(['git', 'fetch', '--deepen=100'])
+                subprocess.check_call(['git', 'fetch', '--deepen=100', 'origin', '+' + current_commit])
             else:
                 raise
 
@@ -163,7 +168,7 @@ def main():
     subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
     subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
     subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
-    perform_merge(wm['base_ref'])
+    perform_merge(args.workspace, wm['base_ref'])
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
