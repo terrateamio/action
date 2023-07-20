@@ -22,7 +22,7 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENV TERRAGRUNT_VERSION v0.36.10
+ENV TERRAGRUNT_VERSION v0.48.4
 RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
     && chmod +x /usr/local/bin/terragrunt
 
