@@ -43,6 +43,14 @@ BANNER = r"""
 |_|  |_|_____|
 """
 
+ERROR_BANNER = r"""
+ _____ ____  ____   ___  ____
+| ____|  _ \|  _ \ / _ \|  _ \
+|  _| | |_) | |_) | | | | |_) |
+| |___|  _ <|  _ <| |_| |  _ <
+|_____|_| \_\_| \_\\___/|_| \_\
+"""
+
 
 def make_parser():
     parser = argparse.ArgumentParser(description='Terrateam Runner')
@@ -159,7 +167,22 @@ def main():
         args.api_base_url = args.api_base_url[:-1]
 
     logging.debug('LOADING : WORK_MANIFEST')
-    wm = work_manifest.get(args.api_base_url, args.work_token, args.run_id, args.sha)
+
+    try:
+        wm = work_manifest.get(args.api_base_url, args.work_token, args.run_id, args.sha)
+    except work_manifest.NoWorkManifestError:
+        print(ERROR_BANNER)
+        print('*** The work manifest was not found ***')
+        print('***')
+        print('*** The most likely cause of this is the GitHub Action Workflow ***')
+        print('*** is being run manually ***')
+        print('***')
+        print('*** This is not supported by Terrateam.  All runs must be initiated ***')
+        print('*** by an operation in a pull request ***')
+        print('***')
+        print('*** If this error persists, reach out to us in our Slack: https://slack.terrateam.io/ ***')
+        print('*** or email us directly at support@terrateam.io ***')
+        raise
 
     # We only support a merge-based evaluation.  We must perform the merge first
     # because we load the repo config next and we want it to be the merged
