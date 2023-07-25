@@ -99,6 +99,10 @@ def _create_base_infracost(state, config, infracost_dir, infracost_json):
         subprocess.call(['git', 'stash', 'pop'])
 
 
+def _make_path_relative(base, path):
+    return path.removeprefix(base + '/')
+
+
 def run(state, config):
     infracost_dir = os.path.join(state.tmpdir, 'infracost')
     os.makedirs(infracost_dir, exist_ok=True)
@@ -141,14 +145,16 @@ def run(state, config):
             try:
                 dirspaces = [
                     {
-                        'path': p['metadata']['path'],
+                        'path': _make_path_relative(state.working_dir, p['metadata']['path']),
                         'workspace': p['metadata']['terraformWorkspace'],
                         'prev_monthly_cost': infracost.convert_cost(p['pastBreakdown']['totalMonthlyCost']),
                         'total_monthly_cost': infracost.convert_cost(p['breakdown']['totalMonthlyCost']),
                         'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
                     }
                     for p in diff['projects']
-                    if (p['metadata']['path'], p['metadata']['terraformWorkspace']) in changed_dirspaces
+                    if (_make_path_relative(state.working_dir,
+                                            p['metadata']['path']),
+                        p['metadata']['terraformWorkspace']) in changed_dirspaces
                 ]
 
                 return workflow.Result(
