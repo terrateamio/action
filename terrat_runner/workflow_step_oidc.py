@@ -210,8 +210,6 @@ def sign_jwt(service_account, web_identity_token, unsigned_jwt):
     ret = requests_retry.post(url, headers=headers, json=data)
 
     if ret.status_code == 200:
-        logging.info(ret.headers)
-        logging.info(ret.text)
         return ret.json()['signedJwt']
     else:
         raise Auth_error(ret.content.decode('utf-8'))
