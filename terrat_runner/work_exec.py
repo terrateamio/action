@@ -25,17 +25,18 @@ class ExecInterface(abc.ABC):
 
 
 def determine_tf_version(repo_root, working_dir, workflow_version):
-    working_dir_path = os.path.join(working_dir, '.terraform-version')
-    repo_root_path = os.path.join(repo_root, '.terraform-version')
-
     def _read(fname):
         with open(fname) as f:
             return f.read().strip()
 
-    if os.path.exists(working_dir_path):
-        return _read(working_dir_path)
-    elif os.path.exists(repo_root_path):
-        return _read(repo_root_path)
+    path = working_dir
+    while path != repo_root:
+        if os.path.exists(os.path.join(path, '.terraform-version')):
+            return _read(os.path.join(path, '.terraform-version'))
+        path = os.path.dirname(path)
+
+    if os.path.exists(os.path.join(repo_root, '.terraform-version')):
+        return _read(os.path.join(repo_root, '.terraform-version'))
     else:
         return workflow_version
 
