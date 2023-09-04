@@ -42,7 +42,8 @@ def extract_dirspace_plans(fname):
                     ret.append({
                         'dir': ds['path'],
                         'workspace': ds['workspace'],
-                        'plan': output['outputs']['plan']
+                        'plan': output['outputs']['plan'],
+                        'has_changes': output['outputs']['has_changes']
                     })
 
     return ret
@@ -84,27 +85,29 @@ def maybe_create_issue(state):
     all_dirspace_plan_output = ''
     if run_kind == 'drift' and os.path.isfile(results_file):
         dirspace_plans = extract_dirspace_plans(state.env['TERRATEAM_RESULTS_FILE'])
-        all_dirspace_plan_output = format_dirspaces(dirspace_plans)
-        report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
+        dirspaces_with_changes = [d for d in dirspace_plans if d['has_changes']]
+        if dirspaces_with_changes:
+            all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
+            report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
 
-        state = state.run_time.update_authentication(state)
+            state = state.run_time.update_authentication(state)
 
-        existing_issue = find_matching_issue(state.env, report_id)
-        if existing_issue:
-            logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
-        else:
-            issue_body = format_issue_body(all_dirspace_plan_output, report_id)
-            url = 'https://api.github.com/repos/{repo}/issues'.format(repo=state.env['GITHUB_REPOSITORY'])
-            headers = {
-                'User-Agent': 'Terrateam Action',
-                'Authorization': 'token ' + state.env['TERRATEAM_GITHUB_TOKEN']}
-            issue = {
-                'title': TITLE,
-                'body': issue_body
-            }
-            ret = requests_retry.post(url, headers=headers, json=issue)
-            if ret.status_code != 201:
-                raise Exception('Failed to make issue')
+            existing_issue = find_matching_issue(state.env, report_id)
+            if existing_issue:
+                logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
+            else:
+                issue_body = format_issue_body(all_dirspace_plan_output, report_id)
+                url = 'https://api.github.com/repos/{repo}/issues'.format(repo=state.env['GITHUB_REPOSITORY'])
+                headers = {
+                    'User-Agent': 'Terrateam Action',
+                    'Authorization': 'token ' + state.env['TERRATEAM_GITHUB_TOKEN']}
+                issue = {
+                    'title': TITLE,
+                    'body': issue_body
+                }
+                ret = requests_retry.post(url, headers=headers, json=issue)
+                if ret.status_code != 201:
+                    raise Exception('Failed to make issue')
 
 
 def run(state, config):
