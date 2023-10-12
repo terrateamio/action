@@ -2,4 +2,4 @@
 set -euf -o pipefail
 
 terraform show -json ${TERRATEAM_PLAN_FILE} > ${TERRATEAM_PLAN_FILE}.json
-conftest test ${TERRATEAM_PLAN_FILE}.json .
+conftest test --ignore .git ${TERRATEAM_PLAN_FILE}.json .
