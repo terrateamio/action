@@ -32,7 +32,7 @@ RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terratea
     && mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost \
     && rm -f /tmp/infracost-linux-amd64.tar.gz
 
-ENV CONFTEST_VERSION 0.39.0
+ENV CONFTEST_VERSION 0.46.0
 RUN mkdir /tmp/conftest \
     && curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/terrateamio/packages/raw/main/conftest/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
     && tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz \
