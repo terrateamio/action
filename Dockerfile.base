@@ -26,7 +26,7 @@ ENV TERRAGRUNT_VERSION v0.48.4
 RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
     && chmod +x /usr/local/bin/terragrunt
 
-ENV INFRACOST_VERSION v0.10.17
+ENV INFRACOST_VERSION v0.10.29
 RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-${INFRACOST_VERSION}-linux-amd64.tar.gz" \
     && tar -C /tmp -xzf /tmp/infracost-linux-amd64.tar.gz \
     && mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost \
