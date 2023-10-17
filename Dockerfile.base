@@ -46,7 +46,7 @@ RUN mkdir /tmp/awscli \
     && /tmp/awscli/aws/install > /dev/null \
     && rm -rf /tmp/awscli
 
-ENV CHECKOV_VERSION=2.3.112
+ENV CHECKOV_VERSION=2.5.10
 RUN pip3 install checkov==${CHECKOV_VERSION}
 
 COPY ./bin/ /usr/local/bin
