@@ -39,7 +39,7 @@ RUN mkdir /tmp/conftest \
     && mv /tmp/conftest/conftest /usr/local/bin/conftest \
     && rm -rf /tmp/conftest
 
-ENV AWSCLI_VERSION 2.9.22
+ENV AWSCLI_VERSION 2.13.26
 RUN mkdir /tmp/awscli \
     && curl -fsSL -o /tmp/awscli/awscli.zip "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" \
     && unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ \
