@@ -22,7 +22,7 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENV TERRAGRUNT_VERSION v0.48.4
+ENV TERRAGRUNT_VERSION v0.52.3
 RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
     && chmod +x /usr/local/bin/terragrunt
 
@@ -39,7 +39,7 @@ RUN mkdir /tmp/conftest \
     && mv /tmp/conftest/conftest /usr/local/bin/conftest \
     && rm -rf /tmp/conftest
 
-ENV AWSCLI_VERSION 2.9.22
+ENV AWSCLI_VERSION 2.13.26
 RUN mkdir /tmp/awscli \
     && curl -fsSL -o /tmp/awscli/awscli.zip "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" \
     && unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ \
