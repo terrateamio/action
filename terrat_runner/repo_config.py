@@ -117,3 +117,8 @@ def get_retry(config):
         'backoff': _get(retry, 'backoff', 3.0),
         'initial_sleep': _get(retry, 'initial_sleep', 5)
     }
+
+
+def get_plan_storage(config):
+    storage = _get(config, 'storage', {})
+    return _get(storage, 'plans', {'method': 'terrateam'})
