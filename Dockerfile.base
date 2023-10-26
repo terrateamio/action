@@ -50,6 +50,6 @@ ENV CHECKOV_VERSION=2.5.10
 RUN pip3 install checkov==${CHECKOV_VERSION}
 
 COPY ./bin/ /usr/local/bin
-ENV DEFAULT_TERRAFORM_VERSION 1.3.8
+ENV DEFAULT_TERRAFORM_VERSION 1.5.7
 COPY ./install-terraform-version /install-terraform-version
 RUN /install-terraform-version latest
