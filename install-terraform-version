@@ -5,14 +5,14 @@ set -u
 set -o pipefail
 
 VERSION="$1"
+if [[ "$VERSION" == "latest" ]]; then
+    VERSION="${DEFAULT_TERRAFORM_VERSION}"
+fi
+
 VERSION_CHECK=${VERSION//./}
 if [ "$VERSION_CHECK" -ge "160" ]; then
   echo "ERROR: This version of Terraform is not allowed (BUSL). Exiting."
   exit 1
-fi
-
-if [[ "$VERSION" == "latest" ]]; then
-    VERSION="${DEFAULT_TERRAFORM_VERSION}"
 fi
 
 if [[ -e "/usr/local/tf/versions/${VERSION}/terraform" ]]; then
