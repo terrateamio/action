@@ -14,7 +14,6 @@ if [ "$VERSION_CHECK" -ge "16" ]; then
   echo "ERROR: This version of Terraform is not allowed (BUSL). Exiting."
   exit 1
 fi
-exit
 
 if [[ -e "/usr/local/tf/versions/${VERSION}/terraform" ]]; then
     # If the file is already there, just move on
