@@ -98,17 +98,30 @@ def _store_plan_s3(state, plan_storage, work_token, api_base_url, dir_path, work
         if SECRET_ACCESS_KEY in plan_storage:
             cmd_prefix += ['AWS_SECRET_ACCESS_KEY=' + plan_storage[SECRET_ACCESS_KEY]]
 
+    store_extra_args = plan_storage.get('store_extra_args', [])
+    fetch_extra_args = plan_storage.get('fetch_extra_args', [])
+    delete_extra_args = plan_storage.get('delete_extra_args', [])
+
     if plan_storage.get('delete_used_plans', True):
-        delete_cmd = cmd_prefix + ['aws', 's3', 'rm', url, '--region', plan_storage['region']]
+        delete_cmd = cmd_prefix + ['aws', 's3', 'rm'] + delete_extra_args + [url, '--region', plan_storage['region']]
     else:
         delete_cmd = []
+
+    fetch_cmd = (cmd_prefix +
+                 ['aws', 's3', 'cp'] +
+                 fetch_extra_args +
+                 [url, '$plan_dst_path', '--region', plan_storage['region']])
+    store_cmd = (cmd_prefix +
+                 ['aws', 's3', 'cp'] +
+                 store_extra_args +
+                 ['$plan_path', url, '--region', plan_storage['region']])
 
     return _store_plan_cmd(
         state,
         {
             'delete': delete_cmd,
-            'fetch': cmd_prefix + ['aws', 's3', 'cp', url, '$plan_dst_path', '--region', plan_storage['region']],
-            'store': cmd_prefix + ['aws', 's3', 'cp', '$plan_path', url, '--region', plan_storage['region']],
+            'fetch': fetch_cmd,
+            'store': store_cmd,
         },
         work_token,
         api_base_url,
