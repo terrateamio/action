@@ -107,6 +107,7 @@ def maybe_create_issue(state):
                 }
                 ret = requests_retry.post(url, headers=headers, json=issue)
                 if ret.status_code != 201:
+                    logging.error('Failed to make issue: %s', ret.text)
                     raise Exception('Failed to make issue')
 
 
