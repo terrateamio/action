@@ -18,9 +18,7 @@ Create a new pull request to reconcile differences or enable automatic reconcili
 ## Terrateam Plan Output
 '''
 
-
-def format_dirspace_output(directory, workspace, plan):
-    return ('''
+SUCCESS_OUTPUT = '''
 <details>
 <summary>Directory: {dir} | Workspace: {workspace}</summary>
 
@@ -29,7 +27,25 @@ def format_dirspace_output(directory, workspace, plan):
 ```
 
 </details>
-'''.format(dir=directory, workspace=workspace, plan=plan))
+'''
+
+FAILURE_OUTPUT = '''
+<details>
+<summary>Directory: {dir} | Workspace: {workspace}</summary>
+
+Running the plan failed, please see the action output for details
+
+</details>
+'''
+
+
+def format_dirspace_output(directory, workspace, plan, success):
+    if success:
+        msg = SUCCESS_OUTPUT
+    else:
+        msg = FAILURE_OUTPUT
+
+    return msg.format(dir=directory, workspace=workspace, plan=plan)
 
 
 def extract_dirspace_plans(fname):
@@ -42,15 +58,16 @@ def extract_dirspace_plans(fname):
                     ret.append({
                         'dir': ds['path'],
                         'workspace': ds['workspace'],
-                        'plan': output['outputs']['plan'],
-                        'has_changes': output['outputs']['has_changes']
+                        'plan': output['outputs'].get('plan'),
+                        'has_changes': output['outputs']['has_changes'],
+                        'success': ds['success']
                     })
 
     return ret
 
 
 def format_dirspaces(dirspace_plans):
-    return '\n'.join([format_dirspace_output(v['dir'], v['workspace'], v['plan'])
+    return '\n'.join([format_dirspace_output(v['dir'], v['workspace'], v['plan'], v['success'])
                       for v in dirspace_plans])
 
 
