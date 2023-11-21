@@ -206,6 +206,10 @@ def run(state, config):
     if success:
         result = result._replace(failed=not success)
     else:
+        logging.error('PLAN_STORE_FAILED : %s : %s : %s',
+                      state.env['TERRATEAM_DIR'],
+                      state.env['TERRATEAM_WORKSPACE'],
+                      output)
         result = result._replace(failed=True)
         outputs = {'text': 'Could not store plan file, with the following error:\n\n' + output}
 
