@@ -58,7 +58,7 @@ def extract_dirspace_plans(fname):
                     ret.append({
                         'dir': ds['path'],
                         'workspace': ds['workspace'],
-                        'plan': output['outputs'].get('plan'),
+                        'plan': output['outputs'].get('plan_text', output['outputs'].get('plan')),
                         'has_changes': output['outputs']['has_changes'],
                         'success': ds['success']
                     })
