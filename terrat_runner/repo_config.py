@@ -3,6 +3,7 @@ import yaml
 
 
 def _get(d, k, default):
+    """Return [default] if it is not set or set to None."""
     v = d.get(k, default)
     if v is None:
         return default
@@ -63,24 +64,87 @@ def get_apply_workflow(repo_config, idx):
     return repo_config['workflows'][idx].get('apply', _default_apply_workflow())
 
 
+def get_engine(repo_config):
+    # Get the engine config.  If one is already there, we will take it verbatim,
+    # however if we need to construct a default one, we specify terraform and we
+    # also want to use the [default_tf_version] if present.  This is to maintain
+    # compatibility with existing configurations.
+    if 'engine' in repo_config:
+        engine = repo_config['engine'].copy()
+        if engine['name'] in ['cdktf', 'terragrunt'] and 'tf_cmd' not in engine:
+            engine['tf_cmd'] = 'terraform'
+
+        return engine
+    else:
+        return {
+            'name': 'terraform',
+            'version': repo_config.get('default_tf_version')
+        }
+
+
 def get_workflow(repo_config, idx):
     workflow = repo_config['workflows'][idx]
-    return {
+    cfg = {
         'apply': workflow.get('apply', _default_apply_workflow()),
-        'cdktf': workflow.get('cdktf', False),
         'plan': workflow.get('plan', _default_plan_workflow()),
-        'terraform_version': workflow.get('terraform_version', get_default_tf_version(repo_config)),
-        'terragrunt': workflow.get('terragrunt', False),
     }
+
+    default_engine = get_engine(repo_config)
+    engine = _get(workflow, 'engine', {}).copy()
+
+    # In order to maintain backwards compatibility, we need to do some work to
+    # transform an existing workflow configuration to one with an engine.
+    # Additionally, we want to make future lookups easy so we fill in the
+    # configurations that would be inferred.
+    if 'engine' not in workflow:
+        # If no engine is specified, convert any legacy configuration to the
+        # engine config.  Fill in the minimal configuration and the rest will be
+        # done next.
+        if workflow.get('terragrunt'):
+            engine = {
+                'name': 'terragrunt',
+            }
+        elif workflow.get('cdktf'):
+            engine = {
+                'name': 'cdktf',
+            }
+        elif workflow.get('terraform_version'):
+            engine = {
+                'name': 'terraform',
+                'version': workflow['terraform_version']
+            }
+        else:
+            engine = default_engine.copy()
+
+    if default_engine['name'] == 'tofu':
+        default_tf_cmd = 'tofu'
+        default_tf_version = default_engine.get('version')
+    else:
+        default_tf_cmd = 'terraform'
+        default_tf_version = None
+
+    if engine['name'] in ['terragrunt', 'cdktf']:
+        engine['tf_cmd'] = _get(engine, 'tf_cmd',  default_tf_cmd)
+        if engine['tf_cmd'] == 'terraform':
+            engine['tf_version'] = _get(engine, 'tf_version', get_default_tf_version(repo_config))
+        else:
+            engine['tf_version'] = _get(engine, 'tf_version', default_tf_version)
+    elif engine['name'] == 'terraform':
+        engine['version'] = _get(engine, 'version', get_default_tf_version(repo_config))
+    elif engine['name'] == 'tofu':
+        engine['version'] = _get(engine, 'version', default_tf_version)
+    else:
+        raise Exception('Unknown engine')
+
+    cfg['engine'] = engine
+    return cfg
 
 
 def get_default_workflow(repo_config):
     return {
         'apply': _default_apply_workflow(),
-        'cdktf': False,
         'plan': _default_plan_workflow(),
-        'terraform_version': get_default_tf_version(repo_config),
-        'terragrunt': False,
+        'engine': get_engine(repo_config)
     }
 
 

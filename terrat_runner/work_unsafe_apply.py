@@ -68,19 +68,17 @@ class Exec(work_exec.ExecInterface):
                          path,
                          create_and_select_workspace)
 
-            logging.info('UNSAFE_APPLY : CDKTF : %s : %r',
-                         path,
-                         workflow['cdktf'])
-
             if workflow_idx is None:
                 workflow = rc.get_default_workflow(state.repo_config)
             else:
                 workflow = rc.get_workflow(state.repo_config, workflow_idx)
 
-            env['TERRATEAM_TERRAFORM_VERSION'] = work_exec.determine_tf_version(
+            work_exec.set_tf_version_env(
+                env,
+                state.repo_config,
+                workflow['engine'],
                 state.working_dir,
-                os.path.join(state.working_dir, path),
-                workflow['terraform_version'])
+                os.path.join(state.working_dir, path))
 
             state = state._replace(env=env)
 

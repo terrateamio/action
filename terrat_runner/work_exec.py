@@ -41,6 +41,45 @@ def determine_tf_version(repo_root, working_dir, workflow_version):
         return workflow_version
 
 
+def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
+    TF_CMD_ENV_NAME = 'TERRATEAM_TF_CMD'
+    TOFU_ENV_NAME = 'TOFUENV_TOFU_DEFAULT_VERSION'
+    TERRAFORM_ENV_NAME = 'TERRATEAM_TERRAFORM_VERSION'
+
+    if engine['name'] == 'tofu':
+        env[TF_CMD_ENV_NAME] = 'tofu'
+        version = engine.get('version')
+        if version:
+            env[TOFU_ENV_NAME] = version
+    elif engine['name'] in ['cdktf', 'terragrunt']:
+        # If cdktf or terragrunt, set the appropriate terraform/tofu version if
+        # it exists.
+        if engine['tf_cmd'] == 'tofu':
+            env[TF_CMD_ENV_NAME] = 'tofu'
+            version_env_name = TOFU_ENV_NAME
+            version = engine.get('tf_version')
+            if version:
+                env[version_env_name] = version
+        else:
+            env[TF_CMD_ENV_NAME] = 'terraform'
+            env[TERRAFORM_ENV_NAME] = engine.get('tf_version',
+                                                 rc.get_default_tf_version(repo_config))
+    else:
+        env[TF_CMD_ENV_NAME] = 'terraform'
+        version = engine.get('version')
+
+        if version:
+            env[TERRAFORM_ENV_NAME] = determine_tf_version(
+                repo_root,
+                working_dir,
+                version)
+        else:
+            env[TERRAFORM_ENV_NAME] = determine_tf_version(
+                repo_root,
+                working_dir,
+                rc.get_default_tf_version(repo_config))
+
+
 def _store_results(work_token, api_base_url, results):
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
                              json=results)
@@ -54,10 +93,12 @@ def _run(state, exec_cb):
     # Using state.working_dir twice as a bit of a hack because
     # determine_tf_version expects the directory that we are running the command
     # in as an option as well, but at this point there is none.
-    env['TERRATEAM_TERRAFORM_VERSION'] = determine_tf_version(
+    set_tf_version_env(
+        env,
+        state.repo_config,
+        rc.get_engine(state.repo_config),
         state.working_dir,
-        state.working_dir,
-        rc.get_default_tf_version(state.repo_config))
+        state.working_dir)
 
     env['TERRATEAM_TMPDIR'] = state.tmpdir
     state = state._replace(env=env)
