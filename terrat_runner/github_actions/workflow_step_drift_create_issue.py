@@ -49,19 +49,21 @@ def format_dirspace_output(directory, workspace, plan, success):
 
 
 def extract_dirspace_plans(fname):
-    ret = []
     with open(fname) as f:
         data = json.load(f)
-        for ds in data['dirspaces']:
-            for output in ds['outputs']:
-                if output['workflow_step']['type'] == 'plan' and output['outputs']:
-                    ret.append({
-                        'dir': ds['path'],
-                        'workspace': ds['workspace'],
-                        'plan': output['outputs'].get('plan_text', output['outputs'].get('plan')),
-                        'has_changes': output['outputs']['has_changes'],
-                        'success': ds['success']
-                    })
+
+    ret = []
+
+    for ds in data['dirspaces']:
+        for output in ds['outputs']:
+            if output['workflow_step']['type'] == 'plan' and output['outputs']:
+                ret.append({
+                    'dir': ds['path'],
+                    'workspace': ds['workspace'],
+                    'plan': output['outputs'].get('plan_text', output['outputs'].get('plan')),
+                    'has_changes': output['outputs'].get('has_changes'),
+                    'success': ds['success']
+                })
 
     return ret
 
