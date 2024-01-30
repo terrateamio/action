@@ -43,6 +43,7 @@ def run_steps(state, steps, restrict_types=None):
             raise Exception('Step type {} not allowed in this mode'.format(step['type']))
         else:
             try:
+                logging.info('STEP : RUN : %s : %r', state.working_dir, step)
                 result = STEPS[step['type']](state, step)
                 state = result.state
             except Exception as exn:
