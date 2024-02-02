@@ -23,9 +23,9 @@ REPO_CONFIG_PATHS = [
 
 
 WORK_MANIFEST_DISPATCH = {
-    'plan': work_plan.Exec,
-    'apply': work_apply.Exec,
-    'unsafe-apply': work_unsafe_apply.Exec,
+    'plan': lambda state: work_exec.run(state, work_plan.Exec()),
+    'apply': lambda state: work_exec.run(state, work_apply.Exec()),
+    'unsafe-apply': lambda state: work_exec.run(state, work_unsafe_apply.Exec()),
 }
 
 
@@ -227,7 +227,7 @@ def main():
     state = state._replace(env=env)
 
     logging.debug('EXEC : %s', wm['type'])
-    work_exec.run(state, WORK_MANIFEST_DISPATCH[wm['type']]())
+    WORK_MANIFEST_DISPATCH[wm['type']](state)
 
 
 if __name__ == '__main__':
