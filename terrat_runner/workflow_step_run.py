@@ -83,7 +83,7 @@ def run(state, config):
                                    outputs=outputs)
 
     else:
-        return workflow.Result(failed=True,
+        return workflow.Result(failed=state.failed,
                                state=state,
                                workflow_step={'type': 'run', 'cmd': config['cmd']},
                                outputs=None)
