@@ -122,3 +122,7 @@ def get_retry(config):
 def get_plan_storage(config):
     storage = _get(config, 'storage', {})
     return _get(storage, 'plans', {'method': 'terrateam'})
+
+
+def get_indexer(config):
+    return _get(config, 'indexer', {'enabled': False})

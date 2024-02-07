@@ -11,6 +11,7 @@ import work_exec
 import work_manifest
 import work_plan
 import work_unsafe_apply
+
 import github_actions.run_time
 
 
@@ -22,10 +23,52 @@ REPO_CONFIG_PATHS = [
 ]
 
 
+def perform_merge(working_dir, base_ref):
+    current_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                             cwd=working_dir).decode('utf-8').strip()
+    subprocess.check_call(['git', 'fetch', '--depth=1', 'origin', base_ref])
+    for i in range(100):
+        try:
+            subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
+                                    stderr=subprocess.STDOUT)
+            return
+        except subprocess.CalledProcessError as exn:
+            logging.info('%s', exn.output.decode('utf-8'))
+            if 'not something we can merge' in exn.output.decode('utf-8') \
+               or 'refusing to merge unrelated histories' in exn.output.decode('utf-8'):
+                logging.debug('MERGE : DEEPENING')
+                subprocess.check_call(['git', 'fetch', '--deepen=100', 'origin', '+' + current_commit])
+            else:
+                raise
+
+    raise Exception('Could not merge destination branch')
+
+
+def maybe_setup_cdktf(rc, work_manifest, env):
+    # Determine if any workflows use cdktf and only install it if it is
+    # required.
+    cdktf_used = False
+    for d in work_manifest['changed_dirspaces']:
+        if 'workflow' in d:
+            workflow = repo_config.get_workflow(rc, d['workflow'])
+            cdktf_used = cdktf_used or workflow['cdktf']
+
+    if cdktf_used:
+        subprocess.check_call(['/cdktf-setup.sh'])
+        env['PATH'] = env['PATH'] + ':' + os.path.join(env['TERRATEAM_ROOT'], 'node_modules', '.bin')
+
+
+def tf_operation(state, op):
+    perform_merge(state.working_dir, state.work_manifest['base_ref'])
+    maybe_setup_cdktf(state.repo_config, state.work_manifest, state.env)
+    work_exec.run(state, op)
+
+
 WORK_MANIFEST_DISPATCH = {
-    'plan': lambda state: work_exec.run(state, work_plan.Exec()),
-    'apply': lambda state: work_exec.run(state, work_apply.Exec()),
-    'unsafe-apply': lambda state: work_exec.run(state, work_unsafe_apply.Exec()),
+    'plan': lambda state: tf_operation(state, work_plan.Exec()),
+    'apply': lambda state: tf_operation(state, work_apply.Exec()),
+    'unsafe-apply': lambda state: tf_operation(state, work_unsafe_apply.Exec()),
+    'index': lambda state: state.run_time.work_index(state)
 }
 
 
@@ -108,41 +151,6 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
-def maybe_setup_cdktf(rc, work_manifest, env):
-    # Determine if any workflows use cdktf and only install it if it is
-    # required.
-    cdktf_used = False
-    for d in work_manifest['changed_dirspaces']:
-        if 'workflow' in d:
-            workflow = repo_config.get_workflow(rc, d['workflow'])
-            cdktf_used = cdktf_used or workflow['cdktf']
-
-    if cdktf_used:
-        subprocess.check_call(['/cdktf-setup.sh'])
-        env['PATH'] = env['PATH'] + ':' + os.path.join(env['TERRATEAM_ROOT'], 'node_modules', '.bin')
-
-
-def perform_merge(working_dir, base_ref):
-    current_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
-                                             cwd=working_dir).decode('utf-8').strip()
-    subprocess.check_call(['git', 'fetch', '--depth=1', 'origin', base_ref])
-    for i in range(100):
-        try:
-            subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
-                                    stderr=subprocess.STDOUT)
-            return
-        except subprocess.CalledProcessError as exn:
-            logging.info('%s', exn.output.decode('utf-8'))
-            if 'not something we can merge' in exn.output.decode('utf-8') \
-               or 'refusing to merge unrelated histories' in exn.output.decode('utf-8'):
-                logging.debug('MERGE : DEEPENING')
-                subprocess.check_call(['git', 'fetch', '--deepen=100', 'origin', '+' + current_commit])
-            else:
-                raise
-
-    raise Exception('Could not merge destination branch')
-
-
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
@@ -191,7 +199,6 @@ def main():
     subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
     subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
     subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
-    perform_merge(args.workspace, wm['base_ref'])
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
@@ -221,7 +228,6 @@ def main():
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
 
-    maybe_setup_cdktf(rc, wm, env)
     set_secrets_context(env)
     transform_tf_vars(env)
     state = state._replace(env=env)
