@@ -1,6 +1,10 @@
+import json
+import logging
 import os
 import subprocess
 
+import cmd
+import repo_config as rc
 import requests_retry
 
 from . import core
@@ -46,3 +50,35 @@ class Run_time(object):
             return state._replace(env=env)
         else:
             raise Exception('Unable to obtain access token')
+
+    def work_index(self, state):
+        indexer_conf = rc.get_indexer(state.repo_config)
+        build_tag = indexer_conf.get('build_tag', 'ghcr.io/terrateamio/terrat-code-indexer:latest')
+        cmd.run(state, {'cmd': ['apt-get', 'update']})
+        cmd.run(state, {'cmd': ['apt-get', 'install', '-y', 'docker.io']})
+        cmd.run(state, {'cmd': ['docker', 'pull', build_tag]})
+        repo_name = state.env['GITHUB_REPOSITORY'].split('/')[1]
+        (proc, output) = cmd.run_with_output(
+            state,
+            {
+                'cmd': [
+                    'docker',
+                    'run',
+                    '-v',
+                    '/home/runner/work/{repo_name}/{repo_name}/:/mnt/'.format(repo_name=repo_name),
+                    build_tag,
+                    'index'] + state.work_manifest['dirs']
+            })
+
+        if proc.returncode == 0:
+            try:
+                output = json.loads(output)
+                output['success'] = True
+            except json.JSONDecodeError as exn:
+                logging.exception(exn)
+                output = {'paths': {}, 'version': 1, 'success': False}
+        else:
+            output = {'paths': {}, 'version': 1, 'success': False}
+
+        requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
+                           json=output)
