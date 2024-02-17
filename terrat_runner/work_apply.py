@@ -61,9 +61,6 @@ class Exec(work_exec.ExecInterface):
                          path,
                          workflow['cdktf'])
 
-            if not workflow['cdktf'] and create_and_select_workspace:
-                env['TF_WORKSPACE'] = workspace
-
             env['TERRATEAM_TERRAFORM_VERSION'] = work_exec.determine_tf_version(
                 state.working_dir,
                 os.path.join(state.working_dir, path),
