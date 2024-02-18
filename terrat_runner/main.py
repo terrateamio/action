@@ -150,29 +150,7 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-
-    print(BANNER)
-    print('*** These are not the logs you are looking for ***')
-    print('***')
-    print('*** The output of the action is not meant for debugging purposes ***')
-    print('*** If you are reading this to debug an issue please: ***')
-    print('- Join our Slack community https://slack.terrateam.io/ (Fastest)')
-    print('- Email us directly at support@terrateam.io')
-    print('***')
-    print('***')
-
-    parser = make_parser()
-    args = parser.parse_args()
-
-    if not args.api_base_url:
-        args.api_base_url = DEFAULT_API_BASE_URL
-
-    if args.api_base_url[-1] == '/':
-        # Remove trailing '/'
-        args.api_base_url = args.api_base_url[:-1]
-
+def run(args):
     logging.debug('LOADING : WORK_MANIFEST')
 
     try:
@@ -191,13 +169,10 @@ def main():
         print('*** or email us directly at support@terrateam.io ***')
         raise
 
-    # We only support a merge-based evaluation.  We must perform the merge first
-    # because we load the repo config next and we want it to be the merged
-    # version.
-    subprocess.check_call(['git', 'config', '--global', '--add', 'safe.directory', args.workspace])
-    subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
-    subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
-    subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
+    # If it's a "done" work manifest, then bail
+    if wm['type'] == 'done':
+        logging.info('Work manifest is completed, exiting.')
+        return True
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
@@ -233,6 +208,57 @@ def main():
 
     logging.debug('EXEC : %s', wm['type'])
     WORK_MANIFEST_DISPATCH[wm['type']](state)
+
+    return False
+
+
+def main():
+    logging.basicConfig(level=logging.DEBUG)
+
+    print(BANNER)
+    print('*** These are not the logs you are looking for ***')
+    print('***')
+    print('*** The output of the action is not meant for debugging purposes ***')
+    print('*** If you are reading this to debug an issue please: ***')
+    print('- Join our Slack community https://slack.terrateam.io/ (Fastest)')
+    print('- Email us directly at support@terrateam.io')
+    print('***')
+    print('***')
+
+    parser = make_parser()
+    args = parser.parse_args()
+
+    if not args.api_base_url:
+        args.api_base_url = DEFAULT_API_BASE_URL
+
+    if args.api_base_url[-1] == '/':
+        # Remove trailing '/'
+        args.api_base_url = args.api_base_url[:-1]
+
+    # We only support a merge-based evaluation.  We must perform the merge first
+    # because we load the repo config next and we want it to be the merged
+    # version.
+    subprocess.check_call(['git', 'config', '--global', '--add', 'safe.directory', args.workspace])
+    subprocess.check_call(['git', 'config', '--global', 'user.email', 'hello@terrateam.com'])
+    subprocess.check_call(['git', 'config', '--global', 'user.name', 'Terrateam Action'])
+    subprocess.check_call(['git', 'config', '--global', 'advice.detachedHead', 'false'])
+
+    done = False
+    run_count = 0
+
+    while not done:
+        done = run(args)
+        run_count += 1
+        if run_count > 10:
+            print('*** Performed too many work manifests, exiting to prevent unexpected loop')
+            break
+
+    # This means we only did one run, which is that we got the "done" work
+    # manifest.
+    if run_count == 1:
+        print('*** It looks like the work manifest was completed before this started ***')
+        print('*** Manual re-runs are not supported ***')
+        print('*** Please create a run through the Terrateam interface ***')
 
 
 if __name__ == '__main__':
