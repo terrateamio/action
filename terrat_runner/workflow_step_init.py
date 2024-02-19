@@ -34,16 +34,20 @@ def run(state, config):
         return result
 
     cdktf = state.workflow['cdktf']
+    terragrunt = state.workflow['terragrunt']
     create_and_select_workspace = repo_config.get_create_and_select_workspace(state.repo_config,
                                                                               state.path)
 
     logging.info(
-        'WORKFLOW_STEP_INIT : CREATE_AND_SELECT_WORKSPACE : %s : cdktf=%r : create_and_select_workspace=%r',
+        ('WORKFLOW_STEP_INIT : '
+         'CREATE_AND_SELECT_WORKSPACE : %s : '
+         'terragrunt=%r : cdktf=%r : create_and_select_workspace=%r'),
         result.state.path,
+        terragrunt,
         cdktf,
         create_and_select_workspace)
 
-    if not cdktf and create_and_select_workspace:
+    if not terragrunt and not cdktf and create_and_select_workspace:
         terraform_version = state.workflow['terraform_version']
 
         terraform_cmd = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
