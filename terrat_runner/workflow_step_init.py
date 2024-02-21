@@ -48,16 +48,13 @@ def run(state, config):
         create_and_select_workspace)
 
     if not terragrunt and not cdktf and create_and_select_workspace:
-        terraform_version = state.workflow['terraform_version']
-
-        terraform_cmd = os.path.join('/usr', 'local', 'tf', 'versions', terraform_version, 'terraform')
         config = original_config.copy()
-        config['cmd'] = [terraform_cmd, 'workspace', 'select', state.workspace]
+        config['cmd'] = ['terraform', 'workspace', 'select', state.workspace]
         proc = cmd.run(state, config)
 
         if proc.returncode != 0:
             # TODO: Is this safe?!
-            config['cmd'] = [terraform_cmd, 'workspace', 'new', state.workspace]
+            config['cmd'] = ['terraform', 'workspace', 'new', state.workspace]
             proc = cmd.run(state, config)
 
             return result._replace(failed=proc.returncode != 0)
