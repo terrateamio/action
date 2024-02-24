@@ -33,28 +33,25 @@ def run(state, config):
     if result.failed:
         return result
 
-    cdktf = state.workflow['cdktf']
-    terragrunt = state.workflow['terragrunt']
     create_and_select_workspace = repo_config.get_create_and_select_workspace(state.repo_config,
                                                                               state.path)
 
     logging.info(
         ('WORKFLOW_STEP_INIT : '
          'CREATE_AND_SELECT_WORKSPACE : %s : '
-         'terragrunt=%r : cdktf=%r : create_and_select_workspace=%r'),
+         'engine=%s : create_and_select_workspace=%r'),
         result.state.path,
-        terragrunt,
-        cdktf,
+        state.workflow['engine']['name'],
         create_and_select_workspace)
 
-    if not terragrunt and not cdktf and create_and_select_workspace:
+    if state.workflow['engine']['name'] in ['terraform', 'tofu'] and create_and_select_workspace:
         config = original_config.copy()
-        config['cmd'] = ['terraform', 'workspace', 'select', state.workspace]
+        config['cmd'] = ['${TERRATEAM_TF_CMD}', 'workspace', 'select', state.workspace]
         proc = cmd.run(state, config)
 
         if proc.returncode != 0:
             # TODO: Is this safe?!
-            config['cmd'] = ['terraform', 'workspace', 'new', state.workspace]
+            config['cmd'] = ['${TERRATEAM_TF_CMD}', 'workspace', 'new', state.workspace]
             proc = cmd.run(state, config)
 
             return result._replace(failed=proc.returncode != 0)
