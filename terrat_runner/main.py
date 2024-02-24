@@ -45,13 +45,12 @@ def perform_merge(working_dir, base_ref):
 
 
 def maybe_setup_cdktf(rc, work_manifest, env):
-    # Determine if any workflows use cdktf and only install it if it is
-    # required.
+    # Determine if any engine uses cdktf and only install it if it is required.
     cdktf_used = False
     for d in work_manifest['changed_dirspaces']:
         if 'workflow' in d:
             workflow = repo_config.get_workflow(rc, d['workflow'])
-            cdktf_used = cdktf_used or workflow['cdktf']
+            cdktf_used = cdktf_used or workflow['engine']['name'] == 'cdktf'
 
     if cdktf_used:
         subprocess.check_call(['/cdktf-setup.sh'])

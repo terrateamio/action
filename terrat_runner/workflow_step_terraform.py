@@ -6,6 +6,10 @@ import workflow_step_run
 import workflow
 
 
+TERRAFORM_BIN = 'terraform'
+TOFU_BIN = 'tofu'
+
+
 class SynthError(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -38,16 +42,15 @@ def get_cdktf_working_dir(state):
 
 def run_terraform(state, config):
     args = config['args']
-    terraform_bin_path = os.path.join('/usr', 'local', 'bin', 'terraform')
 
     env = config.get('env', {})
 
-    if state.workflow['terragrunt']:
+    if state.workflow['engine']['name'] == 'terragrunt':
         cmd = ['terragrunt']
         env = env.copy()
-        env['TERRAGRUNT_TFPATH'] = terraform_bin_path
+        env['TERRAGRUNT_TFPATH'] = state.env['TERRATEAM_TF_CMD']
     else:
-        cmd = [terraform_bin_path]
+        cmd = ['${TERRATEAM_TF_CMD}']
 
     extra_args = config.get('extra_args', [])
     config = {
@@ -72,12 +75,12 @@ def run(state, config):
     # directory and run Terraform and then switch back the directory to the
     # directory with the code, so the experience is seamless to the user.
     try:
-        if state.workflow['cdktf'] and args[0] == 'init':
+        if state.workflow['engine']['name'] == 'cdktf' and args[0] == 'init':
             synth_cdktf(state, config)
             cdktf_working_dir = get_cdktf_working_dir(state)
             state = state._replace(working_dir=cdktf_working_dir)
             return update_result_working_dir(run_terraform(state, config), working_dir)
-        elif state.workflow['cdktf']:
+        elif state.workflow['engine']['name'] == 'cdktf':
             cdktf_working_dir = get_cdktf_working_dir(state)
             state = state._replace(working_dir=cdktf_working_dir)
             return update_result_working_dir(run_terraform(state, config), working_dir)
