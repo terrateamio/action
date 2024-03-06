@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+if [ -f /usr/bin/gcloud ]; then
+    exec /usr/bin/gcloud "$@"
+else
+    flock /tmp/gcloud-cli-setup.sh-install /gcloud-cli-setup.sh
+    exec /usr/bin/gcloud "$@"
+fi
+
