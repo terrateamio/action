@@ -1,7 +1,5 @@
 #! /usr/bin/env bash
 
-set -x
-
 # Perform the install with an flock, this ensure that if there are multipel
 # parallel runs, then only one can happen at a time.  We don't have a guarantee
 # that tofuenv is parallel-safe.
