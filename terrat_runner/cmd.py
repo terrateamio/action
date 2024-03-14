@@ -54,7 +54,7 @@ def run_with_output(state, config):
     while line:
         line = line.decode('utf-8')
         output.write(line)
-        sys.stderr.write(line)
+        sys.stderr.write('cwd={} : {}'.format(state.working_dir, line))
         sys.stderr.flush()
         line = proc.stdout.readline()
 
