@@ -42,6 +42,8 @@ class Exec(work_exec.ExecInterface):
         with tempfile.TemporaryDirectory() as tmpdir:
             logging.debug('EXEC : DIR : %s', d['path'])
 
+            state = state.run_time.update_authentication(state)
+
             # Need to reset output every iteration unfortunately because we do not
             # have immutable dicts
             state = state._replace(outputs=[])
