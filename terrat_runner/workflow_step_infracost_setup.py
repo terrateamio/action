@@ -1,3 +1,5 @@
+import sys
+
 import json
 import logging
 import os
@@ -94,6 +96,14 @@ def _create_base_infracost(state, config, infracost_dir, infracost_json):
                     '--format=json',
                     '--out-file={}'.format(infracost_json)])
 
+        with open(infracost_config_yml) as f:
+            sys.stdout.write('***** infracost config yml\n')
+            sys.stdout.write(f.read() + '\n')
+
+        with open(infracost_json) as f:
+            sys.stdout.write('***** infracost base json\n')
+            sys.stdout.write(f.read() + '\n')
+
     finally:
         subprocess.check_call(['git', 'checkout', current_branch, '--'], cwd=state.working_dir)
         subprocess.call(['git', 'stash', 'pop'])
@@ -127,6 +137,16 @@ def run(state, config):
                              '--format=json',
                              '--out-file={}'.format(curr_infracost)])
 
+        with open(infracost_config_yml) as f:
+            sys.stdout.write('***** infracost config yml\n')
+            sys.stdout.write(f.read() + '\n')
+
+        with open(curr_infracost) as f:
+            sys.stdout.write('***** infracost json\n')
+            sys.stdout.write(f.read() + '\n')
+
+        sys.stdout.flush()
+
         _run_retry(state,
                    ['infracost',
                     'diff',
@@ -136,6 +156,10 @@ def run(state, config):
                     '--out-file={}'.format(diff_infracost)])
 
         if 'level=error' not in output:
+            with open(diff_infracost) as f:
+                sys.stdout.write('***** infracost diff\n')
+                sys.stdout.write(f.read() + '\n')
+
             with open(diff_infracost) as f:
                 diff = json.load(f)
 
