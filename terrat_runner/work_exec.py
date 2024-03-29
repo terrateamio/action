@@ -103,6 +103,9 @@ def _run(state, exec_cb):
     env['TERRATEAM_TMPDIR'] = state.tmpdir
     state = state._replace(env=env)
 
+    # Get an auth token for use in pre-hooks
+    state = state.run_time.update_authentication(state)
+
     pre_hooks = exec_cb.pre_hooks(state)
 
     logging.debug('EXEC : HOOKS : PRE')
