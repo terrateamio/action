@@ -17,9 +17,9 @@ class SynthError(Exception):
 
 
 def synth_cdktf(state, config):
-    (proc, get_output) = cmd.run_with_output(state, {'cmd': ['cdktf', 'get']})
-    if proc.returncode != 0:
-        raise SynthError(get_output)
+    # (proc, get_output) = cmd.run_with_output(state, {'cmd': ['cdktf', 'get']})
+    # if proc.returncode != 0:
+    #     raise SynthError(get_output)
 
     (proc, synth_output) = cmd.run_with_output(state, {'cmd': ['cdktf', 'synth']})
     if proc.returncode != 0:
