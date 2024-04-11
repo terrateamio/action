@@ -42,9 +42,12 @@ def determine_tf_version(repo_root, working_dir, workflow_version):
 
 
 def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
+    ENGINE_NAME = 'TERRATEAM_ENGINE_NAME'
     TF_CMD_ENV_NAME = 'TERRATEAM_TF_CMD'
     TOFU_ENV_NAME = 'TOFUENV_TOFU_DEFAULT_VERSION'
     TERRAFORM_ENV_NAME = 'TERRATEAM_TERRAFORM_VERSION'
+
+    env[ENGINE_NAME] = engine['name']
 
     if engine['name'] == 'tofu':
         env[TF_CMD_ENV_NAME] = 'tofu'
