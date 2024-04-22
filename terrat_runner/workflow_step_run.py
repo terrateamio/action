@@ -45,7 +45,7 @@ def run(state, config):
                                    state=state,
                                    workflow_step={
                                        'type': 'run',
-                                       'cmd': config['cmd'],
+                                       'cmd': proc.args,
                                        'exit_code': proc.returncode
                                    },
                                    outputs=outputs)
