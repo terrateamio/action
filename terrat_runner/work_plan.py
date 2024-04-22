@@ -8,6 +8,13 @@ import workflow_step
 import workflow_step_terrateam_ssh_key_setup
 
 
+def _merge_integrations(state, steps, integrations):
+    if state.work_manifest.get('run_kind') == 'pr' and integrations['resourcely']['enabled']:
+        steps = steps + [{'type': 'resourcely'}]
+
+    return steps
+
+
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
         pre_hooks = rc.get_all_hooks(state.repo_config)['pre']
@@ -80,12 +87,14 @@ class Exec(work_exec.ExecInterface):
 
             state = state._replace(env=env)
 
+            plan_steps = _merge_integrations(state, workflow['plan'], workflow['integrations'])
+
             state = workflow_step.run_steps(
                 state._replace(working_dir=os.path.join(state.working_dir, path),
                                path=path,
                                workspace=workspace,
                                workflow=workflow),
-                workflow['plan'])
+                plan_steps)
 
             result = {
                 'path': path,
