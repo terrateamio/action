@@ -44,6 +44,18 @@ def _get_hooks(hooks):
         }
 
 
+def _get_integrations(repo_config, workflow_integrations):
+    global_integrations = _get(repo_config, 'integrations', {})
+    resourcely = _get(workflow_integrations,
+                      'resourcely',
+                      _get(global_integrations, 'resourcely', {}))
+    return {
+        'resourcely': {
+            'enabled': _get(resourcely, 'enabled', False)
+        }
+    }
+
+
 def get_all_hooks(repo_config):
     return _get_hooks(_get(_get(repo_config, 'hooks', {}), 'all', {}))
 
@@ -87,6 +99,7 @@ def get_workflow(repo_config, idx):
     cfg = {
         'apply': workflow.get('apply', _default_apply_workflow()),
         'plan': workflow.get('plan', _default_plan_workflow()),
+        'integrations': _get_integrations(repo_config, _get(workflow, 'integrations', {}))
     }
 
     default_engine = get_engine(repo_config)
@@ -144,7 +157,8 @@ def get_default_workflow(repo_config):
     return {
         'apply': _default_apply_workflow(),
         'plan': _default_plan_workflow(),
-        'engine': get_engine(repo_config)
+        'engine': get_engine(repo_config),
+        'integrations': _get_integrations(repo_config, {})
     }
 
 

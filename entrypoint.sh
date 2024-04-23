@@ -1,5 +1,7 @@
 #! /bin/sh
 
+export PATH="$PATH":/usr/local/proxy/bin
+
 WORK_TOKEN="$1"
 API_BASE_URL="$2"
 

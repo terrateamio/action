@@ -2,8 +2,8 @@
 # which each take their own configuration parameters.
 import logging
 
-import github_actions.workflow_step_drift_create_issue
 import workflow
+
 import workflow_step_apply
 import workflow_step_env
 import workflow_step_infracost_setup
@@ -18,7 +18,6 @@ import workflow_step_unsafe_apply
 
 STEPS = {
     'apply': workflow_step_apply.run,
-    'drift_create_issue': github_actions.workflow_step_drift_create_issue.run,
     'env': workflow_step_env.run,
     'infracost_setup': workflow_step_infracost_setup.run,
     'init': workflow_step_init.run,
@@ -32,19 +31,22 @@ STEPS = {
 
 
 def run_steps(state, steps, restrict_types=None):
+    valid_steps = STEPS.copy()
+    valid_steps.update(state.run_time.steps())
+
     results = []
 
     for step in steps:
         if 'type' not in step:
             raise Exception('Step must contain a type')
-        elif step['type'] not in STEPS:
+        elif step['type'] not in valid_steps:
             raise Exception('Step type {} is unknown'.format(step['type']))
         elif restrict_types and step['type'] not in restrict_types:
             raise Exception('Step type {} not allowed in this mode'.format(step['type']))
         else:
             try:
                 logging.info('STEP : RUN : %s : %r', state.working_dir, step)
-                result = STEPS[step['type']](state, step)
+                result = valid_steps[step['type']](state, step)
                 state = result.state
             except Exception as exn:
                 logging.exception(exn)
