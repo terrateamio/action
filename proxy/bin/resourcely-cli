@@ -1,0 +1,19 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+if [[ ! -f /usr/local/bin/resourcely-cli ]]; then
+    flock /tmp/resourcely-install \
+          curl \
+          -s \
+          -L \
+          -o \
+          /tmp/resourcely-cli-v"$RESOURCELY_VERSION"-linux-amd64.tar.gz \
+          https://github.com/Resourcely-Inc/resourcely-container-registry/releases/download/v"$RESOURCELY_VERSION"/resourcely-cli-v"$RESOURCELY_VERSION"-linux-amd64.tar.gz
+
+    flock /tmp/resourcely-install tar -xzf /tmp/resourcely-cli-v"$RESOURCELY_VERSION"-linux-amd64.tar.gz
+    flock /tmp/resourcely-install mv resourcely-cli /usr/local/bin/ || true
+fi
+
+exec /usr/local/bin/resourcely-cli "$@"

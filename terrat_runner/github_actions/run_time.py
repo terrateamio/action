@@ -9,6 +9,9 @@ import requests_retry
 
 from . import core
 
+from . import workflow_step_drift_create_issue
+from . import workflow_step_resourcely
+
 
 class Run_time(object):
     def initialize(self, state):
@@ -82,3 +85,9 @@ class Run_time(object):
 
         requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
                            json=output)
+
+    def steps(self):
+        return {
+            'drift_create_issue': workflow_step_drift_create_issue.run,
+            'resourcely': workflow_step_resourcely.run
+        }

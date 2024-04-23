@@ -1,5 +1,8 @@
 FROM ghcr.io/terrateamio/action-base:latest
 
+ENV RESOURCELY_VERSION=1.0.12
+
+COPY proxy/bin /usr/local/proxy/bin
 COPY conftest-wrapper /usr/local/bin/conftest-wrapper
 COPY checkov-wrapper /usr/local/bin/checkov-wrapper
 COPY cdktf-setup.sh /cdktf-setup.sh
