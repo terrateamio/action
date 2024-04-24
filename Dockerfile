@@ -1,6 +1,6 @@
 FROM ghcr.io/terrateamio/action-base:latest
 
-ENV RESOURCELY_VERSION=1.0.12
+ENV RESOURCELY_VERSION=1.0.14
 
 COPY proxy/bin /usr/local/proxy/bin
 COPY conftest-wrapper /usr/local/bin/conftest-wrapper
