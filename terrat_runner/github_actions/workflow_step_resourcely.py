@@ -25,6 +25,7 @@ def run(state, config):
         run_config = {
             'cmd': ['resourcely-cli',
                     '--no_color',
+                    '--error_on_violations',
                     'evaluate',
                     '--change_request_url',
                     'https://github.com/{}/pull/{}'.format(state.env['GITHUB_REPOSITORY'],
