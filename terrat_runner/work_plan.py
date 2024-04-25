@@ -10,7 +10,10 @@ import workflow_step_terrateam_ssh_key_setup
 
 def _merge_integrations(state, steps, integrations):
     if state.work_manifest.get('run_kind') == 'pr' and integrations['resourcely']['enabled']:
-        steps = steps + [{'type': 'resourcely'}]
+        steps = steps + [{
+            'type': 'resourcely',
+            'extra_args': integrations['resourcely'].get('extra_args', [])
+        }]
 
     return steps
 
