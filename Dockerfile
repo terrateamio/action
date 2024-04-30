@@ -2,6 +2,7 @@ FROM ghcr.io/terrateamio/action-base:latest
 
 ENV RESOURCELY_VERSION=1.0.14
 
+COPY ./bin/ /usr/local/bin
 COPY proxy/bin /usr/local/proxy/bin
 COPY conftest-wrapper /usr/local/bin/conftest-wrapper
 COPY checkov-wrapper /usr/local/bin/checkov-wrapper

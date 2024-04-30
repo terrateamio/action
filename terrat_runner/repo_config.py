@@ -51,7 +51,8 @@ def _get_integrations(repo_config, workflow_integrations):
                       _get(global_integrations, 'resourcely', {}))
     return {
         'resourcely': {
-            'enabled': _get(resourcely, 'enabled', False)
+            'enabled': _get(resourcely, 'enabled', False),
+            'extra_args': _get(resourcely, 'extra_args', [])
         }
     }
 
