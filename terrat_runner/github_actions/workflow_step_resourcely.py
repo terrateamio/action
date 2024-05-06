@@ -16,7 +16,7 @@ def run(state, config):
                                          })
 
     if result.failed:
-        return result._replace(workflow_step={'type': 'resourcely'})
+        return result
 
     plan_json = result.outputs['text']
 
