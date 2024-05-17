@@ -115,21 +115,17 @@ def make_parser():
     return parser
 
 
-# If an environment variable SECRETS_CONTEXT is specified, then expand this out
-# into the actual environment.  This value is assumed to be JSON encoding
-# key-value pairs of secrets.  If it does not successfully decode from JSON, the
-# value is ignored.
-def set_secrets_context(env):
-    secrets_context = env.get('SECRETS_CONTEXT')
+def set_env_context(env, key):
+    context = env.get(key)
 
-    if secrets_context is not None:
+    if context is not None:
         try:
-            secrets = json.loads(secrets_context)
+            vals = json.loads(context)
 
-            for k, v in secrets.items():
+            for k, v in vals.items():
                 env[k] = str(v)
         except json.decoder.JSONDecodeError as exn:
-            logging.error('Failed to decode SECRETS_CONTEXT')
+            logging.error('Failed to decode {}'.format(key))
             logging.exception(exn)
 
 
@@ -202,7 +198,8 @@ def run(args):
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
 
-    set_secrets_context(env)
+    set_env_context(env, 'SECRETS_CONTEXT')
+    set_env_context(env, 'VARIABLES_CONTEXT')
     transform_tf_vars(env)
     state = state._replace(env=env)
 
