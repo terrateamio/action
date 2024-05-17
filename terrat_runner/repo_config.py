@@ -15,7 +15,11 @@ def load(paths):
     for path in paths:
         if os.path.exists(path):
             with open(path, 'r') as f:
-                return yaml.safe_load(f.read())
+                content = f.read()
+                if content.strip():
+                    return yaml.safe_load(content)
+                else:
+                    return {}
 
     return {}
 
