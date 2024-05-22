@@ -8,6 +8,9 @@ inputs:
     description: 'Base URL to API'
     required: true
     default: 'https://app.terrateam.io'
+  environnment:
+    description: 'Environment in which to run the action'
+    type: environment
 runs:
   using: 'docker'
   image: 'Dockerfile'
