@@ -14,3 +14,4 @@ runs:
   args:
     - '${{ inputs.work-token }}'
     - '${{ inputs.api-base-url }}'
+    - '${{ inputs.environment }}'
