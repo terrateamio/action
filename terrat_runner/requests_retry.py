@@ -4,7 +4,7 @@ import requests
 
 import retry
 
-
+TIMEOUT = 120
 TRIES = 5
 INITIAL_SLEEP = 1
 BACKOFF = 1.5
@@ -39,12 +39,12 @@ def _wrap(f):
 
 
 def post(*args, **kwargs):
-    return _wrap(lambda: requests.post(*args, **kwargs))
+    return _wrap(lambda: requests.post(*args, timeout=TIMEOUT, **kwargs))
 
 
 def put(*args, **kwargs):
-    return _wrap(lambda: requests.put(*args, **kwargs))
+    return _wrap(lambda: requests.put(*args, timeout=TIMEOUT, **kwargs))
 
 
 def get(*args, **kwargs):
-    return _wrap(lambda: requests.get(*args, **kwargs))
+    return _wrap(lambda: requests.get(*args, timeout=TIMEOUT, **kwargs))
