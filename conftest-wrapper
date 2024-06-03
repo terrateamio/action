@@ -6,4 +6,4 @@ if [[ "$TERRATEAM_ENGINE_NAME" == "cdktf" ]]; then
 fi
 
 terraform show -json "${TERRATEAM_PLAN_FILE}" > "${TERRATEAM_PLAN_FILE}.json"
-conftest test --ignore .git "${TERRATEAM_PLAN_FILE}.json" .
+conftest test --ignore .git "${TERRATEAM_PLAN_FILE}.json"
