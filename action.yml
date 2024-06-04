@@ -10,7 +10,7 @@ inputs:
     default: 'https://app.terrateam.io'
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  image: 'docker://ghcr.io/terrateamio/action:v1'
   args:
     - '${{ inputs.work-token }}'
     - '${{ inputs.api-base-url }}'
