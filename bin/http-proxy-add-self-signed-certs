@@ -19,13 +19,13 @@ set -euf -o pipefail
 # Check if NETWORK_PROXY is set
 if [ -z "${NETWORK_PROXY-}" ]; then
   echo "Error: NETWORK_PROXY is not set. Exiting."
-  exit
+  exit 1
 fi
 
 # Check if HTTP_PROXY_DOMAINS is set and non-empty
 if [ -z "${HTTP_PROXY_DOMAINS-}" ]; then
   echo "Error: HTTP_PROXY_DOMAINS is not set. Exiting."
-  exit
+  exit 1
 fi
 
 # Convert HTTP_PROXY_DOMAINS to an array
