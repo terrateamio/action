@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# This script checks if the NETWORK_PROXY environment variable is set.
+# If set, it reads the HTTP_PROXY_DOMAINS environment variable (expected to be a space-separated string),
+# converts it into an array, and retrieves SSL certificates for each domain through the proxy.
+# The certificates are then stored in /usr/local/share/ca-certificates/ and the system's certificate store is updated.
+
+# Usage:
+# 1. Set the NETWORK_PROXY environment variable to your proxy address.
+# 2. Set the HTTP_PROXY_DOMAINS environment variable to a space-separated list of domains.
+# 3. Run this script.
+
+# Example:
+# export NETWORK_PROXY="http://proxy.example.com:3128"
+# export HTTP_PROXY_DOMAINS="github.com api.github.com"
+# ./http-proxy-add-self-signed-certs
+
+# Check if NETWORK_PROXY is set
+if [ -z "${NETWORK_PROXY-}" ]; then
+  echo "Error: NETWORK_PROXY is not set. Exiting."
+  exit
+fi
+
+# Check if HTTP_PROXY_DOMAINS is set and non-empty
+if [ -z "${HTTP_PROXY_DOMAINS-}" ]; then
+  echo "Error: HTTP_PROXY_DOMAINS is not set. Exiting."
+  exit
+fi
+
+# Convert HTTP_PROXY_DOMAINS to an array
+IFS=' ' read -r -a domains <<< "$HTTP_PROXY_DOMAINS"
+
+# Add domain certs
+for domain in "${domains[@]}"; do
+  openssl s_client -showcerts -connect "$domain":443 -proxy "$NETWORK_PROXY" < /dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /usr/local/share/ca-certificates/"$domain".crt
+done
+
+update-ca-certificates
