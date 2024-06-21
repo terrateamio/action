@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euf -o pipefail
+set -x
 
 # This script checks if the HTTPS_PROXY environment variable is set.
 # If set, it reads the HTTPS_PROXY_DOMAINS environment variable (expected to be a space-separated string),
