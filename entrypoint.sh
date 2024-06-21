@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -x
 
 export PATH="$PATH":/usr/local/proxy/bin
 
