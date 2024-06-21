@@ -5,7 +5,7 @@ export PATH="$PATH":/usr/local/proxy/bin
 WORK_TOKEN="$1"
 API_BASE_URL="$2"
 
-if [ -n "$HTTP_PROXY" ] && [ -n "$HTTP_PROXY_DOMAINS" ]; then
+if [ -n "$HTTPS_PROXY" ] && [ -n "$HTTPS_PROXY_DOMAINS" ]; then
   /usr/local/bin/http-proxy-add-self-signed-certs
 fi
 
