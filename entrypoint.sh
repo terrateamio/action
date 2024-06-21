@@ -1,5 +1,5 @@
 #! /bin/sh
-
+env
 export PATH="$PATH":/usr/local/proxy/bin
 
 WORK_TOKEN="$1"
