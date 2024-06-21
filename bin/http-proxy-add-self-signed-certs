@@ -1,43 +1,43 @@
 #!/usr/bin/env bash
 set -euf -o pipefail
 
-# This script checks if the HTTP_PROXY environment variable is set.
-# If set, it reads the HTTP_PROXY_DOMAINS environment variable (expected to be a space-separated string),
+# This script checks if the HTTPS_PROXY environment variable is set.
+# If set, it reads the HTTPS_PROXY_DOMAINS environment variable (expected to be a space-separated string),
 # converts it into an array, and retrieves SSL certificates for each domain through the proxy.
 # The certificates are then stored in /usr/local/share/ca-certificates/ and the system's certificate store is updated.
 
 # Usage:
-# 1. Set the HTTP_PROXY environment variable to your proxy address.
-# 2. Set the HTTP_PROXY_DOMAINS environment variable to a space-separated list of domains.
+# 1. Set the HTTPS_PROXY environment variable to your proxy address.
+# 2. Set the HTTPS_PROXY_DOMAINS environment variable to a space-separated list of domains.
 # 3. Run this script.
 
 # Example:
-# export HTTP_PROXY=http://proxy.example.com:8080
-# export HTTP_PROXY_DOMAINS="github.com api.github.com"
+# export HTTPS_PROXY=http://proxy.example.com:8080
+# export HTTPS_PROXY_DOMAINS="github.com api.github.com"
 # ./http-proxy-add-self-signed-certs.sh
 
-# Check if HTTP_PROXY is set
-if [ -z "${HTTP_PROXY-}" ]; then
-  echo "Error: HTTP_PROXY is not set. Exiting."
-  exit 1
+# Check if HTTPS_PROXY is set
+if [ -z "${HTTPS_PROXY-}" ]; then
+  echo "HTTPS_PROXY is not set. Exiting."
+  exit
 fi
 
 # Strip http:// or https:// for the openssl command
-HTTP_PROXY=$(echo "$HTTP_PROXY" | sed 's~http[s]\?://~~')
+HTTPS_PROXY=$(echo "$HTTPS_PROXY" | sed 's~http[s]\?://~~')
 
-# Check if HTTP_PROXY_DOMAINS is set and non-empty
-if [ -z "${HTTP_PROXY_DOMAINS-}" ]; then
-  echo "Error: HTTP_PROXY_DOMAINS is not set. Exiting."
-  exit 1
+# Check if HTTPS_PROXY_DOMAINS is set and non-empty
+if [ -z "${HTTPS_PROXY_DOMAINS-}" ]; then
+  echo "HTTPS_PROXY_DOMAINS is not set. Exiting."
+  exit
 fi
 
-# Convert HTTP_PROXY_DOMAINS to an array
-IFS=' ' read -r -a domains <<< "$HTTP_PROXY_DOMAINS"
+# Convert HTTPS_PROXY_DOMAINS to an array
+IFS=' ' read -r -a domains <<< "$HTTPS_PROXY_DOMAINS"
 
 # Retrieve and store certificates for each domain
 for domain in "${domains[@]}"; do
   echo "Retrieving certificate for $domain..."
-  openssl s_client -showcerts -connect "$domain:443" -proxy "$HTTP_PROXY" < /dev/null | \
+  openssl s_client -showcerts -connect "$domain:443" -proxy "$HTTPS_PROXY" < /dev/null | \
   sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "/usr/local/share/ca-certificates/${domain}.crt"
 done
 
