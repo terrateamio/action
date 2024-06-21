@@ -19,7 +19,7 @@ set -euf -o pipefail
 # Check if HTTPS_PROXY is set
 if [ -z "${HTTPS_PROXY-}" ]; then
   echo "HTTPS_PROXY is not set. Exiting."
-  exit
+  exit 1
 fi
 
 # Strip http:// or https:// for the openssl command
@@ -28,7 +28,7 @@ HTTPS_PROXY=$(echo "$HTTPS_PROXY" | sed 's~http[s]\?://~~')
 # Check if HTTPS_PROXY_DOMAINS is set and non-empty
 if [ -z "${HTTPS_PROXY_DOMAINS-}" ]; then
   echo "HTTPS_PROXY_DOMAINS is not set. Exiting."
-  exit
+  exit 1
 fi
 
 # Convert HTTPS_PROXY_DOMAINS to an array
