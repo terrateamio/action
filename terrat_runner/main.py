@@ -171,7 +171,7 @@ def run(args):
         return True
 
     logging.debug('LOADING: REPO_CONFIG')
-    rc = repo_config.load([os.path.join(args.workspace, path) for path in REPO_CONFIG_PATHS])
+    rc = wm['config']
 
     run_time = github_actions.run_time.Run_time()
 
