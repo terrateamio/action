@@ -157,12 +157,13 @@ def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspa
         raise Exception('Unknown method')
 
 
-def run(state, config):
+def run_plan(state, config, targets=None):
     config = config.copy()
     config['args'] = ['plan', '-detailed-exitcode', '-out', '$TERRATEAM_PLAN_FILE']
     config['output_key'] = 'plan'
 
-    outputs = {}
+    if targets:
+        config['args'].extend(['-target=' + addr for addr in targets])
 
     result = workflow_step_terraform.run(state, config)
 
@@ -171,8 +172,49 @@ def run(state, config):
             or result.workflow_step['exit_code'] == 1)):
         return result._replace(workflow_step={'type': 'plan'})
 
+    return result
+
+
+def plan_fast_and_loose(state, config):
+    config = config.copy()
+    config['args'] = ['plan', '-detailed-exitcode', '-json', '-refresh=false']
+    config['output_key'] = 'plan'
+
+    result = workflow_step_terraform.run(state, config)
+
+    if (result.failed and (
+            'exit_code' not in result.workflow_step
+            or result.workflow_step['exit_code'] == 1)):
+        return result._replace(workflow_step={'type': 'plan'})
+
+    output = result.outputs['text']
+
+    targets = []
+
+    for line in output.splitlines():
+        line = json.loads(line)
+
+        if line.get('type') in ['planned_change', 'resource_drift']:
+            targets.append(line['change']['resource']['addr'])
+
+    return run_plan(state, config, targets)
+
+
+def run(state, config):
+    if config.get('mode') == 'fast-and-loose':
+        result = plan_fast_and_loose(state, config)
+    else:
+        result = run_plan(state, config)
+
+    if (result.failed and (
+            'exit_code' not in result.workflow_step
+            or result.workflow_step['exit_code'] == 1)):
+        return result
+
     # The terraform CLI has an exit code of 2 if the plan contains changes.
     has_changes = result.workflow_step.get('exit_code') == 2
+
+    outputs = {}
 
     outputs['plan'] = result.outputs['text']
 
