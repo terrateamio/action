@@ -122,8 +122,9 @@ def set_env_context(env, key):
         try:
             vals = json.loads(context)
 
-            for k, v in vals.items():
-                env[k] = str(v)
+            if vals:
+                for k, v in vals.items():
+                    env[k] = str(v)
         except json.decoder.JSONDecodeError as exn:
             logging.error('Failed to decode {}'.format(key))
             logging.exception(exn)
