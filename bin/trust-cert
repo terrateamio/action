@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# Check if at least one domain is provided as an argument
+if [ "$#" -eq 0 ]; then
+  echo "Usage: $0 domain1 [domain2 ... domainN]"
+  exit 1
+fi
+
+# Iterate over each provided domain
+for domain in "$@"; do
+  echo "Retrieving certificate for $domain..."
+  
+  # Use openssl to retrieve the certificate and save it to the appropriate directory
+  openssl s_client -showcerts -connect "$domain:443" < /dev/null | \
+  sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "/usr/local/share/ca-certificates/${domain}.crt"
+done
+
+# Update the system's certificate store
+update-ca-certificates
+
+echo "Certificates updated successfully."
+
+# Example usage:
+# ./trust-cert example.com example.org example.net
