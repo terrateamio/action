@@ -139,6 +139,9 @@ def run(state, config):
             with open(diff_infracost) as f:
                 diff = json.load(f)
 
+            logging.info('INFRACOST : DIFF')
+            logging.info('%s', json.dumps(diff, indent=2))
+
             changed_dirspaces = set([(ds['path'], ds['workspace'])
                                      for ds in state.work_manifest['changed_dirspaces']])
 
