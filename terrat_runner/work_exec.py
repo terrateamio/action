@@ -87,7 +87,7 @@ def _store_results(work_token, api_base_url, results):
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
                              json=results)
 
-    return res.status_code == 200
+    return res
 
 
 def _run(state, exec_cb):
@@ -181,7 +181,10 @@ def _run(state, exec_cb):
 
     ret = _store_results(state.work_token, state.api_base_url, results)
 
-    if not ret:
+    if ret.status_code != 200:
+        logging.info('RESPONSE : STATUS_CODE : %d', ret.status_code)
+        logging.info('RESPONSE : HEADERS : %r', ret.headers)
+        logging.info('RESPONSE : CONTENT : %r', ret.content)
         raise Exception('Failed to send results')
 
     if not results['overall']['success']:
