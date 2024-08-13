@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+if [ -f /usr/local/bin/oci ]; then
+    exec /usr/local/bin/oci "$@"
+else
+    flock /tmp/oci-cli-install pip install oci-cli 1>&2
+    exec /usr/local/bin/oci "$@"
+fi
+
