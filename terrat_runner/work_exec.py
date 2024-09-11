@@ -187,9 +187,6 @@ def _run(state, exec_cb):
         logging.info('RESPONSE : CONTENT : %r', ret.content)
         raise Exception('Failed to send results')
 
-    if not results['overall']['success']:
-        raise Exception('Failed executing operation')
-
     return state
 
 
