@@ -118,12 +118,13 @@ def assume_role(state, config):
                                workflow_step={'type': 'oidc'},
                                outputs=None)
     else:
-        logging.error('OIDC : %s : ERROR', assume_role_arn)
+        output = proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
+        logging.error('OIDC : %s : ERROR : %s', assume_role_arn, output)
         return workflow.Result(failed=True,
                                state=state,
                                workflow_step={'type': 'oidc'},
                                outputs={
-                                   'text': proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
+                                   'text': output
                                })
 
 
