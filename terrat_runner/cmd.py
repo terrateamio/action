@@ -46,8 +46,14 @@ def run_with_output(state, config):
     proc = subprocess.Popen(cmd,
                             cwd=state.working_dir,
                             env=env,
+                            stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
+
+    if 'input' in config:
+        proc.stdin.write(config['input'].encode('utf-8'))
+
+    proc.stdin.close()
 
     line = proc.stdout.readline()
     output = io.StringIO()
