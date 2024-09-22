@@ -209,3 +209,7 @@ def get_plan_storage(config):
 
 def get_indexer(config):
     return _get(config, 'indexer', {'enabled': False})
+
+
+def get_config_builder(config):
+    return _get(config, 'config_builder', {'enabled': False})
