@@ -6,7 +6,9 @@ import subprocess
 
 import repo_config
 import run_state
+
 import work_apply
+import work_build_config
 import work_exec
 import work_manifest
 import work_plan
@@ -67,7 +69,8 @@ WORK_MANIFEST_DISPATCH = {
     'plan': lambda state: tf_operation(state, work_plan.Exec()),
     'apply': lambda state: tf_operation(state, work_apply.Exec()),
     'unsafe-apply': lambda state: tf_operation(state, work_unsafe_apply.Exec()),
-    'index': lambda state: state.run_time.work_index(state)
+    'index': lambda state: state.run_time.work_index(state),
+    'build-config': lambda state: work_build_config.run(state)
 }
 
 
