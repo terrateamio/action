@@ -1,0 +1,43 @@
+#! /usr/bin/env python3
+
+# Implement auxiliary repo config features via the .terrateam/aux.yml file.
+#
+# Features:
+#
+# 1. Specify layer dependencies via a seperate file.  Structure of the file is:
+#
+# dirs:
+#    <path to dir1>:
+#       deps:
+#          - <path to dep1>
+#          - <path to dep2>
+#          - ...
+#          - <path to depN>
+#    <path to dirN>
+#       deps:
+#          - ...
+#
+# Only specifying directories is supported.
+#
+# All directories are relative to the root of the repository.
+
+import os
+import sys
+
+import json
+import yaml
+
+repo_config = json.load(sys.stdin)
+
+with open(os.path.join(os.environ['TERRATEAM_ROOT'], '.terrateam', 'aux.yml')) as f:
+    deps = yaml.safe_load(f)
+
+dep_dirs = deps.get('dirs', {})
+
+for d in repo_config.get('dirs', {}):
+    if d in dep_dirs:
+        deps_list = dep_dirs[d].get('deps', [])
+        depends_on = ' or '.join(['dir:' + dir for dir in deps_list])
+        repo_config.setdefault('dirs', {})[d].setdefault('when_modified', {})['depends_on'] = depends_on
+
+print(json.dumps(repo_config, indent=2))
