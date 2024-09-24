@@ -204,6 +204,7 @@ def run(args):
 
     set_env_context(env, 'SECRETS_CONTEXT')
     set_env_context(env, 'VARIABLES_CONTEXT')
+    set_env_context(env, 'ENVIRONMENT_CONTEXT')
     transform_tf_vars(env)
     state = state._replace(env=env)
 
