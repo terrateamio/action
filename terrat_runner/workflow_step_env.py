@@ -1,3 +1,4 @@
+import run_state
 import workflow_step_run
 
 
@@ -34,7 +35,7 @@ def run_exec(state, config):
             cmd_output = cmd_output.rstrip('\n')
 
         if config.get('sensitive', False):
-            state.run_time.set_secret(cmd_output)
+            state = run_state.set_secret(state, cmd_output)
 
         env = state.env.copy()
         env[config['name']] = cmd_output
@@ -76,7 +77,7 @@ def run_source(state, config):
 
         for k in config.get('sensitive', []):
             if k in env:
-                state.run_time.set_secret(env[k])
+                state = run_state.set_secret(state, env[k])
 
         result = result._replace(state=state, outputs=None)
 

@@ -195,6 +195,8 @@ def run(args):
 
     state = run_time.initialize(state)
 
+    state = run_state.set_secret(state, wm['token'])
+
     env = state.env.copy()
     # Setup Terraform environment variables for automation
     env['TF_IN_AUTOMATION'] = 'true'
@@ -204,7 +206,12 @@ def run(args):
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
 
-    set_env_context(env, 'SECRETS_CONTEXT')
+    secret_env = {}
+    set_env_context(secret_env, 'SECRETS_CONTEXT')
+    for k, v in secret_env.items():
+        state = run_state.set_secret(state, v)
+        env[k] = v
+
     set_env_context(env, 'VARIABLES_CONTEXT')
     set_env_context(env, 'ENVIRONMENT_CONTEXT')
     transform_tf_vars(env)

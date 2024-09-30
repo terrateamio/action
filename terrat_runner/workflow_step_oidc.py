@@ -10,6 +10,7 @@ import requests
 
 import requests_retry
 import retry
+import run_state
 import workflow
 
 
@@ -60,9 +61,9 @@ def assume_role_with_web_identity(state, config, web_identity_token):
         env['AWS_ACCESS_KEY_ID'] = output['Credentials']['AccessKeyId']
         env['AWS_SECRET_ACCESS_KEY'] = output['Credentials']['SecretAccessKey']
         env['AWS_SESSION_TOKEN'] = output['Credentials']['SessionToken']
-        state.run_time.set_secret(env['AWS_ACCESS_KEY_ID'])
-        state.run_time.set_secret(env['AWS_SECRET_ACCESS_KEY'])
-        state.run_time.set_secret(env['AWS_SESSION_TOKEN'])
+        state = run_state.set_secret(state, env['AWS_ACCESS_KEY_ID'])
+        state = run_state.set_secret(state, env['AWS_SECRET_ACCESS_KEY'])
+        state = run_state.set_secret(state, env['AWS_SESSION_TOKEN'])
         state = state._replace(env=env)
 
         return workflow.Result(failed=False,
@@ -109,9 +110,9 @@ def assume_role(state, config):
         env['AWS_ACCESS_KEY_ID'] = output['Credentials']['AccessKeyId']
         env['AWS_SECRET_ACCESS_KEY'] = output['Credentials']['SecretAccessKey']
         env['AWS_SESSION_TOKEN'] = output['Credentials']['SessionToken']
-        state.run_time.set_secret(env['AWS_ACCESS_KEY_ID'])
-        state.run_time.set_secret(env['AWS_SECRET_ACCESS_KEY'])
-        state.run_time.set_secret(env['AWS_SESSION_TOKEN'])
+        state = run_state.set_secret(state, env['AWS_ACCESS_KEY_ID'])
+        state = run_state.set_secret(state, env['AWS_SECRET_ACCESS_KEY'])
+        state = run_state.set_secret(state, env['AWS_SESSION_TOKEN'])
         state = state._replace(env=env)
 
         return workflow.Result(failed=False,
@@ -148,7 +149,7 @@ def run_aws(state, config):
         logging.info('OIDC : %s : SUCCESS', role_arn)
         web_identity_token = res.json()['value']
 
-        state.run_time.set_secret(web_identity_token)
+        state = run_state.set_secret(state, web_identity_token)
 
         web_identity_token_file = os.path.join(state.env['TERRATEAM_TMPDIR'], 'aws_oidc_token_file')
         with open(web_identity_token_file, 'w') as f:
@@ -343,7 +344,7 @@ def run_gcp(state, config):
         logging.info('OIDC : gcp : SUCCESS')
         web_identity_token = res.json()['value']
 
-        state.run_time.set_secret(web_identity_token)
+        state = run_state.set_secret(state, web_identity_token)
 
         try:
             oauth_token_data = create_token(web_identity_token=web_identity_token,
@@ -354,7 +355,7 @@ def run_gcp(state, config):
                                             access_token_scopes=access_token_scopes)
 
             google_oauth_access_token = oauth_token_data['access_token']
-            state.run_time.set_secret(google_oauth_access_token)
+            state = run_state.set_secret(state, google_oauth_access_token)
 
             google_oauth_access_token_file = os.path.join(state.env['TERRATEAM_TMPDIR'],
                                                           'gcp_oidc_token_file')
