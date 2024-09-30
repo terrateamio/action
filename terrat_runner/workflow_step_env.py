@@ -33,6 +33,9 @@ def run_exec(state, config):
         if config.get('trim_trailing_newlines', True):
             cmd_output = cmd_output.rstrip('\n')
 
+        if config.get('sensitive', False):
+            state.run_time.set_secret(cmd_output)
+
         env = state.env.copy()
         env[config['name']] = cmd_output
         state = state._replace(env=env)
