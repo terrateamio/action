@@ -1,3 +1,4 @@
+import run_state
 import workflow_step_run
 
 
@@ -33,6 +34,9 @@ def run_exec(state, config):
         if config.get('trim_trailing_newlines', True):
             cmd_output = cmd_output.rstrip('\n')
 
+        if config.get('sensitive', False):
+            state = run_state.set_secret(state, cmd_output)
+
         env = state.env.copy()
         env[config['name']] = cmd_output
         state = state._replace(env=env)
@@ -55,7 +59,8 @@ def run_source(state, config):
         # The second 'bash' string here is because "bash -c" uses the first
         # parameter after the "-c" as the name of the shell.
         'cmd': ['bash', '-c', '\n'.join(SOURCE_CMD), 'bash'] + config['cmd'],
-        'capture_output': True
+        'capture_output': True,
+        'log_output': False
     }
 
     if 'ignore_errors' in config:
@@ -69,6 +74,11 @@ def run_source(state, config):
         cmd_output = result.outputs['text']
         env = dict([line.split('=', 1) for line in cmd_output.split('\0') if line])
         state = state._replace(env=env)
+
+        for k in config.get('sensitive', []):
+            if k in env:
+                state = run_state.set_secret(state, env[k])
+
         result = result._replace(state=state, outputs=None)
 
     return result._replace(

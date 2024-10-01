@@ -34,7 +34,10 @@ def run(state, config):
     # Replace any variables in the cmd
     cmd = [_replace_vars(s, env) for s in cmd]
     logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
-    return subprocess.run(cmd, cwd=state.working_dir, env=env)
+    if config.get('log_output', True):
+        return subprocess.run(cmd, cwd=state.working_dir, env=env)
+    else:
+        return subprocess.run(cmd, cwd=state.working_dir, env=env, stdout=subprocess.DEVNULL)
 
 
 def run_with_output(state, config):
@@ -60,8 +63,9 @@ def run_with_output(state, config):
     while line:
         line = line.decode('utf-8')
         output.write(line)
-        sys.stderr.write('cwd={} : {}'.format(state.working_dir, line))
-        sys.stderr.flush()
+        if config.get('log_output', True):
+            sys.stderr.write('cwd={} : {}'.format(state.working_dir, line))
+            sys.stderr.flush()
         line = proc.stdout.readline()
 
     proc.wait()

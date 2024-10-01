@@ -83,6 +83,30 @@ def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
                 rc.get_default_tf_version(repo_config))
 
 
+def _mask_output(secrets, output):
+    for secret in secrets:
+        if secret in output:
+            output = output.replace(secret, '***')
+    return output
+
+
+def _mask_secrets(secrets, value):
+    if isinstance(value, str):
+        return _mask_output(secrets, value)
+    elif isinstance(value, dict):
+        ret = {}
+        for k, v in value.items():
+            ret[k] = _mask_secrets(secrets, v)
+        return ret
+    elif isinstance(value, list):
+        ret = []
+        for v in value:
+            ret.append(_mask_secrets(secrets, v))
+        return ret
+    else:
+        return value
+
+
 def _store_results(work_token, api_base_url, results):
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
                              json=results)
@@ -178,6 +202,8 @@ def _run(state, exec_cb):
         'pre': pre_hook_outputs,
         'post': state.outputs
     }
+
+    results = _mask_secrets(state.secrets, results)
 
     ret = _store_results(state.work_token, state.api_base_url, results)
 

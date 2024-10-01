@@ -16,7 +16,8 @@ State = collections.namedtuple('State', ['work_token',
                                          'failed',
                                          'sha',
                                          'tmpdir',
-                                         'run_time'])
+                                         'run_time',
+                                         'secrets'])
 
 
 def create(work_token,
@@ -41,4 +42,10 @@ def create(work_token,
                  failed=False,
                  sha=sha,
                  tmpdir=None,
-                 run_time=run_time)
+                 run_time=run_time,
+                 secrets=set())
+
+
+def set_secret(state, secret):
+    state.run_time.set_secret(secret)
+    return state._replace(secrets=state.secrets | set([secret]))
