@@ -118,19 +118,16 @@ def make_parser():
     return parser
 
 
-def set_env_context(env, key):
-    context = env.get(key)
+def set_env_context(env, context):
+    try:
+        vals = json.loads(context)
 
-    if context is not None:
-        try:
-            vals = json.loads(context)
-
-            if vals:
-                for k, v in vals.items():
-                    env[k] = str(v)
-        except json.decoder.JSONDecodeError as exn:
-            logging.error('Failed to decode {}'.format(key))
-            logging.exception(exn)
+        if vals:
+            for k, v in vals.items():
+                env[k] = str(v)
+    except json.decoder.JSONDecodeError as exn:
+        logging.error('Failed to decode {}'.format(key))
+        logging.exception(exn)
 
 
 # Iterate the environment and convert any environment variables starting with
@@ -207,13 +204,13 @@ def run(args):
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
 
     secret_env = {}
-    set_env_context(secret_env, 'SECRETS_CONTEXT')
+    set_env_context(secret_env, env.get('SECRETS_CONTEXT', '{}'))
     for k, v in secret_env.items():
         state = run_state.set_secret(state, v)
         env[k] = v
 
-    set_env_context(env, 'VARIABLES_CONTEXT')
-    set_env_context(env, 'ENVIRONMENT_CONTEXT')
+    set_env_context(env, env.get('VARIABLES_CONTEXT', '{}'))
+    set_env_context(env, env.get('ENVIRONMENT_CONTEXT', '{}'))
     transform_tf_vars(env)
     state = state._replace(env=env)
 
