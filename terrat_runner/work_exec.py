@@ -83,25 +83,32 @@ def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
                 rc.get_default_tf_version(repo_config))
 
 
-def _mask_output(secrets, output):
-    for secret in secrets:
-        if secret in output:
-            output = output.replace(secret, '***')
-    return output
+def _mask_output(secrets, unmasked, output):
+    # If the output exactly matches anything in unmasked then return output
+    # unchanged.
+    if output in unmasked:
+        return output
+    else:
+        for secret in secrets:
+            if secret in output:
+                output = output.replace(secret, '***')
+        return output
 
 
-def _mask_secrets(secrets, value):
+# Mask all secrets in value, unless masking it would alter an value in
+# "unmasked"
+def _mask_secrets(secrets, unmasked, value):
     if isinstance(value, str):
-        return _mask_output(secrets, value)
+        return _mask_output(secrets, unmasked, value)
     elif isinstance(value, dict):
         ret = {}
         for k, v in value.items():
-            ret[k] = _mask_secrets(secrets, v)
+            ret[k] = _mask_secrets(secrets, unmasked, v)
         return ret
     elif isinstance(value, list):
         ret = []
         for v in value:
-            ret.append(_mask_secrets(secrets, v))
+            ret.append(_mask_secrets(secrets, unmasked, v))
         return ret
     else:
         return value
@@ -203,7 +210,10 @@ def _run(state, exec_cb):
         'post': state.outputs
     }
 
-    results = _mask_secrets(state.secrets, results)
+    unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
+                   + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']])
+
+    results = _mask_secrets(state.secrets, unmasked, results)
 
     ret = _store_results(state.work_token, state.api_base_url, results)
 
