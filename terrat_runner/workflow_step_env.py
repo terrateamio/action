@@ -1,15 +1,19 @@
+import logging
+import tempfile
+
 import run_state
 import workflow_step_run
 
 
-SOURCE_CMD = [
-    'set -e',
-    'set -u',
-    # Escape the variable here because we will apply templating in the
-    # workflow_step_run call and $@ conflicts with how the templating works.
-    'source "$$@"',
-    'env -0'
-]
+def source_cmd(fname):
+    return [
+        'set -e',
+        'set -u',
+        # Escape the variable here because we will apply templating in the
+        # workflow_step_run call and $@ conflicts with how the templating works.
+        'source "$$@" > {} 2>&1'.format(fname),
+        'env -0'
+    ]
 
 
 def run_exec(state, config):
@@ -52,23 +56,30 @@ def run_exec(state, config):
 
 
 def run_source(state, config):
-    # Construct a new config, pulling through the pieces of the existing config
-    # that are needed for the [run] step.  This is a big fragile if [run] step
-    # acquires new configuration, we have to remember to thread them through.
-    run_config = {
-        # The second 'bash' string here is because "bash -c" uses the first
-        # parameter after the "-c" as the name of the shell.
-        'cmd': ['bash', '-c', '\n'.join(SOURCE_CMD), 'bash'] + config['cmd'],
-        'capture_output': True,
-        'log_output': False
-    }
+    with tempfile.NamedTemporaryFile() as tmp:
+        # Construct a new config, pulling through the pieces of the existing config
+        # that are needed for the [run] step.  This is a big fragile if [run] step
+        # acquires new configuration, we have to remember to thread them through.
+        run_config = {
+            # The second 'bash' string here is because "bash -c" uses the first
+            # parameter after the "-c" as the name of the shell.
+            'cmd': ['bash', '-c', '\n'.join(source_cmd(tmp.name)), 'bash'] + config['cmd'],
+            'capture_output': True,
+            'log_output': False
+        }
 
-    if 'ignore_errors' in config:
-        run_config['ignore_errors'] = config['ignore_errors']
-    if 'run_on' in config:
-        run_config['run_on'] = config['run_on']
+        if 'ignore_errors' in config:
+            run_config['ignore_errors'] = config['ignore_errors']
+        if 'run_on' in config:
+            run_config['run_on'] = config['run_on']
 
-    result = workflow_step_run.run(state, run_config)
+        result = workflow_step_run.run(state, run_config)
+
+        with open(tmp.name, 'r') as f:
+            lines = f.read().splitlines()
+
+        for line in lines:
+            logging.info('cwd=%s : %s', state.working_dir, line)
 
     if not result.failed:
         cmd_output = result.outputs['text']
