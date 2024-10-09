@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 
 import cmd
 import repo_config as rc
@@ -91,3 +92,9 @@ class Run_time(object):
             'drift_create_issue': workflow_step_drift_create_issue.run,
             'resourcely': workflow_step_resourcely.run
         }
+
+    def group_output(self, title, output):
+        sys.stdout.write('::group::{}\n'.format(title))
+        sys.stdout.write(output)
+        sys.stdout.write('\n')
+        sys.stdout.write('::endgroup::\n')
