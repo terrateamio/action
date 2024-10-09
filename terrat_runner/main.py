@@ -173,10 +173,10 @@ def run(args):
 
     logging.debug('LOADING: REPO_CONFIG')
     rc = wm['config']
-    logging.debug('REPO_CONFIG')
-    logging.debug('%s', json.dumps(rc, indent=2))
 
     run_time = github_actions.run_time.Run_time()
+
+    run_time.group_output('Repository Configuration', json.dumps(rc, indent=2))
 
     run_time.set_secret(wm['token'])
 
