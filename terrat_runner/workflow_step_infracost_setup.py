@@ -161,7 +161,7 @@ def run(state, config):
                 ]
 
                 return workflow.Result(
-                    failed=False,
+                    success=True,
                     state=state,
                     workflow_step={'type': 'cost-estimation'},
                     outputs={
@@ -175,12 +175,12 @@ def run(state, config):
                     })
             except Exception as exn:
                 return workflow.Result(
-                    failed=False,
+                    success=True,
                     state=state,
                     workflow_step={'type': 'cost-estimation'},
                     outputs={'text': str(exn)})
         else:
-            return workflow.Result(failed=False,
+            return workflow.Result(success=True,
                                    state=state,
                                    workflow_step={'type': 'cost-estimation'},
                                    outputs={'text': output})
@@ -194,7 +194,7 @@ def run(state, config):
         else:
             text = exn.stdout
 
-        return workflow.Result(failed=False,
+        return workflow.Result(success=True,
                                state=state,
                                workflow_step={'type': 'cost-estimation'},
                                outputs={'text': text})

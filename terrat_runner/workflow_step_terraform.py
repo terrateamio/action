@@ -87,7 +87,7 @@ def run(state, config):
         else:
             return run_terraform(state, config)
     except SynthError as exn:
-        return workflow.Result(failed=True,
+        return workflow.Result(success=False,
                                state=state,
                                workflow_step={'type': 'run'},
                                outputs={'text': exn.msg})

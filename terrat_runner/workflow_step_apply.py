@@ -64,9 +64,9 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
 
 def _test_success_update_config(config):
     def _f(ret):
-        if ret.failed:
+        if not ret.success:
             config['args'] = ['apply', '-auto-approve']
-        return not ret.failed
+        return ret.success
 
     return _f
 
@@ -84,7 +84,7 @@ def run(state, config):
                                    state.env['TERRATEAM_PLAN_FILE'])
 
     if not success:
-        return workflow.Result(failed=True,
+        return workflow.Result(success=False,
                                state=state,
                                workflow_step={'type': 'apply'},
                                outputs={'text': output})
@@ -97,7 +97,7 @@ def run(state, config):
         retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
                                          retry_config['backoff']))
 
-    return workflow.Result(failed=result.failed,
+    return workflow.Result(success=result.success,
                            state=result.state,
                            workflow_step={'type': 'apply'},
                            outputs=result.outputs)

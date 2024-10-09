@@ -52,21 +52,21 @@ def run_steps(state, steps, restrict_types=None):
                 logging.exception(exn)
                 logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
                 # TODO: Fixme, this is not a valid result
-                result = workflow.Result(failed=True,
+                result = workflow.Result(success=False,
                                          state=state,
                                          workflow_step={},
                                          outputs=[])
 
             results.append(result)
 
-            if result.failed:
+            if not result.success:
                 logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
-                state = state._replace(failed=True)
+                state = state._replace(success=False)
 
     return state._replace(outputs=[
         {
             'workflow_step': r.workflow_step,
-            'success': not r.failed,
+            'success': r.success,
             'outputs': r.outputs
         }
         for r in results])

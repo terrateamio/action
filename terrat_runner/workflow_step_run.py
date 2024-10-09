@@ -20,8 +20,8 @@ def run(state, config):
         raise Exception('Invalid hook run_on configuration: {}'.format(config))
 
     if run_on == RUN_ON_ALWAYS \
-       or (state.failed and run_on == RUN_ON_FAILURE) \
-       or (not state.failed and run_on == RUN_ON_SUCCESS):
+       or (not state.success and run_on == RUN_ON_FAILURE) \
+       or (state.success and run_on == RUN_ON_SUCCESS):
 
         output_key = config.get('output_key')
         capture_output = config.get('capture_output', False)
@@ -40,8 +40,8 @@ def run(state, config):
             else:
                 proc = cmd.run(state, config)
 
-            failed = not (proc.returncode == 0 or ignore_errors)
-            return workflow.Result(failed=failed,
+            success = (proc.returncode == 0 or ignore_errors)
+            return workflow.Result(success=success,
                                    state=state,
                                    workflow_step={
                                        'type': 'run',
@@ -50,7 +50,7 @@ def run(state, config):
                                    },
                                    outputs=outputs)
         except cmd.MissingEnvVar as exn:
-            failed = True
+            success = False
             logging.error('Missing environment variable: %s', exn.args[0])
             outputs = {
                 'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0])
@@ -58,7 +58,7 @@ def run(state, config):
             if output_key:
                 outputs['output_key'] = output_key
 
-            return workflow.Result(failed=failed,
+            return workflow.Result(success=success,
                                    state=state,
                                    workflow_step={
                                        'type': 'run',
@@ -66,7 +66,7 @@ def run(state, config):
                                    },
                                    outputs=outputs)
         except FileNotFoundError:
-            failed = True
+            success = False
             logging.exception('Could not find program to run %r', config['cmd'])
             outputs = {
                 'text': 'ERROR: Could not find program to run: {}'.format(config['cmd'])
@@ -74,7 +74,7 @@ def run(state, config):
             if output_key:
                 outputs['output_key'] = output_key
 
-            return workflow.Result(failed=True,
+            return workflow.Result(success=success,
                                    state=state,
                                    workflow_step={
                                        'type': 'run',
@@ -83,7 +83,7 @@ def run(state, config):
                                    outputs=outputs)
 
     else:
-        return workflow.Result(failed=state.failed,
+        return workflow.Result(success=state.success,
                                state=state,
                                workflow_step={'type': 'run', 'cmd': config['cmd']},
                                outputs=None)

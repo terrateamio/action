@@ -143,7 +143,7 @@ def _run(state, exec_cb):
     state = hooks.run_pre_hooks(state, pre_hooks)
 
     # Bail out if we failed in prehooks
-    if state.failed:
+    if not state.success:
         results = {
             'dirspaces': [
                 {
@@ -180,7 +180,7 @@ def _run(state, exec_cb):
 
     dirspaces = []
     for (s, r) in res:
-        state = state._replace(failed=state.failed or s.failed)
+        state = state._replace(success=state.success and s.success)
         dirspaces.append(r)
 
     logging.debug('EXEC : HOOKS : POST')
@@ -190,7 +190,7 @@ def _run(state, exec_cb):
     results = {
         'dirspaces': dirspaces,
         'overall': {
-            'success': not state.failed,
+            'success': state.success,
         }
     }
 
@@ -204,7 +204,7 @@ def _run(state, exec_cb):
     post_hooks = exec_cb.post_hooks(state)
     state = hooks.run_post_hooks(state._replace(outputs=[]), post_hooks)
 
-    results['overall']['success'] = not state.failed
+    results['overall']['success'] = state.success
     results['overall']['outputs'] = {
         'pre': pre_hook_outputs,
         'post': state.outputs
