@@ -167,7 +167,7 @@ def run_plan(state, config, targets=None):
 
     result = workflow_step_terraform.run(state, config)
 
-    if (result.failed and (
+    if (not result.success and (
             'exit_code' not in result.workflow_step
             or result.workflow_step['exit_code'] == 1)):
         return result._replace(workflow_step={'type': 'plan'})
@@ -182,7 +182,7 @@ def plan_fast_and_loose(state, config):
 
     result = workflow_step_terraform.run(state, config)
 
-    if (result.failed and (
+    if (not result.success and (
             'exit_code' not in result.workflow_step
             or result.workflow_step['exit_code'] == 1)):
         return result._replace(workflow_step={'type': 'plan'})
@@ -206,7 +206,7 @@ def run(state, config):
     else:
         result = run_plan(state, config)
 
-    if (result.failed and (
+    if (not result.success and (
             'exit_code' not in result.workflow_step
             or result.workflow_step['exit_code'] == 1)):
         return result
@@ -228,7 +228,7 @@ def run(state, config):
 
     result = workflow_step_terraform.run(state, config)
 
-    if result.failed:
+    if not result.success:
         return result._replace(workflow_step={'type': 'plan'})
 
     outputs['plan_text'] = result.outputs['text']
@@ -246,13 +246,13 @@ def run(state, config):
                                     has_changes)
 
     if success:
-        result = result._replace(failed=not success)
+        result = result._replace(success=success)
     else:
         logging.error('PLAN_STORE_FAILED : %s : %s : %s',
                       state.env['TERRATEAM_DIR'],
                       state.env['TERRATEAM_WORKSPACE'],
                       output)
-        result = result._replace(failed=True)
+        result = result._replace(success=False)
         outputs = {'text': 'Could not store plan file, with the following error:\n\n' + output}
 
     return result._replace(workflow_step={'type': 'plan'},

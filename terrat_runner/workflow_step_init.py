@@ -25,10 +25,10 @@ def run(state, config):
 
     result = retry.run(
         lambda: workflow_step_terraform.run(state, config),
-        retry.finite_tries(TRIES, lambda result: not result.failed),
+        retry.finite_tries(TRIES, lambda result: result.success),
         retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
-    if result.failed:
+    if not result.success:
         return result
 
     create_and_select_workspace = repo_config.get_create_and_select_workspace(state.repo_config,
@@ -52,6 +52,6 @@ def run(state, config):
             config['cmd'] = ['${TERRATEAM_TF_CMD}', 'workspace', 'new', state.workspace]
             proc = cmd.run(state, config)
 
-            return result._replace(failed=proc.returncode != 0)
+            return result._replace(success=proc.returncode == 0)
 
     return result

@@ -13,11 +13,11 @@ def run(state, config):
     tries = retry_config['enabled'] and retry_config['tries'] or 1
     result = retry.run(
         lambda: workflow_step_terraform.run(state, config),
-        retry.finite_tries(tries, lambda ret: not ret.failed),
+        retry.finite_tries(tries, lambda ret: ret.success),
         retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
                                          retry_config['backoff']))
 
-    return workflow.Result(failed=result.failed,
+    return workflow.Result(success=result.success,
                            state=result.state,
                            workflow_step={'type': 'apply'},
                            outputs=result.outputs)

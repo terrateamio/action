@@ -32,7 +32,7 @@ def run_exec(state, config):
 
     result = workflow_step_run.run(state, run_config)
 
-    if not result.failed:
+    if result.success:
         cmd_output = result.outputs['text']
 
         if config.get('trim_trailing_newlines', True):
@@ -81,7 +81,7 @@ def run_source(state, config):
         for line in lines:
             logging.info('cwd=%s : %s', state.working_dir, line)
 
-    if not result.failed:
+    if result.success:
         state = result.state
         cmd_output = result.outputs['text']
 

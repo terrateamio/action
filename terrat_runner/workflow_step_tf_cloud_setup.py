@@ -2,6 +2,7 @@ import logging
 import os
 import workflow
 
+
 def run(state, config):
     logging.info('TF_CLOUD : SETUP')
     env = state.env
@@ -10,7 +11,7 @@ def run(state, config):
     with open(terraformrc_path, 'w') as f:
         f.write('credentials "app.terraform.io" {{ token = "{}" }}'.format(token))
     return workflow.Result(
-            failed=False,
+            success=True,
             state=state,
             workflow_step={'type': 'run', 'cmd': ['tf_cloud_setup']},
             outputs={'text': 'Writing TF_API_TOKEN to ~/.terraformrc'})

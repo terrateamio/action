@@ -78,7 +78,7 @@ class Exec(work_exec.ExecInterface):
             result = {
                 'path': path,
                 'workspace': workspace,
-                'success': not state.failed,
+                'success': state.success,
                 'outputs': state.outputs.copy(),
             }
 
