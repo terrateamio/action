@@ -142,25 +142,12 @@ def _run(state, exec_cb):
     logging.debug('EXEC : HOOKS : PRE')
     state = hooks.run_pre_hooks(state, pre_hooks)
 
+    steps = state.outputs
+
     # Bail out if we failed in prehooks
     if not state.success:
         results = {
-            'dirspaces': [
-                {
-                    'path': ds['path'],
-                    'workspace': ds['workspace'],
-                    'success': False,
-                    'outputs': [],
-                }
-                for ds in state.work_manifest['changed_dirspaces']
-            ],
-            'overall': {
-                'success': False,
-                'outputs': {
-                    'pre': state.outputs,
-                    'post': []
-                }
-            },
+            'steps': steps
         }
         ret = _store_results(state.work_token, state.api_base_url, results)
 
@@ -169,8 +156,6 @@ def _run(state, exec_cb):
         else:
             raise Exception('Failed executing pre hooks')
 
-    pre_hook_outputs = state.outputs
-
     state = state._replace(outputs=[])
 
     res = dir_exec.run(rc.get_parallelism(state.repo_config),
@@ -178,20 +163,17 @@ def _run(state, exec_cb):
                        exec_cb.exec,
                        (state,))
 
-    dirspaces = []
     for (s, r) in res:
         state = state._replace(success=state.success and s.success)
-        dirspaces.append(r)
+        steps.extend(r['outputs'])
 
     logging.debug('EXEC : HOOKS : POST')
 
     results_json = os.path.join(state.tmpdir, 'results.json')
 
     results = {
-        'dirspaces': dirspaces,
-        'overall': {
-            'success': state.success,
-        }
+        'steps': steps,
+        'success': state.success
     }
 
     with open(results_json, 'w') as f:
@@ -204,10 +186,10 @@ def _run(state, exec_cb):
     post_hooks = exec_cb.post_hooks(state)
     state = hooks.run_post_hooks(state._replace(outputs=[]), post_hooks)
 
-    results['overall']['success'] = state.success
-    results['overall']['outputs'] = {
-        'pre': pre_hook_outputs,
-        'post': state.outputs
+    steps.extend(state.outputs)
+
+    results = {
+        'steps': steps
     }
 
     unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
