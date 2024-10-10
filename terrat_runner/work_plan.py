@@ -36,7 +36,8 @@ class Exec(work_exec.ExecInterface):
                 pre_hooks.append(
                     {
                         'type': 'infracost_setup',
-                        'currency': cost_estimation_config['currency']
+                        'currency': cost_estimation_config['currency'],
+                        'ignore_errors': True
                     }
                 )
 
@@ -97,6 +98,7 @@ class Exec(work_exec.ExecInterface):
                                path=path,
                                workspace=workspace,
                                workflow=workflow),
+                {'type': 'dirspace', 'dir': path, 'workspace': workspace},
                 plan_steps)
 
             result = {
