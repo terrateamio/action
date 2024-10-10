@@ -8,3 +8,12 @@ Result = collections.namedtuple('Result',
                                     'workflow_step',
                                     'outputs'
                                 ])
+
+
+Result2 = collections.namedtuple('Result2',
+                                 [
+                                     'payload',
+                                     'state',
+                                     'step',
+                                     'success',
+                                 ])

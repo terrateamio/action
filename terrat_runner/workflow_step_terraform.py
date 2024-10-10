@@ -55,10 +55,10 @@ def run_terraform(state, config):
     extra_args = config.get('extra_args', [])
     config = {
         'cmd': cmd + args + extra_args,
-        'output_key': config.get('output_key'),
+        'capture_output': True,
         'env': env,
     }
-    return workflow_step_run.run(state, config)
+    return workflow_step_run.run(state, config)._replace(step='tf/terraform')
 
 
 def update_result_working_dir(result, working_dir):
@@ -87,7 +87,7 @@ def run(state, config):
         else:
             return run_terraform(state, config)
     except SynthError as exn:
-        return workflow.Result(success=False,
-                               state=state,
-                               workflow_step={'type': 'run'},
-                               outputs={'text': exn.msg})
+        return workflow.Result2(payload={'text': exn.msg},
+                                state=state,
+                                step='tf/terraform',
+                                success=False)

@@ -1,6 +1,5 @@
 import repo_config as rc
 import retry
-import workflow
 import workflow_step_terraform
 
 
@@ -17,7 +16,4 @@ def run(state, config):
         retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
                                          retry_config['backoff']))
 
-    return workflow.Result(success=result.success,
-                           state=result.state,
-                           workflow_step={'type': 'apply'},
-                           outputs=result.outputs)
+    return result._replace(step='tf/apply')

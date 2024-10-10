@@ -66,19 +66,17 @@ def assume_role_with_web_identity(state, config, web_identity_token):
         state = run_state.set_secret(state, env['AWS_SESSION_TOKEN'])
         state = state._replace(env=env)
 
-        return workflow.Result(success=True,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs=None)
+        return workflow.Result2(payload={},
+                                state=state,
+                                step='auth/oidc',
+                                success=True)
     else:
         output = proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
         logging.error('OIDC : %s : ERROR : %s', role_arn, output)
-        return workflow.Result(success=False,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs={
-                                   'text': output
-                               })
+        return workflow.Result2(payload={'text': output},
+                                state=state,
+                                step='auth/oidc',
+                                success=False)
 
 
 def assume_role(state, config):
@@ -115,19 +113,17 @@ def assume_role(state, config):
         state = run_state.set_secret(state, env['AWS_SESSION_TOKEN'])
         state = state._replace(env=env)
 
-        return workflow.Result(success=True,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs=None)
+        return workflow.Result2(payload={},
+                                state=state,
+                                step='auth/oidc',
+                                success=True)
     else:
         output = proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
         logging.error('OIDC : %s : ERROR : %s', assume_role_arn, output)
-        return workflow.Result(success=False,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs={
-                                   'text': output
-                               })
+        return workflow.Result2(payload={'text': output},
+                                state=state,
+                                step='auth/oidc',
+                                success=False)
 
 
 def run_aws(state, config):
@@ -163,26 +159,24 @@ def run_aws(state, config):
         logging.info('OIDC : %s : ASSUMING_ROLE_WITH_WEB_IDENTITY', role_arn)
         result = assume_role_with_web_identity(state, config, web_identity_token)
         if not result.success:
-            return result
+            return result.replace(step='auth/oidc')
         elif config.get('assume_role_enabled', True) and 'assume_role_arn' in config:
             logging.info('OIDC : %s : ASSUMING_ROLE', config['assume_role_arn'])
             return assume_role(result.state, config)
         else:
-            return workflow.Result(success=True,
-                                   state=result.state,
-                                   workflow_step={'type': 'oidc'},
-                                   outputs=None)
+            return workflow.Result2(payload={},
+                                    state=state,
+                                    step='auth/oidc',
+                                    success=True)
 
     else:
         logging.error('OIDC : %s : ERROR : %s',
                       role_arn,
                       res.content.decode('utf-8'))
-        return workflow.Result(success=False,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs={
-                                   'text': res.content.decode('utf-8')
-                               })
+        return workflow.Result2(payload={'text': res.content.decode('utf-8')},
+                                state=state,
+                                step='auth/oidc',
+                                success=False)
 
 
 def build_domain_wide_deligation_jwt(service_account, access_token_subject, lifetime):
@@ -367,24 +361,22 @@ def run_gcp(state, config):
             env['GOOGLE_OAUTH_ACCESS_TOKEN'] = google_oauth_access_token
             state = state._replace(env=env)
 
-            return workflow.Result(success=True,
-                                   state=state,
-                                   workflow_step={'type': 'oidc'},
-                                   outputs=None)
+            return workflow.Result2(payload={},
+                                    state=state,
+                                    step='auth/oidc',
+                                    success=True)
         except Auth_error as exn:
-            return workflow.Result(success=False,
-                                   state=state,
-                                   workflow_step={'type': 'oidc'},
-                                   outputs={'text': exn.args[0]})
+            return workflow.Result2(payload={'text': exn.args[0]},
+                                    state=state,
+                                    step='auth/oidc',
+                                    success=False)
     else:
         logging.error('OIDC : gcp : ERROR : %s',
                       res.content.decode('utf-8'))
-        return workflow.Result(success=False,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs={
-                                   'text': res.content.decode('utf-8')
-                               })
+        return workflow.Result2(payload={'text': res.content.decode('utf-8')},
+                                state=state,
+                                step='auth/oidc',
+                                success=False)
 
 
 def run(state, config):
@@ -394,9 +386,7 @@ def run(state, config):
     elif provider == 'gcp':
         return run_gcp(state, config)
     else:
-        return workflow.Result(success=False,
-                               state=state,
-                               workflow_step={'type': 'oidc'},
-                               outputs={
-                                   'text': 'Unknown provider: {}'.config.get('provider')
-                               })
+        return workflow.Result2(payload={'text': 'Unknown provider: {}'.config.get('provider')},
+                                state=state,
+                                step='auth/oidc',
+                                success=False)

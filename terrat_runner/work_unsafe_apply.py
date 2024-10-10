@@ -89,6 +89,7 @@ class Exec(work_exec.ExecInterface):
                                path=path,
                                workspace=workspace,
                                workflow=workflow),
+                {'type': 'dirspace', 'dir': path, 'workspace': workspace},
                 _fix_up_apply(workflow['apply']))
 
             result = {

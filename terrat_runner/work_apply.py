@@ -73,6 +73,7 @@ class Exec(work_exec.ExecInterface):
                                path=path,
                                workspace=workspace,
                                workflow=workflow),
+                {'type': 'dirspace', 'dir': path, 'workspace': workspace},
                 workflow['apply'])
 
             result = {

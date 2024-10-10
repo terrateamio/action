@@ -16,7 +16,6 @@ def run(state, config):
     original_config = config
     config = original_config.copy()
     config['args'] = ['init']
-    config['output_key'] = 'init'
 
     # If there is already a .terraform dir, delete it
     terraform_path = os.path.join(state.working_dir, '.terraform')
@@ -29,7 +28,7 @@ def run(state, config):
         retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
     if not result.success:
-        return result
+        return result._replace(step='tf/init')
 
     create_and_select_workspace = repo_config.get_create_and_select_workspace(state.repo_config,
                                                                               state.path)
@@ -52,6 +51,6 @@ def run(state, config):
             config['cmd'] = ['${TERRATEAM_TF_CMD}', 'workspace', 'new', state.workspace]
             proc = cmd.run(state, config)
 
-            return result._replace(success=proc.returncode == 0)
+            return result._replace(success=(proc.returncode == 0))
 
-    return result
+    return result._replace(step='tf/init')
