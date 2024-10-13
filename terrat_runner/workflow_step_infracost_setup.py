@@ -155,9 +155,6 @@ def run(state, config):
                         'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
                     }
                     for p in diff['projects']
-                    if (_make_path_relative(state.working_dir,
-                                            p['metadata']['path']),
-                        p['metadata']['terraformWorkspace']) in changed_dirspaces
                 ]
 
                 payload = {
