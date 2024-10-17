@@ -15,7 +15,7 @@ def run(state, config):
                                              'output_key': 'plan_json'
                                          })
 
-    if result.failed:
+    if not result.success:
         return result
 
     plan_json = result.outputs['text']
@@ -44,7 +44,7 @@ def run(state, config):
 
         result = workflow_step_run.run(state, run_config)
 
-    if result.failed:
+    if not result.success:
         errors = []
         lines = result.outputs['text'].splitlines()
         for line in lines:

@@ -16,6 +16,11 @@ import workflow_step_tf_cloud_setup
 import workflow_step_unsafe_apply
 
 
+RUN_ON_SUCCESS = 'success'
+RUN_ON_FAILURE = 'failure'
+RUN_ON_ALWAYS = 'always'
+
+
 STEPS = {
     'apply': workflow_step_apply.run,
     'env': workflow_step_env.run,
@@ -30,43 +35,50 @@ STEPS = {
 }
 
 
-def run_steps(state, steps, restrict_types=None):
+def run_steps(state, scope, steps, restrict_types=None):
     valid_steps = STEPS.copy()
     valid_steps.update(state.run_time.steps())
 
     results = []
 
     for step in steps:
-        if 'type' not in step:
-            raise Exception('Step must contain a type')
-        elif step['type'] not in valid_steps:
-            raise Exception('Step type {} is unknown'.format(step['type']))
-        elif restrict_types and step['type'] not in restrict_types:
-            raise Exception('Step type {} not allowed in this mode'.format(step['type']))
-        else:
-            try:
-                logging.info('STEP : RUN : %s : %r', state.working_dir, step)
-                result = valid_steps[step['type']](state, step)
-                state = result.state
-            except Exception as exn:
-                logging.exception(exn)
-                logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
-                # TODO: Fixme, this is not a valid result
-                result = workflow.Result(failed=True,
-                                         state=state,
-                                         workflow_step={},
-                                         outputs=[])
+        run_on = step.get('run_on', RUN_ON_SUCCESS)
+        ignore_errors = step.get('ignore_errors', False)
 
-            results.append(result)
+        if run_on == RUN_ON_ALWAYS \
+           or (not state.success and run_on == RUN_ON_FAILURE) \
+           or (state.success and run_on == RUN_ON_SUCCESS):
 
-            if result.failed:
-                logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
-                state = state._replace(failed=True)
+            if 'type' not in step:
+                raise Exception('Step must contain a type')
+            elif step['type'] not in valid_steps:
+                raise Exception('Step type {} is unknown'.format(step['type']))
+            elif restrict_types and step['type'] not in restrict_types:
+                raise Exception('Step type {} not allowed in this mode'.format(step['type']))
+            else:
+                try:
+                    logging.info('STEP : RUN : %s : %r', state.working_dir, step)
+                    result = valid_steps[step['type']](state, step)
+                    state = result.state
+                except Exception as exn:
+                    logging.exception(exn)
+                    logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
+                    # TODO: Fixme, this is not a valid result
+                    result = workflow.Result2(payload={},
+                                              state=state,
+                                              step=step['type'],
+                                              success=False)
 
-    return state._replace(outputs=[
-        {
-            'workflow_step': r.workflow_step,
-            'success': not r.failed,
-            'outputs': r.outputs
-        }
-        for r in results])
+                results.append({
+                    'ignore_errors': ignore_errors,
+                    'payload': result.payload,
+                    'scope': scope,
+                    'step': result.step,
+                    'success': result.success,
+                })
+
+                if not result.success and not ignore_errors:
+                    logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
+                    state = state._replace(success=False)
+
+    return state._replace(outputs=results)

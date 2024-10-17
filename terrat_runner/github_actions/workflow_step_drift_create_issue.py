@@ -173,7 +173,7 @@ def maybe_create_issue(state):
 
 def run(state, config):
     maybe_create_issue(state)
-    return workflow.Result(failed=False,
+    return workflow.Result(success=True,
                            state=state,
                            workflow_step={'type': 'drift-create-issue'},
                            outputs=None)
