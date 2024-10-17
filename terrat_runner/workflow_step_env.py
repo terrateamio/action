@@ -82,14 +82,17 @@ def run_source(state, config):
             logging.info('cwd=%s : %s', state.working_dir, line)
 
     if not result.failed:
+        state = result.state
         cmd_output = result.outputs['text']
+
         env = dict([line.split('=', 1) for line in cmd_output.split('\0') if line])
+
+        if config.get('sensitive', False):
+            for k, v in env.items():
+                if k not in state.env or state.env[k] != v:
+                    state = run_state.set_secret(state, v)
+
         state = state._replace(env=env)
-
-        for k in config.get('sensitive', []):
-            if k in env:
-                state = run_state.set_secret(state, env[k])
-
         result = result._replace(state=state, outputs=None)
 
     return result._replace(
