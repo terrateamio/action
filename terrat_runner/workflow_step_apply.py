@@ -96,4 +96,13 @@ def run(state, config):
         retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
                                          retry_config['backoff']))
 
+    if result.success:
+        result_output = workflow_step_terraform.run(state, {'args': ['output', '-json']})
+        payload = result.payload
+        if result_output.success:
+            outputs = json.loads(result_output.payload['text'])
+            if outputs:
+                payload['outputs'] = outputs
+                result = result._replace(payload=payload)
+
     return result._replace(step='tf/apply')
