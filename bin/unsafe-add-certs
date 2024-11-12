@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# INSECURE SCRIPT - FOR TEMPORARY USE ONLY
+# DISCLAIMER: This script is insecure and not recommended for production use.
+# For secure handling of self-signed certificates, please refer to the official Terrateam documentation:
+# https://docs.terrateam.io/security-and-compliance/self-signed-certificates/
+
+# Check if HTTPS_PROXY is set
+if [ -z "${HTTPS_PROXY-}" ]; then
+  echo "HTTPS_PROXY is not set. Exiting."
+  exit 1
+fi
+
+# Check if HTTPS_PROXY_DOMAINS is set and non-empty
+if [ -z "${HTTPS_PROXY_DOMAINS-}" ]; then
+  echo "HTTPS_PROXY_DOMAINS is not set. Exiting."
+  exit 1
+fi
+
+# Process domains and retrieve certificates
+IFS=' ' read -r -a domains <<< "$HTTPS_PROXY_DOMAINS"
+
+for domain in "${domains[@]}"; do
+  echo "Attempting to retrieve certificate for $domain (INSECURE)..."
+  openssl s_client -showcerts -connect "$domain:443" -proxy "${HTTPS_PROXY#http[s]://}" < /dev/null | \
+  sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "/usr/local/share/ca-certificates/${domain}.crt"
+done
+
+# Update the system certificate store
+update-ca-certificates
+
+echo "Certificates added (INSECURE). Please use with caution."
