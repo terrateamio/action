@@ -7,7 +7,7 @@ export PATH="$PATH":/usr/local/proxy/bin
 WORK_TOKEN="$1"
 API_BASE_URL="$2"
 
-# Temporary Use Only:
+# Deprecated
 # WARNING: The following script, `unsafe-add-certs`, is insecure and should not be relied upon in production environments.
 # It is slated for removal in the future to avoid any potential security vulnerabilities.
 # If HTTPS_PROXY and HTTPS_PROXY_DOMAINS are set, proceed with caution.
