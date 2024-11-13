@@ -8,6 +8,7 @@ import dir_exec
 import hooks
 import repo_config as rc
 import requests_retry
+import results_compat
 
 
 class ExecInterface(abc.ABC):
@@ -114,7 +115,13 @@ def _mask_secrets(secrets, unmasked, value):
         return value
 
 
-def _store_results(work_token, api_base_url, results):
+def _store_results(state, work_token, api_base_url, results):
+    unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
+                   + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']])
+
+    results = _mask_secrets(state.secrets, unmasked, results)
+    results = results_compat.transform(state, results)
+
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
                              json=results)
 
@@ -149,7 +156,7 @@ def _run(state, exec_cb):
         results = {
             'steps': steps
         }
-        ret = _store_results(state.work_token, state.api_base_url, results)
+        ret = _store_results(state, state.work_token, state.api_base_url, results)
 
         if not ret:
             raise Exception('Failed to send results')
@@ -192,12 +199,7 @@ def _run(state, exec_cb):
         'steps': steps
     }
 
-    unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
-                   + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']])
-
-    results = _mask_secrets(state.secrets, unmasked, results)
-
-    ret = _store_results(state.work_token, state.api_base_url, results)
+    ret = _store_results(state, state.work_token, state.api_base_url, results)
 
     if ret.status_code != 200:
         logging.info('RESPONSE : STATUS_CODE : %d', ret.status_code)
