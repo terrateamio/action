@@ -117,7 +117,8 @@ def _mask_secrets(secrets, unmasked, value):
 
 def _store_results(state, work_token, api_base_url, results):
     unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
-                   + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']])
+                   + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
+                   + [step['step'] for step in results['steps']])
 
     results = _mask_secrets(state.secrets, unmasked, results)
     results = results_compat.transform(state, results)
