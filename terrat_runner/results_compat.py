@@ -174,6 +174,13 @@ def workflow_step_transform_to_1(result):
             },
             'outputs': output_text_transform_to_1(result)
         }
+    elif step == 'tf/drift-create-issue':
+        return {
+            'success': success(result),
+            'workflow_step': {
+                'type': 'drift-create-issue',
+            }
+        }
     else:
         raise Exception('Unknown output step: {}'.format(step))
 
