@@ -5,23 +5,10 @@ import subprocess
 
 SSH_KEY_NAME_MATCH = "TERRATEAM_SSH_KEY"
 
-def run(state, config):
-    try:
-        return setup(state)
-    except subprocess.CalledProcessError as exn:
-        logging.error('TERRATEAM_SSH_KEY : FAIL : %s', exn)
-        return workflow.Result(
-                failed=True,
-                state=state,
-                workflow_step={'type': 'run', 'cmd': ['terrateam_ssh_key_setup']},
-                outputs={'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn)})
-    except Exception as exn:
-        logging.error('TERRATEAM_SSH_KEY : FAIL : %s', exn)
-        return workflow.Result(
-                failed=True,
-                state=state,
-                workflow_step={'type': 'run', 'cmd': ['terrateam_ssh_key_setup']},
-                outputs={'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn)})
+
+def ssh_keys(env):
+    return [(key, val) for key, val in env.items() if key.startswith(SSH_KEY_NAME_MATCH)]
+
 
 def setup(state):
     logging.info('TERRATEAM_SSH_KEY : SETUP')
@@ -46,11 +33,24 @@ def setup(state):
     # Keyscan github.com and append to known_hosts
     subprocess.check_call(['ssh-keyscan-pre-hook', 'github.com'])
 
-    return workflow.Result(
-            failed=False,
-            state=state,
-            workflow_step={'type': 'run', 'cmd': ['terrateam_ssh_key_setup']},
-            outputs={'text': 'Writing TERRATEAM_SSH_KEY.* to ~/.ssh/'})
+    return workflow.Result2(payload={'text': 'Writing TERRATEAM_SSH_KEY.* to ~/.ssh/'},
+                            state=state,
+                            step='tf/terrateam_ssh_key_setup',
+                            success=True)
 
-def ssh_keys(env):
-	return [(key, val) for key, val in env.items() if key.startswith(SSH_KEY_NAME_MATCH)]
+
+def run(state, config):
+    try:
+        return setup(state)
+    except subprocess.CalledProcessError as exn:
+        logging.error('TERRATEAM_SSH_KEY : FAIL : %s', exn)
+        return workflow.Result2(payload={'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn)},
+                                state=state,
+                                step='tf/terrateam_ssh_key_setup',
+                                success=False)
+    except Exception as exn:
+        logging.error('TERRATEAM_SSH_KEY : FAIL : %s', exn)
+        return workflow.Result2(payload={'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn)},
+                                state=state,
+                                step='tf/terrateam_ssh_key_setup',
+                                success=False)

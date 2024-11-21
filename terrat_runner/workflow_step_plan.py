@@ -160,34 +160,32 @@ def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspa
 def run_plan(state, config, targets=None):
     config = config.copy()
     config['args'] = ['plan', '-detailed-exitcode', '-out', '$TERRATEAM_PLAN_FILE']
-    config['output_key'] = 'plan'
 
     if targets:
         config['args'].extend(['-target=' + addr for addr in targets])
 
     result = workflow_step_terraform.run(state, config)
 
-    if (result.failed and (
-            'exit_code' not in result.workflow_step
-            or result.workflow_step['exit_code'] == 1)):
-        return result._replace(workflow_step={'type': 'plan'})
+    if (not result.success and (
+            'exit_code' not in result.payload
+            or result.payload['exit_code'] == 1)):
+        return result._replace(step='tf/plan')
 
-    return result
+    return result._replace(step='tf/plan')
 
 
 def plan_fast_and_loose(state, config):
     config = config.copy()
     config['args'] = ['plan', '-detailed-exitcode', '-json', '-refresh=false']
-    config['output_key'] = 'plan'
 
     result = workflow_step_terraform.run(state, config)
 
-    if (result.failed and (
-            'exit_code' not in result.workflow_step
-            or result.workflow_step['exit_code'] == 1)):
-        return result._replace(workflow_step={'type': 'plan'})
+    if (not result.success and (
+            'exit_code' not in result.payload
+            or result.payload['exit_code'] == 1)):
+        return result._replace(step='tf/plan')
 
-    output = result.outputs['text']
+    output = result.payload['text']
 
     targets = []
 
@@ -206,33 +204,30 @@ def run(state, config):
     else:
         result = run_plan(state, config)
 
-    if (result.failed and (
-            'exit_code' not in result.workflow_step
-            or result.workflow_step['exit_code'] == 1)):
-        return result
+    if (not result.success and (
+            'exit_code' not in result.payload
+            or result.payload['exit_code'] == 1)):
+        return result._replace(step='tf/plan')
 
     # The terraform CLI has an exit code of 2 if the plan contains changes.
-    has_changes = result.workflow_step.get('exit_code') == 2
+    has_changes = result.payload.get('exit_code') == 2
 
-    outputs = {}
-
-    outputs['plan'] = result.outputs['text']
+    payload = result.payload.copy()
 
     # Grab just the plan output.  If running the plan succeded, we want to just
     # show the plan text.  If it failed above, we want to be able to show the
     # user the entire terminal output.
     config = {
         'args': ['show', '$TERRATEAM_PLAN_FILE'],
-        'output_key': 'plan_text'
     }
 
     result = workflow_step_terraform.run(state, config)
 
-    if result.failed:
-        return result._replace(workflow_step={'type': 'plan'})
+    if not result.success:
+        return result._replace(step='tf/plan')
 
-    outputs['plan_text'] = result.outputs['text']
-    outputs['has_changes'] = has_changes
+    payload['plan'] = result.payload['text']
+    payload['has_changes'] = has_changes
 
     plan_storage = rc.get_plan_storage(state.repo_config)
 
@@ -246,14 +241,13 @@ def run(state, config):
                                     has_changes)
 
     if success:
-        result = result._replace(failed=not success)
+        result = result._replace(success=success)
     else:
         logging.error('PLAN_STORE_FAILED : %s : %s : %s',
                       state.env['TERRATEAM_DIR'],
                       state.env['TERRATEAM_WORKSPACE'],
                       output)
-        result = result._replace(failed=True)
-        outputs = {'text': 'Could not store plan file, with the following error:\n\n' + output}
+        result = result._replace(success=False)
+        payload = {'text': 'Could not store plan file, with the following error:\n\n' + output}
 
-    return result._replace(workflow_step={'type': 'plan'},
-                           outputs=outputs)
+    return result._replace(payload=payload, step='tf/plan')

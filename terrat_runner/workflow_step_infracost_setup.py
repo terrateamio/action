@@ -142,48 +142,42 @@ def run(state, config):
             logging.info('INFRACOST : DIFF')
             logging.info('%s', json.dumps(diff, indent=2))
 
-            changed_dirspaces = set([(ds['path'], ds['workspace'])
-                                     for ds in state.work_manifest['changed_dirspaces']])
-
             try:
                 dirspaces = [
                     {
-                        'path': _make_path_relative(state.working_dir, p['metadata']['path']),
+                        'dir': _make_path_relative(state.working_dir, p['metadata']['path']),
                         'workspace': p['metadata']['terraformWorkspace'],
                         'prev_monthly_cost': infracost.convert_cost(p['pastBreakdown']['totalMonthlyCost']),
                         'total_monthly_cost': infracost.convert_cost(p['breakdown']['totalMonthlyCost']),
                         'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
                     }
                     for p in diff['projects']
-                    if (_make_path_relative(state.working_dir,
-                                            p['metadata']['path']),
-                        p['metadata']['terraformWorkspace']) in changed_dirspaces
                 ]
 
-                return workflow.Result(
-                    failed=False,
-                    state=state,
-                    workflow_step={'type': 'cost-estimation'},
-                    outputs={
-                        'cost_estimation': {
-                            'prev_monthly_cost': infracost.convert_cost(diff['pastTotalMonthlyCost']),
-                            'total_monthly_cost': infracost.convert_cost(diff['totalMonthlyCost']),
-                            'diff_monthly_cost': infracost.convert_cost(diff['diffTotalMonthlyCost']),
-                            'currency': diff['currency'],
-                            'dirspaces': dirspaces
-                        },
-                    })
+                payload = {
+                    'summary': {
+                        'prev_monthly_cost': infracost.convert_cost(diff['pastTotalMonthlyCost']),
+                        'total_monthly_cost': infracost.convert_cost(diff['totalMonthlyCost']),
+                        'diff_monthly_cost': infracost.convert_cost(diff['diffTotalMonthlyCost']),
+                    },
+                    'currency': diff['currency'],
+                    'dirspaces': dirspaces
+                }
+
+                return workflow.Result2(payload=payload,
+                                        state=state,
+                                        step='tf/cost-estimation',
+                                        success=True)
             except Exception as exn:
-                return workflow.Result(
-                    failed=False,
-                    state=state,
-                    workflow_step={'type': 'cost-estimation'},
-                    outputs={'text': str(exn)})
+                return workflow.Result2(payload={'text': str(exn)},
+                                        state=state,
+                                        step='tf/cost-estimation',
+                                        success=False)
         else:
-            return workflow.Result(failed=False,
-                                   state=state,
-                                   workflow_step={'type': 'cost-estimation'},
-                                   outputs={'text': output})
+            return workflow.Result2(payload={'text': output},
+                                    state=state,
+                                    step='tf/cost-estimation',
+                                    success=False)
 
     except subprocess.CalledProcessError as exn:
         logging.exception('INFRACOST : ERROR')
@@ -194,7 +188,7 @@ def run(state, config):
         else:
             text = exn.stdout
 
-        return workflow.Result(failed=False,
-                               state=state,
-                               workflow_step={'type': 'cost-estimation'},
-                               outputs={'text': text})
+        return workflow.Result2(payload={'text': text},
+                                state=state,
+                                step='tf/cost-estimation',
+                                success=False)

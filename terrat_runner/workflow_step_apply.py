@@ -64,9 +64,9 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
 
 def _test_success_update_config(config):
     def _f(ret):
-        if ret.failed:
+        if not ret.success:
             config['args'] = ['apply', '-auto-approve']
-        return not ret.failed
+        return ret.success
 
     return _f
 
@@ -74,7 +74,6 @@ def _test_success_update_config(config):
 def run(state, config):
     config = config.copy()
     config['args'] = ['apply', '$TERRATEAM_PLAN_FILE']
-    config['output_key'] = 'apply'
 
     (success, output) = _load_plan(state,
                                    state.work_token,
@@ -84,10 +83,10 @@ def run(state, config):
                                    state.env['TERRATEAM_PLAN_FILE'])
 
     if not success:
-        return workflow.Result(failed=True,
-                               state=state,
-                               workflow_step={'type': 'apply'},
-                               outputs={'text': output})
+        return workflow.Result2(payload={'text': output},
+                                state=state,
+                                step='tf/apply',
+                                success=False)
 
     retry_config = rc.get_retry(config)
     tries = retry_config['enabled'] and retry_config['tries'] or 1
@@ -97,7 +96,13 @@ def run(state, config):
         retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
                                          retry_config['backoff']))
 
-    return workflow.Result(failed=result.failed,
-                           state=result.state,
-                           workflow_step={'type': 'apply'},
-                           outputs=result.outputs)
+    if result.success:
+        result_output = workflow_step_terraform.run(state, {'args': ['output', '-json']})
+        payload = result.payload
+        if result_output.success:
+            outputs = json.loads(result_output.payload['text'])
+            if outputs:
+                payload['outputs'] = outputs
+                result = result._replace(payload=payload)
+
+    return result._replace(step='tf/apply')
