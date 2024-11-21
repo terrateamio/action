@@ -164,10 +164,9 @@ def run_aws(state, config):
             logging.info('OIDC : %s : ASSUMING_ROLE', config['assume_role_arn'])
             return assume_role(result.state, config)
         else:
-            return workflow.Result2(payload={},
-                                    state=state,
-                                    step='auth/oidc',
-                                    success=True)
+            return result._replace(payload={},
+                                   step='auth/oidc',
+                                   success=True)
 
     else:
         logging.error('OIDC : %s : ERROR : %s',
