@@ -1,4 +1,10 @@
 import collections
 
 
-Result = collections.namedtuple('Result', ['failed', 'state', 'workflow_step', 'outputs'])
+Result2 = collections.namedtuple('Result2',
+                                 [
+                                     'payload',
+                                     'state',
+                                     'step',
+                                     'success',
+                                 ])

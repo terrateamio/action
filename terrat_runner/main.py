@@ -180,15 +180,19 @@ def run(args):
 
     run_time.set_secret(wm['token'])
 
+    result_version = wm.get('result_version', 1)
+
     state = run_state.create(
-        args.work_token,
-        wm['token'],
-        rc,
-        args.workspace,
-        args.api_base_url,
-        wm,
-        args.sha,
-        run_time)
+        api_base_url=args.api_base_url,
+        api_token=wm['token'],
+        repo_config=rc,
+        run_time=run_time,
+        sha=args.sha,
+        work_manifest=wm,
+        work_token=args.work_token,
+        working_dir=args.workspace,
+        result_version=result_version
+    )
 
     state = run_time.initialize(state)
 
@@ -214,6 +218,7 @@ def run(args):
     transform_tf_vars(env)
     state = state._replace(env=env)
 
+    logging.debug('RESULT_VERSION : %r', result_version)
     logging.debug('EXEC : %s', wm['type'])
     WORK_MANIFEST_DISPATCH[wm['type']](state)
 

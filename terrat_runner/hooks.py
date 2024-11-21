@@ -14,13 +14,20 @@ ALLOWED_HOOK_STEPS = [
 ]
 
 
-def run_hooks(state, steps):
-    return workflow_step.run_steps(state, steps, restrict_types=ALLOWED_HOOK_STEPS)
+def run_hooks(state, scope, steps):
+    return workflow_step.run_steps(state,
+                                   {
+                                       'type': 'run',
+                                       'flow': 'hooks',
+                                       'subflow': scope
+                                   },
+                                   steps,
+                                   restrict_types=ALLOWED_HOOK_STEPS)
 
 
 def run_pre_hooks(state, hooks):
-    return run_hooks(state, hooks)
+    return run_hooks(state, 'pre', hooks)
 
 
 def run_post_hooks(state, hooks):
-    return run_hooks(state, hooks)
+    return run_hooks(state, 'post', hooks)
