@@ -46,7 +46,7 @@ def run(state, config):
 
     if not result.success:
         errors = []
-        lines = result.outputs['text'].splitlines()
+        lines = result.payload['text'].splitlines()
         for line in lines:
             try:
                 line = json.loads(line)
@@ -58,8 +58,8 @@ def run(state, config):
                 pass
 
         if errors:
-            result.outputs['text'] = '\n'.join(errors)
+            result.payload['text'] = '\n'.join(errors)
         else:
-            result.outputs['text'] = json.dumps(data, indent=2)
+            result.payload['text'] = json.dumps(data, indent=2)
 
     return result
