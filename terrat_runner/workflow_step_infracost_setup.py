@@ -100,7 +100,10 @@ def _create_base_infracost(state, config, infracost_dir, infracost_json):
 
 
 def _make_path_relative(base, path):
-    return path.removeprefix(base + '/')
+    if path == base:
+        return '.'
+    else:
+        return path.removeprefix(base + '/')
 
 
 def run(state, config):
