@@ -23,7 +23,7 @@ IFS=' ' read -r -a domains <<< "$HTTPS_PROXY_DOMAINS"
 
 for domain in "${domains[@]}"; do
   echo "Attempting to retrieve certificate for $domain (INSECURE)..."
-  openssl s_client -showcerts -connect "$domain:443" -proxy "${HTTPS_PROXY#http[s]://}" < /dev/null | \
+  openssl s_client -showcerts -connect "$domain:443" -proxy "${HTTPS_PROXY}" < /dev/null | \
   sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "/usr/local/share/ca-certificates/${domain}.crt"
 done
 
