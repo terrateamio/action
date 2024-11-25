@@ -15,9 +15,9 @@ if [ -n "$HTTPS_PROXY" ] && [ -n "$HTTPS_PROXY_DOMAINS" ]; then
   /usr/local/bin/unsafe-add-certs # temporary script; not recommended for production use
 fi
 
-export ASDF_DIR=/usr/local/share/asdf
+curl https://mise.run | sh
 
-. $ASDF_DIR/asdf.sh
+export PATH=$PATH:~/.local/bin
 
 # Start the Terrat Runner with SSH agent
 echo "Starting Terrat Runner"
