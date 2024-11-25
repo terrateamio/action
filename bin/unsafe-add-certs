@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euf -o pipefail
+set -xeuf -o pipefail
 
 # INSECURE SCRIPT - FOR TEMPORARY USE ONLY
 # DISCLAIMER: This script is insecure and not recommended for production use.
