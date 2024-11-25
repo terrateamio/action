@@ -181,6 +181,15 @@ def workflow_step_transform_to_1(result):
                 'type': 'drift-create-issue',
             }
         }
+    elif step == 'auth/update-terrateam-github-token':
+        return {
+            'success': success(result),
+            'workflow_step': {
+                'type': 'run',
+                'cmd': ['update-terrateam-github-token']
+            },
+            'outputs': output_text_transform_to_1(result)
+        }
     else:
         raise Exception('Unknown output step: {}'.format(step))
 

@@ -51,8 +51,6 @@ class Exec(work_exec.ExecInterface):
         with tempfile.TemporaryDirectory() as tmpdir:
             logging.debug('EXEC : DIR : %s', d['path'])
 
-            state = state.run_time.update_authentication(state)
-
             # Need to reset output every iteration unfortunately because we do not
             # have immutable dicts
             state = state._replace(outputs=[])
@@ -99,7 +97,7 @@ class Exec(work_exec.ExecInterface):
                                workspace=workspace,
                                workflow=workflow),
                 {'type': 'dirspace', 'dir': path, 'workspace': workspace},
-                plan_steps)
+                state.run_time.update_workflow_steps('plan', plan_steps))
 
             result = {
                 'path': path,
