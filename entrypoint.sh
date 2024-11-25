@@ -15,6 +15,10 @@ if [ -n "$HTTPS_PROXY" ] && [ -n "$HTTPS_PROXY_DOMAINS" ]; then
   /usr/local/bin/unsafe-add-certs # temporary script; not recommended for production use
 fi
 
+export ASDF_DIR=/usr/local/share/asdf
+
+. $ASDF_DIR/asdf.sh
+
 # Start the Terrat Runner with SSH agent
 echo "Starting Terrat Runner"
 ssh-agent python3 /terrat_runner/main.py \

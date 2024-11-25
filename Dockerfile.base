@@ -22,6 +22,8 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
+RUN git clone https://github.com/asdf-vm/asdf.git /usr/local/share/asdf --branch v0.14.1
+
 ENV TERRAGRUNT_VERSION v0.52.3
 RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
     && chmod +x /usr/local/bin/terragrunt
