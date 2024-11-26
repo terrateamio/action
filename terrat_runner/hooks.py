@@ -3,17 +3,6 @@
 import workflow_step
 
 
-ALLOWED_HOOK_STEPS = [
-    'drift_create_issue',
-    'env',
-    'infracost_setup',
-    'oidc',
-    'run',
-    'terrateam_ssh_key_setup',
-    'tf_cloud_setup',
-]
-
-
 def run_hooks(state, scope, steps):
     return workflow_step.run_steps(state,
                                    {
@@ -21,8 +10,7 @@ def run_hooks(state, scope, steps):
                                        'flow': 'hooks',
                                        'subflow': scope
                                    },
-                                   steps,
-                                   restrict_types=ALLOWED_HOOK_STEPS)
+                                   steps)
 
 
 def run_pre_hooks(state, hooks):
