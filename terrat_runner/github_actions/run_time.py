@@ -12,6 +12,7 @@ from . import core
 
 from . import workflow_step_drift_create_issue
 from . import workflow_step_resourcely
+from . import workflow_step_update_terrateam_github_token
 
 
 class Run_time(object):
@@ -41,19 +42,6 @@ class Run_time(object):
 
     def set_secret(self, secret):
         return core.set_secret(secret)
-
-    def update_authentication(self, state):
-        url = state.api_base_url + '/v1/work-manifests/' + state.work_token + '/access-token'
-        res = requests_retry.post(url, headers={'authorization': 'bearer ' + state.api_token})
-
-        if res.status_code == 200:
-            access_token = res.json()['access_token']
-            self.set_secret(access_token)
-            env = state.env.copy()
-            env['TERRATEAM_GITHUB_TOKEN'] = access_token
-            return state._replace(env=env)
-        else:
-            raise Exception('Unable to obtain access token')
 
     def work_index(self, state):
         indexer_conf = rc.get_indexer(state.repo_config)
@@ -90,7 +78,8 @@ class Run_time(object):
     def steps(self):
         return {
             'drift_create_issue': workflow_step_drift_create_issue.run,
-            'resourcely': workflow_step_resourcely.run
+            'resourcely': workflow_step_resourcely.run,
+            'update_terrateam_github_token': workflow_step_update_terrateam_github_token.run,
         }
 
     def group_output(self, title, output):
@@ -98,3 +87,6 @@ class Run_time(object):
         sys.stdout.write(output)
         sys.stdout.write('\n')
         sys.stdout.write('::endgroup::\n')
+
+    def update_workflow_steps(self, run_type, steps):
+        return [{'type': 'update_terrateam_github_token'}] + steps

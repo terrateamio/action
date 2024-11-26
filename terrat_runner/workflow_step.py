@@ -35,7 +35,7 @@ STEPS = {
 }
 
 
-def run_steps(state, scope, steps, restrict_types=None):
+def run_steps(state, scope, steps):
     valid_steps = STEPS.copy()
     valid_steps.update(state.run_time.steps())
 
@@ -53,8 +53,6 @@ def run_steps(state, scope, steps, restrict_types=None):
                 raise Exception('Step must contain a type')
             elif step['type'] not in valid_steps:
                 raise Exception('Step type {} is unknown'.format(step['type']))
-            elif restrict_types and step['type'] not in restrict_types:
-                raise Exception('Step type {} not allowed in this mode'.format(step['type']))
             else:
                 try:
                     logging.info('STEP : RUN : %s : %r', state.working_dir, step)
