@@ -162,7 +162,7 @@ def _run(state, exec_cb):
         if not ret:
             raise Exception('Failed to send results')
         else:
-            raise Exception('Failed executing pre hooks')
+            return state
 
     state = state._replace(outputs=[])
 
