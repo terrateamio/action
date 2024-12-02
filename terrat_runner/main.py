@@ -206,6 +206,7 @@ def run(args):
     # Setup Terrateam environment variables
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
+    env['TERRATEAM_RUN_KIND_DATA'] = json.dumps(wm.get('run_kind_data', {}))
 
     secret_env = {}
     set_env_context(secret_env, env.get('SECRETS_CONTEXT', '{}'))
