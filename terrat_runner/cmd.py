@@ -61,7 +61,7 @@ def run_with_output(state, config):
     line = proc.stdout.readline()
     output = io.StringIO()
     while line:
-        line = line.decode('utf-8')
+        line = line.decode('utf-8', errors='backslashreplace')
         output.write(line)
         if config.get('log_output', True):
             sys.stderr.write('cwd={} : {}'.format(state.working_dir, line))
