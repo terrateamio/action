@@ -16,6 +16,9 @@ def run(state):
     with tempfile.TemporaryDirectory() as tmpdir:
         script = config_builder['script']
 
+        if not script.startswith('#!'):
+            script = '#! /usr/bin/env bash\n\n' + script
+
         script_path = os.path.join(tmpdir, 'config-builder')
 
         with open(script_path, 'w') as f:
@@ -33,7 +36,7 @@ def run(state):
             if proc.returncode == 0:
                 try:
                     config = json.loads(output)
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/'  + state.work_token,
+                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
                                        json={'config': config})
                 except json.JSONDecodeError as exn:
                     requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
