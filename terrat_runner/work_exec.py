@@ -46,7 +46,8 @@ def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
     ENGINE_NAME = 'TERRATEAM_ENGINE_NAME'
     TF_CMD_ENV_NAME = 'TERRATEAM_TF_CMD'
     TOFU_ENV_NAME = 'TOFUENV_TOFU_DEFAULT_VERSION'
-    TERRAFORM_ENV_NAME = 'TERRATEAM_TERRAFORM_VERSION'
+    TERRAFORM_ENV_NAME = 'TFENV_TERRAFORM_DEFAULT_VERSION'
+    TERRAGRUNT_ENV_NAME = 'TG_DEFAULT_VERSION'
 
     env[ENGINE_NAME] = engine['name']
 
@@ -56,6 +57,10 @@ def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
         if version:
             env[TOFU_ENV_NAME] = version
     elif engine['name'] in ['cdktf', 'terragrunt']:
+        # If it is terragrunt, optionally set the version
+        if engine['name'] == 'terragrunt' and 'version' in engine:
+            env[TERRAGRUNT_ENV_NAME] = engine['version']
+
         # If cdktf or terragrunt, set the appropriate terraform/tofu version if
         # it exists.
         if engine['tf_cmd'] == 'tofu':

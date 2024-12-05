@@ -202,6 +202,7 @@ def run(args):
     # Setup Terraform environment variables for automation
     env['TF_IN_AUTOMATION'] = 'true'
     env['TF_INPUT'] = 'false'
+    env['TERRAGRUNT_NON_INTERACTIVE'] = 'true'
 
     # Setup Terrateam environment variables
     env['TERRATEAM_ROOT'] = state.working_dir
