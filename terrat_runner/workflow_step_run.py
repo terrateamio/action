@@ -5,7 +5,7 @@ import workflow
 
 
 def run(state, config):
-    capture_output = config.get('capture_output', False)
+    capture_output = config.get('capture_output', True)
 
     try:
         # Only capture output if we want to save it somewhere or we have
