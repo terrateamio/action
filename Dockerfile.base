@@ -22,9 +22,9 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENV TERRAGRUNT_VERSION v0.52.3
-RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
-    && chmod +x /usr/local/bin/terragrunt
+ENV TENV_LATEST_VERSION=v3.2.10
+RUN curl -O -L "https://github.com/tofuutils/tenv/releases/latest/download/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
+    dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb"
 
 ENV INFRACOST_VERSION v0.10.29
 RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-${INFRACOST_VERSION}-linux-amd64.tar.gz" \
