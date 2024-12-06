@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euf -o pipefail
-
-/install-terraform-version "$TERRATEAM_TERRAFORM_VERSION"
-TERRAFORM_CMD="/usr/local/tf/versions/$TERRATEAM_TERRAFORM_VERSION/terraform"
-exec "$TERRAFORM_CMD" "$@"

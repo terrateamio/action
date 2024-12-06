@@ -22,9 +22,9 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENV TERRAGRUNT_VERSION v0.52.3
-RUN curl -fsSL -o /usr/local/bin/terragrunt "https://github.com/terrateamio/packages/raw/main/terragrunt/terragrunt_${TERRAGRUNT_VERSION}_linux_amd64" \
-    && chmod +x /usr/local/bin/terragrunt
+ENV TENV_LATEST_VERSION=v3.2.10
+RUN curl -O -L "https://github.com/tofuutils/tenv/releases/latest/download/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
+    dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb"
 
 ENV INFRACOST_VERSION v0.10.29
 RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-${INFRACOST_VERSION}-linux-amd64.tar.gz" \
@@ -49,24 +49,6 @@ RUN mkdir /tmp/awscli \
 ENV CHECKOV_VERSION=2.5.10
 RUN pip3 install checkov==${CHECKOV_VERSION}
 
-# Temporarily pull from our branch until changes are merged back into a release
-#
-# ENV TOFUENV_VERSION v1.0.3
-# RUN curl -fsSL -o /tmp/tofuenv.zip \
-#    "https://github.com/terrateamio/tofuenv/archive/refs/tags/v${TOFUENV_VERSION}.zip" \
-#    && cd /tmp/ \
-#    && unzip /tmp/tofuenv.zip \
-#    && mv /tmp/tofuenv-${TOFUENV_VERSION} /usr/local/lib/tofuenv \
-#    && echo "latest" > /usr/local/lib/tofuenv/version
-
-
-ENV TOFUENV_DEFAULT_VERSION latest
-RUN curl -fsSL -o /tmp/tofuenv.zip \
-    "https://github.com/terrateamio/tofuenv/archive/refs/heads/pro-411-add-opentofu-support.zip" \
-    && cd /tmp/ \
-    && unzip /tmp/tofuenv.zip \
-    && mv /tmp/tofuenv-pro-411-add-opentofu-support /usr/local/lib/tofuenv
-
 ENV RESOURCELY_VERSION=1.0.14
 
 COPY ./bin/ /usr/local/bin
@@ -76,7 +58,3 @@ COPY checkov-wrapper /usr/local/bin/checkov-wrapper
 COPY cdktf-setup.sh /cdktf-setup.sh
 COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
 COPY azure-cli-setup.sh /azure-cli-setup.sh
-
-ENV DEFAULT_TERRAFORM_VERSION 1.5.7
-COPY ./install-terraform-version /install-terraform-version
-RUN /install-terraform-version latest
