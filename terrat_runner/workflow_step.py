@@ -1,6 +1,7 @@
 # A workflow step is an individual operation.  It can have a number of types
 # which each take their own configuration parameters.
 import logging
+import sys
 
 import workflow
 
@@ -42,6 +43,9 @@ def run_steps(state, scope, steps):
     results = []
 
     for step in steps:
+        # Flush all outputs between steps
+        sys.stdout.flush()
+        sys.stderr.flush()
         run_on = step.get('run_on', RUN_ON_SUCCESS)
         ignore_errors = step.get('ignore_errors', False)
 
