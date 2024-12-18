@@ -23,7 +23,7 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV TENV_LATEST_VERSION=v3.2.10
-RUN curl -O -L "https://github.com/tofuutils/tenv/releases/latest/download/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
+RUN curl -O -L "https://github.com/tofuutils/tenv/releases/${TENV_LATEST_VERSION}/download/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb"
 
 ENV INFRACOST_VERSION v0.10.29
