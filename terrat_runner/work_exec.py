@@ -80,16 +80,13 @@ def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
         env[TF_CMD_ENV_NAME] = 'terraform'
         version = engine.get('version')
 
-        if version:
-            env[TERRAFORM_ENV_NAME] = determine_tf_version(
-                repo_root,
-                working_dir,
-                version)
-        else:
-            env[TERRAFORM_ENV_NAME] = determine_tf_version(
-                repo_root,
-                working_dir,
-                rc.get_default_tf_version(repo_config))
+        if not version:
+            version = '1.5.7'
+
+        env[TERRAFORM_ENV_NAME] = determine_tf_version(
+            repo_root,
+            working_dir,
+            version)
 
 
 def _mask_output(secrets, unmasked, output):
