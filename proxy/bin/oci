@@ -6,7 +6,27 @@ set -u
 if [ -f /usr/local/bin/oci ]; then
     exec /usr/local/bin/oci "$@"
 else
-    flock /tmp/oci-cli-install pip install oci-cli 1>&2
+    flock /tmp/oci-cli-install sh -c '
+        if [ -z "${OCI_CLI_VERSION:-}" ]; then
+            echo "Determining the latest version of OCI CLI..."
+            LATEST_VERSION=$(curl -s https://api.github.com/repos/oracle/oci-cli/releases/latest | jq -r .tag_name | sed "s/^v//")
+
+            if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" = "null" ]; then
+                echo "Error: Unable to determine the latest version of OCI CLI." >&2
+                exit 1
+            fi
+
+            OCI_CLI_VERSION=${LATEST_VERSION}
+            echo "Installing OCI CLI version ${OCI_CLI_VERSION}..."
+        else
+            echo "Installing OCI CLI version ${OCI_CLI_VERSION} (specified by environment variable)..."
+        fi
+
+        # Install OCI CLI
+        if ! pip3 install "oci-cli==${OCI_CLI_VERSION}" --break-system-packages --upgrade; then
+            echo "Error: Failed to install OCI CLI version ${OCI_CLI_VERSION}." >&2
+            exit 1
+        fi
+    '
     exec /usr/local/bin/oci "$@"
 fi
-

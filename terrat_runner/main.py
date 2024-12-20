@@ -55,7 +55,7 @@ def maybe_setup_cdktf(rc, work_manifest, env):
             cdktf_used = cdktf_used or workflow['engine']['name'] == 'cdktf'
 
     if cdktf_used:
-        subprocess.check_call(['/cdktf-setup.sh'])
+        subprocess.check_call(['cdktf-setup'])
         env['PATH'] = env['PATH'] + ':' + os.path.join(env['TERRATEAM_ROOT'], 'node_modules', '.bin')
 
 

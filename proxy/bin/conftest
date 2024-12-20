@@ -1,0 +1,25 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+if [ -f /usr/bin/conftest ]; then
+    exec /usr/bin/conftest "$@"
+else
+    flock /tmp/conftest-install sh -c '
+        if [ -z "${CONFTEST_VERSION:-}" ]; then
+            echo "Determining the latest version of Conftest..."
+            LATEST_VERSION=$(curl -s https://api.github.com/repos/open-policy-agent/conftest/releases/latest | jq -r .tag_name | sed "s/^v//")
+            CONFTEST_VERSION=${LATEST_VERSION}
+            echo "Installing Conftest version ${CONFTEST_VERSION}..."
+        else
+            echo "Installing Conftest version ${CONFTEST_VERSION} (specified by environment variable)..."
+        fi
+        
+        DEB_URL="https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_linux_amd64.deb"
+        curl -fsSL -o /tmp/conftest.deb "$DEB_URL"
+        dpkg -i /tmp/conftest.deb
+        rm -f /tmp/conftest.deb
+    ' 1>&2
+    exec /usr/bin/conftest "$@"
+fi

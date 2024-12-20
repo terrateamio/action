@@ -1,6 +1,3 @@
-FROM ghcr.io/terrateamio/action-base:latest
-
-COPY entrypoint.sh /entrypoint.sh
+FROM ghcr.io/terrateamio/action-base:369
 COPY terrat_runner /terrat_runner
-
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint"]

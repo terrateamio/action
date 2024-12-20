@@ -1,0 +1,20 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+export INFRACOST_VERSION="${INFRACOST_VERSION:-v0.10.29}"
+
+if [ -f /usr/local/bin/infracost ]; then
+    exec /usr/local/bin/infracost "$@"
+else
+    flock /tmp/infracost-install sh -c '
+        TAR_URL="https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-amd64.tar.gz"
+        curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "$TAR_URL"
+        tar -C /tmp -xzf /tmp/infracost-linux-amd64.tar.gz
+        mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost
+        chmod +x /usr/local/bin/infracost
+        rm -f /tmp/infracost-linux-amd64.tar.gz
+    ' 1>&2
+    exec /usr/local/bin/infracost "$@"
+fi

@@ -3,17 +3,18 @@
 set -e
 set -u
 
-if [[ ! -f /usr/local/bin/resourcely-cli ]]; then
-    flock /tmp/resourcely-install \
-          curl \
-          -s \
-          -L \
-          -o \
-          /tmp/resourcely-cli-v"$RESOURCELY_VERSION"-linux-amd64.tar.gz \
-          https://github.com/Resourcely-Inc/resourcely-container-registry/releases/download/v"$RESOURCELY_VERSION"/resourcely-cli-v"$RESOURCELY_VERSION"-linux-amd64.tar.gz
+export RESOURCELY_VERSION="${RESOURCELY_VERSION:-v1.0.14}"
 
-    flock /tmp/resourcely-install tar -xzf /tmp/resourcely-cli-v"$RESOURCELY_VERSION"-linux-amd64.tar.gz
-    flock /tmp/resourcely-install mv resourcely-cli /usr/local/bin/ || true
+if [ -f /usr/local/bin/resourcely-cli ]; then
+    exec /usr/local/bin/resourcely-cli "$@"
+else
+    flock /tmp/resourcely-install sh -c '
+        TAR_URL="https://github.com/Resourcely-Inc/resourcely-container-registry/releases/download/${RESOURCELY_VERSION}/resourcely-cli-${RESOURCELY_VERSION}-linux-amd64.tar.gz"
+        curl -fsSL -o /tmp/resourcely-cli.tar.gz "$TAR_URL"
+        tar -C /tmp -xzf /tmp/resourcely-cli.tar.gz
+        mv /tmp/resourcely-cli /usr/local/bin/resourcely-cli
+        chmod +x /usr/local/bin/resourcely-cli
+        rm -f /tmp/resourcely-cli.tar.gz
+    ' 1>&2
+    exec /usr/local/bin/resourcely-cli "$@"
 fi
-
-exec /usr/local/bin/resourcely-cli "$@"
