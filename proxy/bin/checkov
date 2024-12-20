@@ -1,0 +1,32 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+if [ -f /usr/local/bin/checkov ]; then
+    exec /usr/local/bin/checkov "$@"
+else
+    flock /tmp/checkov-install sh -c '
+        if [ -z "${CHECKOV_VERSION:-}" ]; then
+            echo "Determining the latest version of Checkov..."
+            LATEST_VERSION=$(curl -s https://api.github.com/repos/bridgecrewio/checkov/releases/latest | jq -r .tag_name | sed "s/^v//")
+            
+            if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" = "null" ]; then
+                echo "Error: Unable to determine the latest version of Checkov." >&2
+                exit 1
+            fi
+            
+            CHECKOV_VERSION=${LATEST_VERSION}
+            echo "Installing Checkov version ${CHECKOV_VERSION}..."
+        else
+            echo "Installing Checkov version ${CHECKOV_VERSION} (specified by environment variable)..."
+        fi
+
+        # Install Checkov with all dependencies
+        if ! pip3 install "checkov[all]==${CHECKOV_VERSION}" --break-system-packages --upgrade; then
+            echo "Error: Failed to install Checkov version ${CHECKOV_VERSION}." >&2
+            exit 1
+        fi
+    '
+    exec /usr/local/bin/checkov "$@"
+fi
