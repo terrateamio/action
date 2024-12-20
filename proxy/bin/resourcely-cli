@@ -9,29 +9,12 @@ if [ -f /usr/local/bin/resourcely-cli ]; then
     exec /usr/local/bin/resourcely-cli "$@"
 else
     flock /tmp/resourcely-install sh -c '
-        if [ -z "${RESOURCELY_VERSION:-}" ]; then
-            echo "Determining the latest version of Resourcely CLI..."
-            LATEST_VERSION=$(curl -s https://api.github.com/repos/Resourcely-Inc/resourcely-container-registry/releases/latest | jq -r .tag_name | sed "s/^v//")
-            if [ -z "$LATEST_VERSION" ]; then
-                echo "Failed to determine the latest version. Please check the repository." >&2
-                exit 1
-            fi
-            RESOURCELY_VERSION="v${LATEST_VERSION}"
-            echo "Installing Resourcely CLI version ${RESOURCELY_VERSION}..."
-        else
-            echo "Installing Resourcely CLI version ${RESOURCELY_VERSION} (specified by environment variable)..."
-        fi
-
         TAR_URL="https://github.com/Resourcely-Inc/resourcely-container-registry/releases/download/${RESOURCELY_VERSION}/resourcely-cli-${RESOURCELY_VERSION}-linux-amd64.tar.gz"
-        if curl -fsSL -o /tmp/resourcely-cli.tar.gz "$TAR_URL"; then
-            tar -xzf /tmp/resourcely-cli.tar.gz -C /tmp
-            mv /tmp/resourcely-cli /usr/local/bin/
-            chmod +x /usr/local/bin/resourcely-cli
-            rm -f /tmp/resourcely-cli.tar.gz
-        else
-            echo "Failed to download Resourcely CLI from $TAR_URL. Please verify the version or URL." >&2
-            exit 1
-        fi
+        curl -fsSL -o /tmp/resourcely-cli.tar.gz "$TAR_URL"
+        tar -C /tmp -xzf /tmp/resourcely-cli.tar.gz
+        mv /tmp/resourcely-cli /usr/local/bin/resourcely-cli
+        chmod +x /usr/local/bin/resourcely-cli
+        rm -f /tmp/resourcely-cli.tar.gz
     ' 1>&2
     exec /usr/local/bin/resourcely-cli "$@"
 fi
