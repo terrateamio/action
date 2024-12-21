@@ -54,16 +54,16 @@ def extract_dirspace_plans(fname):
 
     ret = []
 
-    for ds in data['dirspaces']:
-        for output in ds['outputs']:
-            if output['workflow_step']['type'] == 'plan' and output['outputs']:
-                ret.append({
-                    'dir': ds['path'],
-                    'workspace': ds['workspace'],
-                    'plan': output['outputs'].get('plan_text', output['outputs'].get('plan')),
-                    'has_changes': output['outputs'].get('has_changes'),
-                    'success': ds['success']
-                })
+    for step in data['steps']:
+        if step['step'] == 'tf/plan' and step['payload'].get('has_changes'):
+            payload = step['payload']
+            ret.append({
+                'dir': step['scope']['dir'],
+                'workspace': step['scope']['workspace'],
+                'plan': payload.get('plan', ''),
+                'has_changes': payload['has_changes'],
+                'success': step['success']
+            })
 
     return ret
 
@@ -156,19 +156,23 @@ def maybe_create_issue(state):
     results_file = state.env['TERRATEAM_RESULTS_FILE']
     all_dirspace_plan_output = ''
     if run_kind == 'drift' and os.path.isfile(results_file):
-        dirspace_plans = extract_dirspace_plans(state.env['TERRATEAM_RESULTS_FILE'])
-        dirspaces_with_changes = [d for d in dirspace_plans if d['has_changes'] in [True, None]]
+        dirspaces_with_changes = extract_dirspace_plans(state.env['TERRATEAM_RESULTS_FILE'])
         if dirspaces_with_changes:
             all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
             report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
-            state = state.run_time.update_authentication(state)
 
-            existing_issue = find_matching_issue(state.env, report_id)
-            if existing_issue:
-                logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
-            else:
-                issue_body = format_issue_body(all_dirspace_plan_output, report_id)
-                create_issue(state, report_id, issue_body)
+            update_terrateam_github_token = state.run_time.steps()['update_terrateam_github_token']
+            result = update_terrateam_github_token(state, {})
+
+            if result.success:
+                state = result.state
+
+                existing_issue = find_matching_issue(state.env, report_id)
+                if existing_issue:
+                    logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
+                else:
+                    issue_body = format_issue_body(all_dirspace_plan_output, report_id)
+                    create_issue(state, report_id, issue_body)
 
 
 def run(state, config):
