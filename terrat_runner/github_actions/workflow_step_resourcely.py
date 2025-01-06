@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 
@@ -18,7 +19,7 @@ def run(state, config):
     if not result.success:
         return result
 
-    plan_json = result.outputs['text']
+    plan_json = result.payload['text']
 
     with tempfile.TemporaryDirectory() as tmpdir:
         json_file = os.path.join(tmpdir, 'json')
@@ -52,14 +53,13 @@ def run(state, config):
                 line = json.loads(line)
                 if line['label'] == 'error':
                     errors.append(line['data'])
-                data = json.loads(line['data'])
-                break
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exn:
+                logging.exception(exn)
                 pass
 
         if errors:
             result.payload['text'] = '\n'.join(errors)
         else:
-            result.payload['text'] = json.dumps(data, indent=2)
+            result.payload['text'] = result.payload['text']
 
     return result
