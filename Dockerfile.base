@@ -3,7 +3,7 @@ ARG TENV_VERSION=3.2.10
 ENV TENV_VERSION=${TENV_VERSION}
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
-    curl python3-minimal python3-pip git openssh-client jq unzip && \
+    curl python3 python3-pip git openssh-client jq unzip && \
     pip3 install --no-cache-dir --break-system-packages pycryptodome requests pyyaml && \
     curl -fsSL -o tenv.deb "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_amd64.deb" && \
     dpkg -i tenv.deb && \
