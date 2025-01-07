@@ -49,7 +49,7 @@ RUN mkdir /tmp/awscli \
 ENV CHECKOV_VERSION=2.5.10
 RUN pip3 install checkov==${CHECKOV_VERSION}
 
-ENV RESOURCELY_VERSION=1.0.14
+ENV RESOURCELY_VERSION=1.0.45
 
 COPY ./bin/ /usr/local/bin
 COPY proxy/bin /usr/local/proxy/bin

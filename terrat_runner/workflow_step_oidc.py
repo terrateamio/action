@@ -159,7 +159,7 @@ def run_aws(state, config):
         logging.info('OIDC : %s : ASSUMING_ROLE_WITH_WEB_IDENTITY', role_arn)
         result = assume_role_with_web_identity(state, config, web_identity_token)
         if not result.success:
-            return result.replace(step='auth/oidc')
+            return result._replace(step='auth/oidc')
         elif config.get('assume_role_enabled', True) and 'assume_role_arn' in config:
             logging.info('OIDC : %s : ASSUMING_ROLE', config['assume_role_arn'])
             return assume_role(result.state, config)
