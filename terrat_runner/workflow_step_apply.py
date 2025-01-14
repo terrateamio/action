@@ -100,9 +100,15 @@ def run(state, config):
         result_output = workflow_step_terraform.run(state, {'args': ['output', '-json']})
         payload = result.payload
         if result_output.success:
-            outputs = json.loads(result_output.payload['text'])
-            if outputs:
-                payload['outputs'] = outputs
-                result = result._replace(payload=payload)
-
+            try:
+                outputs = json.loads(result_output.payload['text'])
+                if outputs:
+                    payload['outputs'] = outputs
+                    result = result._replace(payload=payload)
+            except json.JSONDecodeError as exn:
+                result = result._replace(success=False,
+                                         payload={
+                                             'text': result_output.payload['text'],
+                                             'error': str(exn)
+                                         })
     return result._replace(step='tf/apply')
