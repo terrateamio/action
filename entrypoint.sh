@@ -3,8 +3,8 @@
 set -x
 
 # Adding /usr/local/proxy/bin to the PATH for accessing additional tools, if needed
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH="$PATH":/usr/local/proxy/bin
-
 echo $PATH
 
 # Arguments: WORK_TOKEN and API_BASE_URL, passed during the action setup
