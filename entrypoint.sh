@@ -1,5 +1,8 @@
 #! /bin/sh
 
+# Set PATH
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # Adding /usr/local/proxy/bin to the PATH for accessing additional tools, if needed
 export PATH="$PATH":/usr/local/proxy/bin
 
