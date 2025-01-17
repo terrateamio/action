@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+export PATH=$HOME/.pulumi/bin:$PATH
+
+if [ -f $HOME/.pulumi/bin/pulumi ]; then
+    exec pulumi "$@"
+else
+    flock /tmp/pulumi-install bash -c 'curl -fsSL https://get.pulumi.com | sh' 1>&2
+    exec $HOME/.pulumi/bin/pulumi "$@"
+fi
+
