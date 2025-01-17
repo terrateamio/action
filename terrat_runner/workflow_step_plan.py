@@ -8,6 +8,8 @@ import time
 import cmd
 import repo_config as rc
 import requests_retry
+
+import workflow_step_run
 import workflow_step_terraform
 
 
@@ -198,7 +200,7 @@ def plan_fast_and_loose(state, config):
     return run_plan(state, config, targets)
 
 
-def run(state, config):
+def run_tf(state, config):
     if config.get('mode') == 'fast-and-loose':
         result = plan_fast_and_loose(state, config)
     else:
@@ -251,3 +253,56 @@ def run(state, config):
         payload = {'text': 'Could not store plan file, with the following error:\n\n' + output}
 
     return result._replace(payload=payload, step='tf/plan')
+
+
+def run_pulumi(state, config):
+    logging.info('WORKFLOW_STEP_PLAN : engine=%s',
+                 state.workflow['engine']['name'])
+
+    result = workflow_step_run.run(
+        state,
+        {
+            'cmd': ['pulumi', 'preview']
+        })
+
+    if not result.success:
+        return result._replace(step='pulumi/plan')
+
+    has_changes = True
+
+    payload = result.payload
+    payload['plan'] = result.payload['text']
+    payload['has_changes'] = has_changes
+
+    with open(state.env['TERRATEAM_PLAN_FILE'], 'w') as f:
+        f.write('{}')
+
+    plan_storage = rc.get_plan_storage(state.repo_config)
+
+    (success, output) = _store_plan(state,
+                                    plan_storage,
+                                    state.work_token,
+                                    state.api_base_url,
+                                    state.env['TERRATEAM_DIR'],
+                                    state.env['TERRATEAM_WORKSPACE'],
+                                    state.env['TERRATEAM_PLAN_FILE'],
+                                    has_changes)
+
+    if success:
+        result = result._replace(success=success)
+    else:
+        logging.error('PLAN_STORE_FAILED : %s : %s : %s',
+                      state.env['TERRATEAM_DIR'],
+                      state.env['TERRATEAM_WORKSPACE'],
+                      output)
+        result = result._replace(success=False)
+        payload = {'text': 'Could not store plan file, with the following error:\n\n' + output}
+
+    return result._replace(payload=payload, step='pulumi/plan')
+
+
+def run(state, config):
+    if state.env['TERRATEAM_ENGINE_NAME'] == 'pulumi':
+        return run_pulumi(state, config)
+    else:
+        return run_tf(state, config)

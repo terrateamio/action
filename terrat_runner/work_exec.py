@@ -42,7 +42,7 @@ def determine_tf_version(repo_root, working_dir, workflow_version):
         return workflow_version
 
 
-def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
+def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     ENGINE_NAME = 'TERRATEAM_ENGINE_NAME'
     TF_CMD_ENV_NAME = 'TERRATEAM_TF_CMD'
     TOFU_ENV_NAME = 'TOFUENV_TOFU_DEFAULT_VERSION'
@@ -76,7 +76,7 @@ def set_tf_version_env(env, repo_config, engine, repo_root, working_dir):
             env[TERRAGRUNT_ENV_NAME] = engine['version']
             env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
 
-    else:
+    elif engine['name'] in ['terraform', 'tofu']:
         env[TF_CMD_ENV_NAME] = 'terraform'
         version = engine.get('version')
 
@@ -140,7 +140,7 @@ def _run(state, exec_cb):
     # Using state.working_dir twice as a bit of a hack because
     # determine_tf_version expects the directory that we are running the command
     # in as an option as well, but at this point there is none.
-    set_tf_version_env(
+    set_engine_env(
         env,
         state.repo_config,
         rc.get_engine(state.repo_config),

@@ -5,6 +5,8 @@ import shutil
 import cmd
 import repo_config
 import retry
+
+import workflow_step_run
 import workflow_step_terraform
 
 TRIES = 3
@@ -12,7 +14,7 @@ INITIAL_SLEEP = 1
 BACKOFF = 1.5
 
 
-def run(state, config):
+def run_tf(state, config):
     original_config = config
     config = original_config.copy()
     config['args'] = ['init']
@@ -54,3 +56,32 @@ def run(state, config):
             return result._replace(success=(proc.returncode == 0))
 
     return result._replace(step='tf/init')
+
+
+def run_pulumi(state, config):
+    logging.info('WORKFLOW_STEP_INIT : engine=%s',
+                 state.workflow['engine']['name'])
+
+    result = workflow_step_run.run(
+        state,
+        {
+            'cmd': (['pulumi', 'login'] + config.get('extra_args', []))
+        })._replace(step='pulumi/init')
+
+    if not result.success:
+        return result
+
+    result = workflow_step_run.run(
+        state,
+        {
+            'cmd': ['pulumi', 'stack', 'select', state.workspace],
+        })._replace(step='pulumi/init')
+
+    return result
+
+
+def run(state, config):
+    if state.env['TERRATEAM_ENGINE_NAME'] == 'pulumi':
+        return run_pulumi(state, config)
+    else:
+        return run_tf(state, config)

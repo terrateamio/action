@@ -80,7 +80,7 @@ class Exec(work_exec.ExecInterface):
                          path,
                          create_and_select_workspace)
 
-            work_exec.set_tf_version_env(
+            work_exec.set_engine_env(
                 env,
                 state.repo_config,
                 workflow['engine'],

@@ -9,6 +9,8 @@ import repo_config as rc
 import requests_retry
 import retry
 import workflow
+
+import workflow_step_run
 import workflow_step_terraform
 
 
@@ -71,7 +73,7 @@ def _test_success_update_config(config):
     return _f
 
 
-def run(state, config):
+def run_tf(state, config):
     config = config.copy()
     config['args'] = ['apply', '$TERRATEAM_PLAN_FILE']
 
@@ -112,3 +114,18 @@ def run(state, config):
                                              'error': str(exn)
                                          })
     return result._replace(step='tf/apply')
+
+
+def run_pulumi(state, config):
+    return workflow_step_run.run(
+        state,
+        {
+            'cmd': ['pulumi', 'up', '--yes']
+        })._replace(step='pulumi/apply')
+
+
+def run(state, config):
+    if state.env['TERRATEAM_ENGINE_NAME'] == 'pulumi':
+        return run_pulumi(state, config)
+    else:
+        return run_tf(state, config)
