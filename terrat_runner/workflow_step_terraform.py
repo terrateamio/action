@@ -57,6 +57,7 @@ def run_terraform(state, config):
         'cmd': cmd + args + extra_args,
         'capture_output': True,
         'env': env,
+        'visible_on': 'always'
     }
     return workflow_step_run.run(state, config)._replace(step='tf/terraform')
 
