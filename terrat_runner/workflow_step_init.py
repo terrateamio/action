@@ -80,8 +80,16 @@ def run_pulumi(state, config):
     return result
 
 
+# We only want to show "init" output on failure, but the terraform workflow step
+# defaults to "always".
+def update_visibility(result):
+    payload = result.payload
+    payload['visible_on'] = 'error'
+    return result
+
+
 def run(state, config):
     if state.env['TERRATEAM_ENGINE_NAME'] == 'pulumi':
-        return run_pulumi(state, config)
+        return update_visibility(run_pulumi(state, config))
     else:
-        return run_tf(state, config)
+        return update_visibility(run_tf(state, config))
