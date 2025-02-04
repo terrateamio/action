@@ -58,3 +58,9 @@ COPY checkov-wrapper /usr/local/bin/checkov-wrapper
 COPY cdktf-setup.sh /cdktf-setup.sh
 COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
 COPY azure-cli-setup.sh /azure-cli-setup.sh
+
+# 2025-02-03 HCP removed its public key file from the internet for a few hours,
+# which broke runs.  So we include the key file to protect against HCP outages.
+RUN mkdir /usr/local/share/keys
+COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
+ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
