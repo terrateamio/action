@@ -19,11 +19,6 @@ import github_actions.run_time
 
 DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
 
-REPO_CONFIG_PATHS = [
-    os.path.join('.terrateam', 'config.yml'),
-    os.path.join('.terrateam', 'config.yaml')
-]
-
 
 def perform_merge(working_dir, base_ref):
     current_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
