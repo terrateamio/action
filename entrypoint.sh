@@ -6,6 +6,11 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Adding /usr/local/proxy/bin to the PATH for accessing additional tools, if needed
 export PATH="$PATH":/usr/local/proxy/bin
 
+# Append $TERRATEAM_APPEND_PATH to $PATH
+if [ "$TERRATEAM_APPEND_PATH" ]; then
+  export PATH="$PATH:$TERRATEAM_APPEND_PATH"
+fi
+
 # Arguments: WORK_TOKEN and API_BASE_URL, passed during the action setup
 WORK_TOKEN="$1"
 API_BASE_URL="$2"
