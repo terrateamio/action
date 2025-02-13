@@ -22,7 +22,7 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENV TENV_LATEST_VERSION=v3.2.10
+ENV TENV_LATEST_VERSION=v4.2.4
 RUN curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb"
 
