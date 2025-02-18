@@ -81,11 +81,11 @@ def _store_plan_cmd(state,
         'version': 1,
     }
     store_cmd = [string.Template(s).safe_substitute(tmpl_vars) for s in plan_storage['store']]
-    (proc, output) = cmd.run_with_output(state, {'cmd': store_cmd})
+    (proc, stdout, stderr) = cmd.run_with_output(state, {'cmd': store_cmd})
     if proc.returncode == 0:
         return _store_plan_data(plan_data, work_token, api_base_url, dir_path, workspace, has_changes)
     else:
-        return (False, output)
+        return (False, '\n'.join([stderr, stdout]))
 
 
 def _store_plan_s3(state, plan_storage, work_token, api_base_url, dir_path, workspace, plan_path, has_changes):

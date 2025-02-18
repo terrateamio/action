@@ -17,15 +17,15 @@ class SynthError(Exception):
 
 
 def synth_cdktf(state, config):
-    (proc, get_output) = cmd.run_with_output(state, {'cmd': ['cdktf', 'get']})
+    (proc, get_stdout, get_stderr) = cmd.run_with_output(state, {'cmd': ['cdktf', 'get']})
     if proc.returncode != 0:
-        raise SynthError(get_output)
+        raise SynthError(get_stdout)
 
-    (proc, synth_output) = cmd.run_with_output(state, {'cmd': ['cdktf', 'synth']})
+    (proc, synth_stdout, synth_stderr) = cmd.run_with_output(state, {'cmd': ['cdktf', 'synth']})
     if proc.returncode != 0:
-        raise SynthError(get_output + '\n' + synth_output)
+        raise SynthError('\n'.join([get_stderr, get_stdout, synth_stderr,  synth_stdout]))
 
-    return get_output + '\n' + synth_output
+    return '\n'.join([get_stderr, get_stdout, synth_stderr,  synth_stdout])
 
 
 def get_cdktf_working_dir(state):

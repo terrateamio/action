@@ -27,15 +27,16 @@ def run(state):
         os.chmod(script_path, 0o005)
 
         try:
-            (proc, output) = cmd.run_with_output(state,
-                                                 {
-                                                     'cmd': [script_path],
-                                                     'input': json.dumps(state.repo_config),
-                                                     'cwd': tmpdir
-                                                 })
+            (proc, stdout, stderr) = cmd.run_with_output(
+                state,
+                {
+                    'cmd': [script_path],
+                    'input': json.dumps(state.repo_config),
+                    'cwd': tmpdir
+                })
             if proc.returncode == 0:
                 try:
-                    config = json.loads(output)
+                    config = json.loads(stdout)
                     requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
                                        json={'config': config})
                 except json.JSONDecodeError as exn:
@@ -46,7 +47,7 @@ def run(state):
                                        json={'msg': str(exn)})
             else:
                 requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                   json={'msg': output})
+                                   json={'msg': '\n'.join([stderr, stdout])})
         except Exception as exn:
             requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
                                json={'msg': str(exn)})
