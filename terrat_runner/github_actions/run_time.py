@@ -51,7 +51,7 @@ class Run_time(object):
         cmd.run(state, {'cmd': ['docker', 'pull', build_tag]})
 
         # Default output so we don't have to set it in every failure path
-        output = {'paths': {}, 'version': 1, 'success': False}
+        stdout = {'paths': {}, 'version': 1, 'success': False}
 
         proc = cmd.run(
             state,
@@ -83,7 +83,7 @@ class Run_time(object):
                         'cmd': ['docker', 'rm', 'code-indexer',]
                     })
 
-                (proc, output) = cmd.run_with_output(
+                (proc, stdout, stderr) = cmd.run_with_output(
                     state,
                     {
                         'cmd': ['/tmp/terrat_code_indexer', 'index'] + state.work_manifest['dirs']
@@ -91,11 +91,11 @@ class Run_time(object):
 
                 if proc.returncode == 0:
                     try:
-                        output = json.loads(output)
-                        output['success'] = True
+                        stdout = json.loads(stdout)
+                        stdout['success'] = True
                     except json.JSONDecodeError as exn:
                         logging.exception(exn)
-                        output = {'paths': {}, 'version': 1, 'success': False}
+                        stdout = {'paths': {}, 'version': 1, 'success': False}
                 else:
                     logging.error('Failed to run indexer')
             else:
@@ -104,7 +104,7 @@ class Run_time(object):
             logging.error('Failed to create indexer image')
 
         requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                           json=output)
+                           json=stdout)
 
 
     def steps(self):

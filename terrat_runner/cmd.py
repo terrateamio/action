@@ -1,6 +1,7 @@
 import io
 import logging
 import re
+import selectors
 import string
 import subprocess
 import sys
@@ -51,22 +52,49 @@ def run_with_output(state, config):
                             env=env,
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+                            stderr=subprocess.PIPE)
 
     if 'input' in config:
         proc.stdin.write(config['input'].encode('utf-8'))
 
     proc.stdin.close()
 
-    line = proc.stdout.readline()
-    output = io.StringIO()
-    while line:
-        line = line.decode('utf-8', errors='backslashreplace')
-        output.write(line)
-        if config.get('log_output', True):
-            sys.stderr.write('cwd={} : {}'.format(state.working_dir, line))
-            sys.stderr.flush()
-        line = proc.stdout.readline()
+    sel = selectors.DefaultSelector()
+
+    stdout_done = False
+    stderr_done = False
+
+    sel.register(proc.stdout, selectors.EVENT_READ, 'stdout')
+    sel.register(proc.stderr, selectors.EVENT_READ, 'stderr')
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    while not (stdout_done and stderr_done):
+        events = sel.select()
+        for key, _ in events:
+            line = key.fileobj.readline().decode('utf-8', errors='backslashreplace')
+
+            if not line:
+                sel.unregister(key.fileobj)
+                if key.data == 'stdout':
+                    stdout_done = True
+                elif key.data == 'stderr':
+                    stderr_done = True
+                else:
+                    raise Exception('Unknown data: {}'.format(key.data))
+
+            elif key.data == 'stdout':
+                stdout.write(line)
+                if config.get('log_output', True):
+                    sys.stderr.write('cwd={}: stdout : {}'.format(state.working_dir, line))
+            elif key.data == 'stderr':
+                stderr.write(line)
+                if config.get('log_output', True):
+                    sys.stderr.write('cwd={}: stderr: {}'.format(state.working_dir, line))
+            else:
+                raise Exception('Unknown data: {}'.format(key.data))
+
+    sel.close()
 
     proc.wait()
-    return (proc, _strip_ansi(output.getvalue()))
+    return (proc, _strip_ansi(stdout.getvalue()), _strip_ansi(stderr.getvalue()))
