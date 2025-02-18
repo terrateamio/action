@@ -12,8 +12,19 @@ def run(state, config):
         # Only capture output if we want to save it somewhere or we have
         # explicitly enabled it.
         if capture_output:
-            proc, stdout = cmd.run_with_output(state, config)
-            payload = {'text': stdout}
+            proc, stdout, stderr = cmd.run_with_output(state, config)
+            if proc.returncode == 0:
+                payload = {
+                    'text': stdout,
+                    'stderr': stderr
+                }
+            else:
+                # Not a great solution but the best for shor term.  If the
+                # command failed, just combine stdout and stderr.  Otherwise
+                # we'll keep them separate on success because probably you don't
+                # need to look at stderr on success and stdout might need to be
+                # something like JSON that needs to be parsed.
+                payload = {'text': '\n'.join([stderr, stdout])}
         else:
             proc = cmd.run(state, config)
             payload = {}

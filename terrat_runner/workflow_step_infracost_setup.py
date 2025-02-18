@@ -18,21 +18,21 @@ BACKOFF = 1.5
 
 
 def _retry_test(c, ret):
-    proc, output = ret
+    proc, stdout, stderr = ret
     logging.debug('INFRACOST : RETRY_TEST : %r', c)
-    return (proc.returncode == 0 and 'level=error' not in output)
+    return (proc.returncode == 0 and 'level=error' not in stdout and 'level=error' not in stderr)
 
 
 def _run_retry(state, c):
-    proc, output = retry.run(
+    proc, stdout, stderr = retry.run(
         lambda: cmd.run_with_output(state, {'cmd': c}),
         retry.finite_tries(TRIES, lambda ret: _retry_test(c, ret)),
         retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
     if proc.returncode != 0:
-        raise subprocess.CalledProcessError(returncode=proc.returncode, cmd=c, output=output)
+        raise subprocess.CalledProcessError(returncode=proc.returncode, cmd=c, output=stdout)
 
-    return output
+    return stdout
 
 
 def _checkout_base(state):
