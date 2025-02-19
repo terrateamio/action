@@ -49,6 +49,8 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     TERRAFORM_ENV_NAME = 'TFENV_TERRAFORM_DEFAULT_VERSION'
     TERRAGRUNT_ENV_NAME = 'TG_DEFAULT_VERSION'
     TERRAGRUNT_TF_PATH_ENV_NAME = 'TERRAGRUNT_TFPATH'
+    TERRAGRUNT_FOREWARD_STDOUT1 = 'TG_TF_FORWARD_STDOUT'
+    TERRAGRUNT_FOREWARD_STDOUT2 = 'TERRAGRUNT_FORWARD_TF_STDOUT'
 
     env[ENGINE_NAME] = engine['name']
 
@@ -72,9 +74,14 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
                                                  rc.get_default_tf_version(repo_config))
 
         # If it is terragrunt specific environment
-        if engine['name'] == 'terragrunt' and 'version' in engine:
-            env[TERRAGRUNT_ENV_NAME] = engine['version']
-            env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
+        if engine['name'] == 'terragrunt':
+            # These are necessary to get logs out of terragrunt, otherwise it
+            # pushes everything to stderr
+            env[TERRAGRUNT_FOREWARD_STDOUT1] = 'true'
+            env[TERRAGRUNT_FOREWARD_STDOUT2] = 'true'
+            if 'version' in engine:
+                env[TERRAGRUNT_ENV_NAME] = engine['version']
+                env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
 
     elif engine['name'] in ['terraform', 'tofu']:
         env[TF_CMD_ENV_NAME] = 'terraform'
