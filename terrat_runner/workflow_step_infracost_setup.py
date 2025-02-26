@@ -123,6 +123,11 @@ def run(state, config):
 
         infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['dirspaces'])
 
+        logging.info('INFRACOST : CONFIG')
+
+        with open(infracost_config_yml, 'r') as f:
+            logging.info('%s', f.read())
+
         output = _run_retry(state,
                             ['infracost',
                              'breakdown',
