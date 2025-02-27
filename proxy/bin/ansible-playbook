@@ -5,8 +5,8 @@ set -u
 
 ANSIBLE_VERSION="${ANSIBLE_VERSION:-}"
 
-if command -v ansible-playbook &>/dev/null; then
-    exec ansible-playbook "$@"
+if [ -f /usr/local/bin/ansible-playbook ]; then
+    exec /usr/local/bin/ansible-playbook "$@"
 else
     if [[ -n "$ANSIBLE_VERSION" ]]; then
         flock /tmp/ansible-playbook-install pip install "ansible-core==$ANSIBLE_VERSION" ansible 1>&2
