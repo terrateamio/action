@@ -11,6 +11,11 @@ import requests_retry
 import results_compat
 
 
+TOFU_DEFAULT_VERSION = '1.9.0'
+TERRAFORM_DEFAULT_VERSION = '1.5.7'
+TERRAGRUNT_DEFAULT_VERSION = '0.75.3'
+
+
 class ExecInterface(abc.ABC):
     @abc.abstractmethod
     def pre_hooks(self, state):
@@ -42,6 +47,14 @@ def determine_tf_version(repo_root, working_dir, workflow_version):
         return workflow_version
 
 
+def _get(m, k, d):
+    v = m.get(k)
+    if v is None:
+        return d
+    else:
+        return v
+
+
 def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     ENGINE_NAME = 'TERRATEAM_ENGINE_NAME'
     TF_CMD_ENV_NAME = 'TERRATEAM_TF_CMD'
@@ -56,22 +69,18 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
 
     if engine['name'] == 'tofu':
         env[TF_CMD_ENV_NAME] = 'tofu'
-        version = engine.get('version')
-        if version:
-            env[TOFU_ENV_NAME] = version
+        env[TOFU_ENV_NAME] = _get(engine, 'version', TOFU_DEFAULT_VERSION)
     elif engine['name'] in ['cdktf', 'terragrunt']:
         # If cdktf or terragrunt, set the appropriate terraform/tofu version if
         # it exists.
         if engine['tf_cmd'] == 'tofu':
             env[TF_CMD_ENV_NAME] = 'tofu'
-            version_env_name = TOFU_ENV_NAME
-            version = engine.get('tf_version')
-            if version:
-                env[version_env_name] = version
+            env[TOFU_ENV_NAME] = _get(engine, 'tf_version', TOFU_DEFAULT_VERSION)
         else:
             env[TF_CMD_ENV_NAME] = 'terraform'
-            env[TERRAFORM_ENV_NAME] = engine.get('tf_version',
-                                                 rc.get_default_tf_version(repo_config))
+            env[TERRAFORM_ENV_NAME] = _get(engine,
+                                           'tf_version',
+                                           rc.get_default_tf_version(repo_config))
 
         # If it is terragrunt specific environment
         if engine['name'] == 'terragrunt':
@@ -79,16 +88,12 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
             # pushes everything to stderr
             env[TERRAGRUNT_FOREWARD_STDOUT1] = 'true'
             env[TERRAGRUNT_FOREWARD_STDOUT2] = 'true'
-            if 'version' in engine:
-                env[TERRAGRUNT_ENV_NAME] = engine['version']
-                env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
+            env[TERRAGRUNT_ENV_NAME] = _get(engine, 'version', TERRAGRUNT_DEFAULT_VERSION)
+            env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
 
-    elif engine['name'] in ['terraform', 'tofu']:
+    elif engine['name'] == 'terraform':
         env[TF_CMD_ENV_NAME] = 'terraform'
-        version = engine.get('version')
-
-        if not version:
-            version = '1.5.7'
+        version = _get(engine, 'version', TERRAFORM_DEFAULT_VERSION)
 
         env[TERRAFORM_ENV_NAME] = determine_tf_version(
             repo_root,
