@@ -1,19 +1,45 @@
-import repo_config as rc
-import retry
-import workflow_step_terraform
+import json
+
+import workflow
 
 
 def run(state, config):
-    config = config.copy()
-    config['args'] = ['apply', '-auto-approve']
-    config['output_key'] = 'apply'
+    (success, stdout, stderr) = state.engine.unsafe_apply(state, config)
 
-    retry_config = rc.get_retry(config)
-    tries = retry_config['enabled'] and retry_config['tries'] or 1
-    result = retry.run(
-        lambda: workflow_step_terraform.run(state, config),
-        retry.finite_tries(tries, lambda ret: ret.success),
-        retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
-                                         retry_config['backoff']))
+    if not success:
+        return workflow.Result2(payload={'text': '\n'.join([stderr, stdout])},
+                                state=state,
+                                step=state.engine.name + '/apply',
+                                success=False)
 
-    return result._replace(step='tf/apply')
+    res = state.engine.outputs(state, config)
+
+    if res:
+        (success, outputs_stdout, outputs_stderr) = res
+    else:
+        success = True
+        outputs_stdout = '{}'
+        outputs_stderr = ''
+
+    try:
+        outputs = json.loads(outputs_stdout)
+        if outputs:
+            return workflow.Result2(
+                payload={
+                    'text': stdout,
+                    'outputs': outputs,
+                    'visible_on': 'always',
+                },
+                state=state,
+                step=state.engine.name + '/apply',
+                success=True)
+    except json.JSONDecodeError as exn:
+        return workflow.Result2(
+            payload={
+                'text': '\n'.join([outputs_stderr, outputs_stdout]),
+                'error': str(exn),
+                'visible_on': 'always'
+            },
+            state=state,
+            step=state.engine.name + '/apply',
+            sucecss=False)

@@ -9,8 +9,7 @@ import cmd
 import repo_config as rc
 import requests_retry
 
-import workflow_step_run
-import workflow_step_terraform
+import workflow
 
 
 ACCESS_KEY_ID = 'access_key_id'
@@ -159,150 +158,70 @@ def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspa
         raise Exception('Unknown method')
 
 
-def run_plan(state, config, targets=None):
-    config = config.copy()
-    config['args'] = ['plan', '-detailed-exitcode', '-out', '$TERRATEAM_PLAN_FILE']
-
-    if targets:
-        config['args'].extend(['-target=' + addr for addr in targets])
-
-    result = workflow_step_terraform.run(state, config)
-
-    if (not result.success and (
-            'exit_code' not in result.payload
-            or result.payload['exit_code'] == 1)):
-        return result._replace(step='tf/plan')
-
-    return result._replace(step='tf/plan')
-
-
-def plan_fast_and_loose(state, config):
-    config = config.copy()
-    config['args'] = ['plan', '-detailed-exitcode', '-json', '-refresh=false']
-
-    result = workflow_step_terraform.run(state, config)
-
-    if (not result.success and (
-            'exit_code' not in result.payload
-            or result.payload['exit_code'] == 1)):
-        return result._replace(step='tf/plan')
-
-    output = result.payload['text']
-
-    targets = []
-
-    for line in output.splitlines():
-        line = json.loads(line)
-
-        if line.get('type') in ['planned_change', 'resource_drift']:
-            targets.append(line['change']['resource']['addr'])
-
-    return run_plan(state, config, targets)
-
-
-def run_tf(state, config):
-    if config.get('mode') == 'fast-and-loose':
-        result = plan_fast_and_loose(state, config)
-    else:
-        result = run_plan(state, config)
-
-    if (not result.success and (
-            'exit_code' not in result.payload
-            or result.payload['exit_code'] == 1)):
-        return result._replace(step='tf/plan')
-
-    # The terraform CLI has an exit code of 2 if the plan contains changes.
-    has_changes = result.payload.get('exit_code') == 2
-
-    payload = result.payload.copy()
-
-    # Grab just the plan output.  If running the plan succeded, we want to just
-    # show the plan text.  If it failed above, we want to be able to show the
-    # user the entire terminal output.
-    config = {
-        'args': ['show', '$TERRATEAM_PLAN_FILE'],
-    }
-
-    result = workflow_step_terraform.run(state, config)
-
-    if not result.success:
-        return result._replace(step='tf/plan')
-
-    payload['plan'] = result.payload['text']
-    payload['has_changes'] = has_changes
-
-    plan_storage = rc.get_plan_storage(state.repo_config)
-
-    (success, output) = _store_plan(state,
-                                    plan_storage,
-                                    state.work_token,
-                                    state.api_base_url,
-                                    state.env['TERRATEAM_DIR'],
-                                    state.env['TERRATEAM_WORKSPACE'],
-                                    state.env['TERRATEAM_PLAN_FILE'],
-                                    has_changes)
-
-    if success:
-        result = result._replace(success=success)
-    else:
-        logging.error('PLAN_STORE_FAILED : %s : %s : %s',
-                      state.env['TERRATEAM_DIR'],
-                      state.env['TERRATEAM_WORKSPACE'],
-                      output)
-        result = result._replace(success=False)
-        payload = {'text': 'Could not store plan file, with the following error:\n\n' + output}
-
-    return result._replace(payload=payload, step='tf/plan')
-
-
-def run_pulumi(state, config):
-    logging.info('WORKFLOW_STEP_PLAN : engine=%s',
-                 state.workflow['engine']['name'])
-
-    result = workflow_step_run.run(
-        state,
-        {
-            'cmd': ['pulumi', 'preview']
-        })
-
-    if not result.success:
-        return result._replace(step='pulumi/plan')
-
-    has_changes = True
-
-    payload = result.payload
-    payload['plan'] = result.payload['text']
-    payload['has_changes'] = has_changes
-
-    with open(state.env['TERRATEAM_PLAN_FILE'], 'w') as f:
-        f.write('{}')
-
-    plan_storage = rc.get_plan_storage(state.repo_config)
-
-    (success, output) = _store_plan(state,
-                                    plan_storage,
-                                    state.work_token,
-                                    state.api_base_url,
-                                    state.env['TERRATEAM_DIR'],
-                                    state.env['TERRATEAM_WORKSPACE'],
-                                    state.env['TERRATEAM_PLAN_FILE'],
-                                    has_changes)
-
-    if success:
-        result = result._replace(success=success)
-    else:
-        logging.error('PLAN_STORE_FAILED : %s : %s : %s',
-                      state.env['TERRATEAM_DIR'],
-                      state.env['TERRATEAM_WORKSPACE'],
-                      output)
-        result = result._replace(success=False)
-        payload = {'text': 'Could not store plan file, with the following error:\n\n' + output}
-
-    return result._replace(payload=payload, step='pulumi/plan')
-
-
 def run(state, config):
-    if state.env['TERRATEAM_ENGINE_NAME'] == 'pulumi':
-        return run_pulumi(state, config)
+    (success, has_changes, stdout, stderr) = state.engine.plan(state, config)
+
+    if not success:
+        return workflow.Result2(
+            payload={
+                'text': '\n'.join([stderr, stdout]),
+                'visible_on': 'always',
+            },
+            state=state,
+            step=state.engine.name + '/plan',
+            success=success)
+
+    res = state.engine.diff(state, config)
+
+    if res:
+        (success, diff_stdout, diff_stderr) = res
     else:
-        return run_tf(state, config)
+        success = True
+        diff_stdout = ''
+        diff_stderr = ''
+
+    if not success:
+        return workflow.Result2(
+            payload={
+                'text': '\n'.join([diff_stderr, diff_stdout]),
+                'visible_on': 'always',
+            },
+            state=state,
+            step=state.engine.name + '/plan',
+            success=success)
+
+    plan_storage = rc.get_plan_storage(state.repo_config)
+
+    (success, output) = _store_plan(state,
+                                    plan_storage,
+                                    state.work_token,
+                                    state.api_base_url,
+                                    state.env['TERRATEAM_DIR'],
+                                    state.env['TERRATEAM_WORKSPACE'],
+                                    state.env['TERRATEAM_PLAN_FILE'],
+                                    has_changes)
+
+    if not success:
+        logging.error('PLAN_STORE_FAILED : %s : %s : %s',
+                      state.env['TERRATEAM_DIR'],
+                      state.env['TERRATEAM_WORKSPACE'],
+                      output)
+        return workflow.Result2(
+            payload={
+                'text': 'Could not store plan file, with the following error:\n\n' + output,
+                'visible_on': 'always',
+            },
+            state=state,
+            step=state.engine.name + '/plan',
+            success=success)
+
+    return workflow.Result2(
+        payload={
+            'plan': diff_stdout,
+            'has_changes': has_changes,
+            'text': stdout,
+            'visible_on': 'always',
+        },
+        state=state,
+        step=state.engine.name + '/plan',
+        success=True)
