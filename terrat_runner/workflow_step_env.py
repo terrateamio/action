@@ -1,6 +1,7 @@
 import logging
 import tempfile
 
+import cmd
 import run_state
 import workflow_step_run
 
@@ -9,9 +10,7 @@ def source_cmd(fname):
     return [
         'set -e',
         'set -u',
-        # Escape the variable here because we will apply templating in the
-        # workflow_step_run call and $@ conflicts with how the templating works.
-        'source "$$@" > {} 2>&1'.format(fname),
+        'source "$@" > {} 2>&1'.format(fname),
         'env -0'
     ]
 
@@ -55,10 +54,12 @@ def run_source(state, config):
         run_config = {
             # The second 'bash' string here is because "bash -c" uses the first
             # parameter after the "-c" as the name of the shell.
-            'cmd': ['bash', '-c', '\n'.join(source_cmd(tmp.name)), 'bash'] + config['cmd'],
+            'cmd': (['bash', '-c', '\n'.join(source_cmd(tmp.name)), 'bash']
+                    + [cmd.replace_vars(c, state.env) for c in config['cmd']]),
             'capture_output': True,
             'log_output': not config.get('sensitive', False),
             'log_cmd_pre_replace': True,
+            'replace_vars': False,
         }
         result = workflow_step_run.run(state, run_config)
 

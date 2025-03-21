@@ -15,9 +15,13 @@ def _strip_ansi(s):
     return re.sub(r'\033\[(\d|;)+?m', '', s)
 
 
-def _replace_vars(s, env):
+def replace_vars(s, env):
     try:
-        return string.Template(s).substitute(env)
+        v = string.Template(s).substitute(env)
+        if s == v:
+            return v
+        else:
+            return replace_vars(v, env)
     except KeyError as exn:
         raise MissingEnvVar(*exn.args)
 
@@ -25,7 +29,7 @@ def _replace_vars(s, env):
 def _create_env(env, additional_env):
     env = env.copy()
     # Replace any variables in the environment
-    env.update({k: _replace_vars(v, env) for k, v in additional_env.items()})
+    env.update({k: replace_vars(v, env) for k, v in additional_env.items()})
     return env
 
 
@@ -34,8 +38,11 @@ def run(state, config):
     env = _create_env(state.env, config.get('env', {}))
     if config.get('log_cmd_pre_replace', False):
         logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
-    # Replace any variables in the cmd
-    cmd = [_replace_vars(s, env) for s in cmd]
+    # In some cases we may not want to replace variables (perhaps the caller did
+    # this already, or they have specific variables they want to be passed it to
+    # the calling program.)
+    if config.get('replace_vars', True):
+        cmd = [replace_vars(s, env) for s in cmd]
     if not config.get('log_cmd_pre_replace', False):
         logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
     if config.get('log_output', True):
@@ -49,8 +56,11 @@ def run_with_output(state, config):
     env = _create_env(state.env, config.get('env', {}))
     if config.get('log_cmd_pre_replace', False):
         logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
-    # Replace any variables in the cmd
-    cmd = [_replace_vars(s, env) for s in cmd]
+    # In some cases we may not want to replace variables (perhaps the caller did
+    # this already, or they have specific variables they want to be passed it to
+    # the calling program.)
+    if config.get('replace_vars', True):
+        cmd = [replace_vars(s, env) for s in cmd]
     if not config.get('log_cmd_pre_replace', False):
         logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
     proc = subprocess.Popen(cmd,
