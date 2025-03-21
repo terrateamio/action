@@ -7,6 +7,7 @@ import tempfile
 import dir_exec
 import engine_cdktf
 import engine_custom
+import engine_fly
 import engine_pulumi
 import engine_terragrunt
 import engine_tf
@@ -169,6 +170,8 @@ def convert_engine(engine):
         return engine_cdktf.make()
     elif engine['name'] == 'pulumi':
         return engine_pulumi.make()
+    elif engine['name'] == 'fly':
+        return engine_fly.make(config_file=engine['config_file'])
     else:
         raise Exception('Unknown engine: {}'.format(engine))
 
