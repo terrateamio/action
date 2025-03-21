@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+if [ -f /usr/bin/flyctl ]; then
+    exec /usr/local/bin/flyctl "$@"
+else
+    flock /tmp/fly-install bash -c 'curl -sL https://fly.io/install.sh | sh; ln -s ~/.fly/bin/flyctl /usr/local/bin'
+    exec /usr/local/bin/flyctl "$@"
+fi
+
