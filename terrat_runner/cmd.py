@@ -17,7 +17,11 @@ def _strip_ansi(s):
 
 def _replace_vars(s, env):
     try:
-        return string.Template(s).substitute(env)
+        v = string.Template(s).substitute(env)
+        if s == v:
+            return v
+        else:
+            return _replace_vars(v, env)
     except KeyError as exn:
         raise MissingEnvVar(*exn.args)
 
