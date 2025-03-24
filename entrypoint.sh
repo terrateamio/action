@@ -11,6 +11,12 @@ if [ "$TERRATEAM_APPEND_PATH" ]; then
   export PATH="$PATH:$TERRATEAM_APPEND_PATH"
 fi
 
+# Install custom CA certificates 
+if [ -n "$CUSTOM_CA_BUNDLE" ]; then
+  echo "$CUSTOM_CA_BUNDLE" > /usr/local/share/ca-certificates/custom-ca-bundle.crt
+  update-ca-certificates
+fi
+
 # Arguments: WORK_TOKEN and API_BASE_URL, passed during the action setup
 WORK_TOKEN="$1"
 API_BASE_URL="$2"
