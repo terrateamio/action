@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/usr/bin/env bash
 
 # Set PATH
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -11,9 +11,22 @@ if [ "$TERRATEAM_APPEND_PATH" ]; then
   export PATH="$PATH:$TERRATEAM_APPEND_PATH"
 fi
 
-# Install custom CA certificates 
-if [ -n "$CUSTOM_CA_BUNDLE" ]; then
-  echo "$CUSTOM_CA_BUNDLE" > /usr/local/share/ca-certificates/custom-ca-bundle.crt
+# Install custom CA certificates
+has_custom_certs=false
+
+# Loop through all CUSTOM_CA_BUNDLE_* variables
+# Each variable must contain a single PEM-encoded certificate
+for var in "${!CUSTOM_CA_BUNDLE_@}"; do
+  cert="${!var}"
+  if [ -n "$cert" ]; then
+    file="/usr/local/share/ca-certificates/${var}.crt"
+    echo "$cert" > "$file"
+    echo "Wrote custom CA cert to $file"
+    has_custom_certs=true
+  fi
+done
+
+if [ "$has_custom_certs" = true ]; then
   update-ca-certificates
 fi
 
