@@ -5,6 +5,7 @@ import os
 State = collections.namedtuple('State', [
     'api_base_url',
     'api_token',
+    'engine',
     'env',
     'outputs',
     'path',
@@ -35,6 +36,7 @@ def create(api_base_url,
     return State(
         api_base_url=api_base_url,
         api_token=api_token,
+        engine=None,
         env=os.environ.copy(),
         outputs=[],
         path=None,

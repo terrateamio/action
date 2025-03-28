@@ -15,7 +15,9 @@ def run(state, config):
         return workflow.Result2(success=True,
                                 state=state,
                                 step='auth/update-terrateam-github-token',
-                                payload={})
+                                payload={
+                                    'visible_on': 'error'
+                                })
     else:
         text = """
         Status {}
@@ -25,4 +27,7 @@ def run(state, config):
         return workflow.Result2(success=False,
                                 state=state,
                                 step='auth/update-terrateam-github-token',
-                                payload={'text': text})
+                                payload={
+                                    'text': text,
+                                    'visible_on': 'error'
+                                })

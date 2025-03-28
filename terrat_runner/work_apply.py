@@ -64,7 +64,8 @@ class Exec(work_exec.ExecInterface):
                 state.working_dir,
                 os.path.join(state.working_dir, path))
 
-            state = state._replace(env=env)
+            state = state._replace(env=env,
+                                   engine=work_exec.convert_engine(workflow['engine']))
 
             state = workflow_step.run_steps(
                 state._replace(working_dir=os.path.join(state.working_dir, path),

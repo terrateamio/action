@@ -5,6 +5,12 @@ import os
 import tempfile
 
 import dir_exec
+import engine_cdktf
+import engine_custom
+import engine_fly
+import engine_pulumi
+import engine_terragrunt
+import engine_tf
 import hooks
 import repo_config as rc
 import requests_retry
@@ -68,16 +74,16 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     env[ENGINE_NAME] = engine['name']
 
     if engine['name'] == 'tofu':
-        env[TF_CMD_ENV_NAME] = 'tofu'
+        env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'tofu')
         env[TOFU_ENV_NAME] = _get(engine, 'version', TOFU_DEFAULT_VERSION)
     elif engine['name'] in ['cdktf', 'terragrunt']:
         # If cdktf or terragrunt, set the appropriate terraform/tofu version if
         # it exists.
         if engine['tf_cmd'] == 'tofu':
-            env[TF_CMD_ENV_NAME] = 'tofu'
+            env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'tofu')
             env[TOFU_ENV_NAME] = _get(engine, 'tf_version', TOFU_DEFAULT_VERSION)
         else:
-            env[TF_CMD_ENV_NAME] = 'terraform'
+            env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'terraform')
             env[TERRAFORM_ENV_NAME] = _get(engine,
                                            'tf_version',
                                            rc.get_default_tf_version(repo_config))
@@ -92,7 +98,7 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
             env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
 
     elif engine['name'] == 'terraform':
-        env[TF_CMD_ENV_NAME] = 'terraform'
+        env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'terraform')
         version = _get(engine, 'version', TERRAFORM_DEFAULT_VERSION)
 
         env[TERRAFORM_ENV_NAME] = determine_tf_version(
@@ -146,6 +152,30 @@ def _store_results(state, work_token, api_base_url, results):
     return res
 
 
+def convert_engine(engine):
+    """Convert an engine into a custom engine"""
+    if engine['name'] == 'custom':
+        return engine_custom.make(
+            init_args=engine.get('init'),
+            apply_args=engine.get('apply'),
+            diff_args=engine.get('diff'),
+            plan_args=engine.get('plan'),
+            unsafe_apply_args=engine.get('unsafe_apply'),
+            outputs_args=engine.get('outputs'))
+    elif engine['name'] in ['terraform', 'tofu']:
+        return engine_tf.make()
+    elif engine['name'] == 'terragrunt':
+        return engine_terragrunt.make()
+    elif engine['name'] == 'cdktf':
+        return engine_cdktf.make()
+    elif engine['name'] == 'pulumi':
+        return engine_pulumi.make()
+    elif engine['name'] == 'fly':
+        return engine_fly.make(config_file=engine['config_file'])
+    else:
+        raise Exception('Unknown engine: {}'.format(engine))
+
+
 def _run(state, exec_cb):
     # Setup the global terraform version, for use if terraform is called in any hooks.
     env = state.env.copy()
@@ -158,6 +188,8 @@ def _run(state, exec_cb):
         rc.get_engine(state.repo_config),
         state.working_dir,
         state.working_dir)
+
+    state = state._replace(engine=convert_engine(rc.get_engine(state.repo_config)))
 
     env['TERRATEAM_TMPDIR'] = state.tmpdir
     state = state._replace(env=env)
