@@ -36,6 +36,26 @@ STEPS = {
 }
 
 
+def execute_on_error(state, on_error, gates):
+    for e in on_error:
+        if 'type' not in e:
+            raise Exception('Missing "type"')
+        elif e['type'] == 'gate':
+            if 'token' not in e:
+                raise Exception('Missing token in gate')
+            else:
+                gates.append({
+                    'all_of': e.get('all_of', []),
+                    'any_of': e.get('any_of', []),
+                    'any_of_count': e.get('any_of_count', 0),
+                    'token': e['token'],
+                    'dir': state.env.get('TERRATEAM_DIR'),
+                    'workspace': state.env.get('TERRATEAM_WORKSPACE')
+                })
+        else:
+            raise Exception('Unknown type: {}'.format(type))
+
+
 def run_steps(state, scope, steps):
     valid_steps = STEPS.copy()
     valid_steps.update(state.run_time.steps())
@@ -47,7 +67,6 @@ def run_steps(state, scope, steps):
         sys.stdout.flush()
         sys.stderr.flush()
         run_on = step.get('run_on', RUN_ON_SUCCESS)
-        ignore_errors = step.get('ignore_errors', False)
 
         if run_on == RUN_ON_ALWAYS \
            or (not state.success and run_on == RUN_ON_FAILURE) \
@@ -71,12 +90,25 @@ def run_steps(state, scope, steps):
                                            step=step['type'],
                                            success=False)
 
+                ignore_errors = step.get('ignore_errors', False)
+                gates = []
+                payload = result.payload
+                if not result.success and 'on_error' in step:
+                    try:
+                        execute_on_error(state, step['on_error'], gates)
+                    except Exception as exn:
+                        payload = {
+                            'text': 'Failed to process on_error: {}'.format(exn)
+                        }
+                        ignore_errors = False
+
                 results.append({
                     'ignore_errors': ignore_errors,
-                    'payload': result.payload,
+                    'payload': payload,
                     'scope': scope,
                     'step': result.step,
                     'success': result.success,
+                    'gates': gates
                 })
 
                 if not result.success and not ignore_errors:

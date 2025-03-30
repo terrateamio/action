@@ -34,6 +34,7 @@ def run(state, config):
         payload['visible_on'] = visible_on
 
         success = (proc.returncode == 0)
+
         return workflow.make(payload=payload,
                              state=state,
                              step='run',
@@ -45,10 +46,10 @@ def run(state, config):
             'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0]),
             'visible_on': visible_on
         }
-        return workflow.(payload=payload,
-                         state=state,
-                         step='run',
-                         success=False)
+        return workflow.make(payload=payload,
+                             state=state,
+                             step='run',
+                             success=False)
     except FileNotFoundError:
         logging.exception('Could not find program to run %r', config['cmd'])
         payload = {
@@ -56,6 +57,7 @@ def run(state, config):
             'text': 'ERROR: Could not find program to run: {}'.format(config['cmd']),
             'visible_on': visible_on
         }
+
         return workflow.make(payload=payload,
                              state=state,
                              step='run',
