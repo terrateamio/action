@@ -177,7 +177,7 @@ def maybe_create_issue(state):
 
 def run(state, config):
     maybe_create_issue(state)
-    return workflow.Result2(success=True,
-                            state=state,
-                            step='tf/drift-create-issue',
-                            payload={})
+    return workflow.make(success=True,
+                         state=state,
+                         step='tf/drift-create-issue',
+                         payload={})

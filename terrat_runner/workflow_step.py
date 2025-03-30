@@ -66,10 +66,10 @@ def run_steps(state, scope, steps):
                     logging.exception(exn)
                     logging.error('STEP : FAIL : %s : %r', state.working_dir, step)
                     # TODO: Fixme, this is not a valid result
-                    result = workflow.Result2(payload={},
-                                              state=state,
-                                              step=step['type'],
-                                              success=False)
+                    result = workflow.make(payload={},
+                                           state=state,
+                                           step=step['type'],
+                                           success=False)
 
                 results.append({
                     'ignore_errors': ignore_errors,
