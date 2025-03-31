@@ -6,6 +6,8 @@ import sys
 import workflow
 
 import workflow_step_apply
+import workflow_step_checkov
+import workflow_step_conftest
 import workflow_step_env
 import workflow_step_infracost_setup
 import workflow_step_init
@@ -24,6 +26,8 @@ RUN_ON_ALWAYS = 'always'
 
 STEPS = {
     'apply': workflow_step_apply.run,
+    'checkov': workflow_step_checkov.run,
+    'conftest': workflow_step_conftest.run,
     'env': workflow_step_env.run,
     'infracost_setup': workflow_step_infracost_setup.run,
     'init': workflow_step_init.run,
