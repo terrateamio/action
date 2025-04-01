@@ -85,10 +85,10 @@ def run_tf(state, config):
                                    state.env['TERRATEAM_PLAN_FILE'])
 
     if not success:
-        return workflow.Result2(payload={'text': output},
-                                state=state,
-                                step='tf/apply',
-                                success=False)
+        return workflow.make(payload={'text': output},
+                             state=state,
+                             step='tf/apply',
+                             success=False)
 
     retry_config = rc.get_retry(config)
     tries = retry_config['enabled'] and retry_config['tries'] or 1

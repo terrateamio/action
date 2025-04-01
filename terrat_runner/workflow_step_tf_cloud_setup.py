@@ -10,7 +10,7 @@ def run(state, config):
     token = env['TF_API_TOKEN']
     with open(terraformrc_path, 'w') as f:
         f.write('credentials "app.terraform.io" {{ token = "{}" }}'.format(token))
-    return workflow.Result2(payload={'text': 'Writing TF_API_TOKEN to ~/.terraformrc'},
-                            state=state,
-                            step='tf/tf_cloud_setup',
-                            success=True)
+    return workflow.make(payload={'text': 'Writing TF_API_TOKEN to ~/.terraformrc'},
+                         state=state,
+                         step='tf/tf_cloud_setup',
+                         success=True)
