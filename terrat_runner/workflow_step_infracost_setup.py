@@ -172,20 +172,20 @@ def run(state, config):
                     'dirspaces': dirspaces
                 }
 
-                return workflow.Result2(payload=payload,
-                                        state=state,
-                                        step='tf/cost-estimation',
-                                        success=True)
+                return workflow.make(payload=payload,
+                                     state=state,
+                                     step='tf/cost-estimation',
+                                     success=True)
             except Exception as exn:
-                return workflow.Result2(payload={'text': str(exn)},
-                                        state=state,
-                                        step='tf/cost-estimation',
-                                        success=False)
+                return workflow.make(payload={'text': str(exn)},
+                                     state=state,
+                                     step='tf/cost-estimation',
+                                     success=False)
         else:
-            return workflow.Result2(payload={'text': output},
-                                    state=state,
-                                    step='tf/cost-estimation',
-                                    success=False)
+            return workflow.make(payload={'text': output},
+                                 state=state,
+                                 step='tf/cost-estimation',
+                                 success=False)
 
     except subprocess.CalledProcessError as exn:
         logging.exception('INFRACOST : ERROR')
@@ -196,7 +196,7 @@ def run(state, config):
         else:
             text = exn.stdout
 
-        return workflow.Result2(payload={'text': text},
-                                state=state,
-                                step='tf/cost-estimation',
-                                success=False)
+        return workflow.make(payload={'text': text},
+                             state=state,
+                             step='tf/cost-estimation',
+                             success=False)

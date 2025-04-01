@@ -213,9 +213,25 @@ def _run(state, exec_cb):
 
     steps.extend(state.outputs)
 
+    gates = []
+    for s in steps:
+        # 'gates' may be set but to None, so extract 'gates' then test if it is
+        # anything before adding it.
+        gs = s.pop('gates', None)
+        if gs:
+            gates.extend(gs)
+
+    if not gates:
+        gates = None
+
     results = {
-        'steps': steps
+        'steps': steps,
     }
+
+    # Only add gates if there are there in order to stay backwards compatible
+    # with older servers.
+    if gates:
+        results['gate'] = gates
 
     ret = _store_results(state, state.work_token, state.api_base_url, results)
 
