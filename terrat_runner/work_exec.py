@@ -231,7 +231,7 @@ def _run(state, exec_cb):
     # Only add gates if there are there in order to stay backwards compatible
     # with older servers.
     if gates:
-        results['gate'] = gates
+        results['gates'] = gates
 
     ret = _store_results(state, state.work_token, state.api_base_url, results)
 
