@@ -41,8 +41,15 @@ def run(state, config):
         f.write(stdout)
 
     extra_args = config.get('extra_args', [])
-    return workflow_step_run.run(
+    res = workflow_step_run.run(
         state._replace(working_dir=working_dir),
         {
             'cmd': ['conftest', 'test', '--ignore', '.git'] + extra_args + [plan_show],
         })._replace(step='tf/conftest')
+
+    if not res.success and 'gate' in config:
+        payload = res.payload
+        payload['visible_on'] = 'always'
+        res = res._replace(payload=payload)
+
+    return res

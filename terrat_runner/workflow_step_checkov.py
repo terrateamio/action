@@ -37,14 +37,21 @@ def run(state, config):
 
     extra_args = config.get('extra_args')
     if extra_args:
-        return workflow_step_run.run(
+        res = workflow_step_run.run(
             state,
             {
                 'cmd': ['checkov'] + extra_args + ['-f', plan_show],
             })._replace(step='tf/checkov')
     else:
-        return workflow_step_run.run(
+        res = workflow_step_run.run(
             state,
             {
-                'cmd': ['checkov', '--quiet', '--compact', '-f', plan_show],
+                'cmd': ['checkov', '--compact', '-f', plan_show],
             })._replace(step='tf/checkov')
+
+    if not res.success and 'gate' in config:
+        payload = res.payload
+        payload['visible_on'] = 'always'
+        res = res._replace(payload=payload)
+
+    return res
