@@ -194,6 +194,10 @@ def run(args):
     state = run_state.set_secret(state, wm['token'])
 
     env = state.env.copy()
+    # Move this to run-time
+    if 'GITHUB_TOKEN' in env:
+        env['TENV_GITHUB_TOKEN'] = env['GITHUB_TOKEN']
+
     # Setup Terraform environment variables for automation
     env['TF_IN_AUTOMATION'] = 'true'
     env['TF_INPUT'] = 'false'
