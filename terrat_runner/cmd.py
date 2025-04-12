@@ -32,9 +32,12 @@ def _create_env(env, additional_env):
 def run(state, config):
     cmd = config['cmd']
     env = _create_env(state.env, config.get('env', {}))
+    if config.get('log_cmd_pre_replace', False):
+        logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
     # Replace any variables in the cmd
     cmd = [_replace_vars(s, env) for s in cmd]
-    logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
+    if not config.get('log_cmd_pre_replace', False):
+        logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
     if config.get('log_output', True):
         return subprocess.run(cmd, cwd=state.working_dir, env=env)
     else:
@@ -44,9 +47,12 @@ def run(state, config):
 def run_with_output(state, config):
     cmd = config['cmd']
     env = _create_env(state.env, config.get('env', {}))
+    if config.get('log_cmd_pre_replace', False):
+        logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
     # Replace any variables in the cmd
     cmd = [_replace_vars(s, env) for s in cmd]
-    logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
+    if not config.get('log_cmd_pre_replace', False):
+        logging.debug('CMD : cmd=%r : cwd=%s', cmd, state.working_dir)
     proc = subprocess.Popen(cmd,
                             cwd=state.working_dir,
                             env=env,
