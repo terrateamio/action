@@ -19,7 +19,9 @@ def source_cmd(fname):
 def run_exec(state, config):
     run_config = {
         'cmd': config['cmd'],
-        'capture_output': True
+        'capture_output': True,
+        'log_output': not config.get('sensitive', False),
+        'log_cmd_pre_replace': True,
     }
 
     result = workflow_step_run.run(state, run_config)
@@ -55,7 +57,8 @@ def run_source(state, config):
             # parameter after the "-c" as the name of the shell.
             'cmd': ['bash', '-c', '\n'.join(source_cmd(tmp.name)), 'bash'] + config['cmd'],
             'capture_output': True,
-            'log_output': False
+            'log_output': not config.get('sensitive', False),
+            'log_cmd_pre_replace': True,
         }
         result = workflow_step_run.run(state, run_config)
 

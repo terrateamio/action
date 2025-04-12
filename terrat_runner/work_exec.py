@@ -171,6 +171,12 @@ def _run(state, exec_cb):
 
     # Bail out if we failed in prehooks
     if not state.success:
+        # We need to remove the gates from the steps because we won't be using
+        # them in this case (the run failed), and gates must be moved to the
+        # top-level result according to the API.
+        for s in steps:
+            s.pop('gates', None)
+
         results = {
             'steps': steps
         }
