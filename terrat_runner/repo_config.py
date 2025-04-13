@@ -215,3 +215,7 @@ def get_indexer(config):
 
 def get_config_builder(config):
     return _get(config, 'config_builder', {'enabled': False})
+
+
+def get_tree_builder(config):
+    return _get(config, 'tree_builder', {'enabled': False})

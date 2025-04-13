@@ -9,6 +9,7 @@ import run_state
 
 import work_apply
 import work_build_config
+import work_build_tree
 import work_exec
 import work_manifest
 import work_plan
@@ -23,11 +24,28 @@ DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
 def perform_merge(working_dir, base_ref):
     current_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
                                              cwd=working_dir).decode('utf-8').strip()
-    subprocess.check_call(['git', 'fetch', '--depth=1', 'origin', base_ref])
+    logging.debug('current commit=%s : fetching base ref', current_commit)
+    try:
+        print(subprocess.check_output(['git',
+                                       'fetch',
+                                       '--depth=1',
+                                       'origin',
+                                       base_ref + ':refs/remotes/origin/' + base_ref],
+                                      stderr=subprocess.STDOUT))
+    except subprocess.CalledProcessError as exn:
+        logging.info('%s', exn.output.decode('utf-8'))
+        # If it is because a merge happened between the time we started running
+        # and we ran, just ignore it and use whatever we checked out as main
+        if 'rejected' in exn.output.decode('utf-8') \
+           and 'non-fast-forward' in exn.output.decode('utf-8'):
+            return
+        else:
+            raise
+
     for i in range(100):
         try:
-            subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
-                                    stderr=subprocess.STDOUT)
+            print(subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
+                                          stderr=subprocess.STDOUT))
             return
         except subprocess.CalledProcessError as exn:
             logging.info('%s', exn.output.decode('utf-8'))
@@ -59,13 +77,18 @@ def tf_operation(state, op):
     maybe_setup_cdktf(state.repo_config, state.work_manifest, state.env)
     work_exec.run(state, op)
 
+def ensure_merged(state, f):
+    perform_merge(state.working_dir, state.work_manifest['base_ref'])
+    f(state)
+
 
 WORK_MANIFEST_DISPATCH = {
     'plan': lambda state: tf_operation(state, work_plan.Exec()),
     'apply': lambda state: tf_operation(state, work_apply.Exec()),
     'unsafe-apply': lambda state: tf_operation(state, work_unsafe_apply.Exec()),
     'index': lambda state: state.run_time.work_index(state),
-    'build-config': lambda state: work_build_config.run(state)
+    'build-config': lambda state: ensure_merged(state, work_build_config.run),
+    'build-tree': lambda state: ensure_merged(state, work_build_tree.run),
 }
 
 
