@@ -151,7 +151,7 @@ def get_workflow(repo_config, idx):
         engine['version'] = _get(engine, 'version', get_default_tf_version(repo_config))
     elif engine['name'] == 'tofu':
         engine['version'] = _get(engine, 'version', default_tf_version)
-    elif engine['name'] == 'pulumi':
+    elif engine['name'] in ['pulumi', 'custom', 'fly']:
         pass
     else:
         raise Exception('Unknown engine')
