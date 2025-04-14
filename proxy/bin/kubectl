@@ -1,0 +1,13 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+KUBECTL_VERSION="${KUBECTL_VERSION:-$(curl -sSL https://dl.k8s.io/release/stable.txt)}"
+
+if [ -f /usr/bin/kubectl ]; then
+    exec /usr/bin/kubectl "$@"
+else
+    flock /tmp/kubectl-cli-setup.sh-install /kubectl-cli-setup.sh "$KUBECTL_VERSION"
+    exec /usr/bin/kubectl "$@"
+fi
