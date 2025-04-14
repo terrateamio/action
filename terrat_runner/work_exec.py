@@ -15,6 +15,7 @@ import hooks
 import repo_config as rc
 import requests_retry
 import results_compat
+import run_state
 
 
 TOFU_DEFAULT_VERSION = '1.9.0'
@@ -228,6 +229,7 @@ def _run(state, exec_cb):
 
     for (s, r) in res:
         state = state._replace(success=state.success and s.success)
+        state = run_state.combine_secrets(state, s)
         steps.extend(r['outputs'])
 
     logging.debug('EXEC : HOOKS : POST')

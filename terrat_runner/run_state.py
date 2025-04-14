@@ -58,3 +58,7 @@ def create(api_base_url,
 def set_secret(state, secret):
     state.run_time.set_secret(secret)
     return state._replace(secrets=state.secrets | set([secret]))
+
+
+def combine_secrets(state, s):
+    return state._replace(secrets=state.secrets | s.secrets)
