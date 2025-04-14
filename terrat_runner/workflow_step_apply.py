@@ -5,13 +5,8 @@ import logging
 import string
 
 import cmd
-import repo_config as rc
 import requests_retry
-import retry
 import workflow
-
-import workflow_step_run
-import workflow_step_terraform
 
 
 def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
@@ -64,19 +59,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
         return (True, None)
 
 
-def _test_success_update_config(config):
-    def _f(ret):
-        if not ret.success:
-            config['args'] = ['apply', '-auto-approve']
-        return ret.success
-
-    return _f
-
-
-def run_tf(state, config):
-    config = config.copy()
-    config['args'] = ['apply', '$TERRATEAM_PLAN_FILE']
-
+def run(state, config):
     (success, output) = _load_plan(state,
                                    state.work_token,
                                    state.api_base_url,
@@ -85,47 +68,60 @@ def run_tf(state, config):
                                    state.env['TERRATEAM_PLAN_FILE'])
 
     if not success:
-        return workflow.make(payload={'text': output},
-                             state=state,
-                             step='tf/apply',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': output,
+                'visible_on': 'always',
+            },
+            state=state,
+            step=state.engine.name + '/apply',
+            success=False)
 
-    retry_config = rc.get_retry(config)
-    tries = retry_config['enabled'] and retry_config['tries'] or 1
-    result = retry.run(
-        lambda: workflow_step_terraform.run(state, config),
-        retry.finite_tries(tries, _test_success_update_config(config)),
-        retry.betwixt_sleep_with_backoff(retry_config['initial_sleep'],
-                                         retry_config['backoff']))
+    (success, stdout, stderr) = state.engine.apply(state, config)
 
-    if result.success:
-        result_output = workflow_step_terraform.run(state, {'args': ['output', '-json']})
-        payload = result.payload
-        if result_output.success:
-            try:
-                outputs = json.loads(result_output.payload['text'])
-                if outputs:
-                    payload['outputs'] = outputs
-                    result = result._replace(payload=payload)
-            except json.JSONDecodeError as exn:
-                result = result._replace(success=False,
-                                         payload={
-                                             'text': result_output.payload['text'],
-                                             'error': str(exn)
-                                         })
-    return result._replace(step='tf/apply')
+    if not success:
+        return workflow.make(payload={'text': '\n'.join([stderr, stdout])},
+                                state=state,
+                                step=state.engine.name + '/apply',
+                                success=False)
 
+    res = state.engine.outputs(state, config)
 
-def run_pulumi(state, config):
-    return workflow_step_run.run(
-        state,
-        {
-            'cmd': ['pulumi', 'up', '--yes']
-        })._replace(step='pulumi/apply')
-
-
-def run(state, config):
-    if state.env['TERRATEAM_ENGINE_NAME'] == 'pulumi':
-        return run_pulumi(state, config)
+    if res:
+        (success, outputs_stdout, outputs_stderr) = res
     else:
-        return run_tf(state, config)
+        success = True
+        outputs_stdout = '{}'
+        outputs_stderr = ''
+
+    try:
+        outputs = json.loads(outputs_stdout)
+        if outputs:
+            return workflow.Result2(
+                payload={
+                    'text': stdout,
+                    'outputs': outputs,
+                    'visible_on': 'always',
+                },
+                state=state,
+                step=state.engine.name + '/apply',
+                success=True)
+        else:
+            return workflow.Result2(
+                payload={
+                    'text': stdout,
+                    'visible_on': 'always',
+                },
+                state=state,
+                step=state.engine.name + '/apply',
+                success=True)
+    except json.JSONDecodeError as exn:
+        return workflow.Result2(
+            payload={
+                'text': '\n'.join([outputs_stderr, outputs_stdout]),
+                'error': str(exn),
+                'visible_on': 'always',
+            },
+            state=state,
+            step=state.engine.name + '/apply',
+            sucecss=False)

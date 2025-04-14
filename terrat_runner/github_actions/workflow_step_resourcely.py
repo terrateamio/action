@@ -3,23 +3,36 @@ import logging
 import os
 import tempfile
 
+import workflow
 import workflow_step_run
-import workflow_step_terraform
 
 
 def run(state, config):
     extra_args = config.get('extra_args', [])
 
-    result = workflow_step_terraform.run(state,
-                                         {
-                                             'args': ['show', '-json', '$TERRATEAM_PLAN_FILE'],
-                                             'output_key': 'plan_json'
-                                         })
+    res = state.engine.show(state, config)
 
-    if not result.success:
-        return result
+    if res is None:
+        return workflow.Result2(
+            payload={
+                'text': 'Unsable to show plan'
+            },
+            state=state,
+            step='run',
+            success=False)
 
-    plan_json = result.payload['text']
+    (success, stdout, stderr) = res
+
+    if not success:
+        return workflow.Result2(
+            payload={
+                'text': '\n'.join([stderr, stdout])
+            },
+            state=state,
+            step='run',
+            success=False)
+
+    plan_json = stdout
 
     with tempfile.TemporaryDirectory() as tmpdir:
         json_file = os.path.join(tmpdir, 'json')

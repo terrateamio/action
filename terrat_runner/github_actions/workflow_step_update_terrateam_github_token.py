@@ -13,9 +13,11 @@ def run(state, config):
         env['TERRATEAM_GITHUB_TOKEN'] = access_token
         state = state._replace(env=env)
         return workflow.make(success=True,
-                             state=state,
-                             step='auth/update-terrateam-github-token',
-                             payload={})
+                                state=state,
+                                step='auth/update-terrateam-github-token',
+                                payload={
+                                    'visible_on': 'error'
+                                })
     else:
         text = """
         Status {}
@@ -23,6 +25,9 @@ def run(state, config):
         {}
         """.format(res.status_code, res.text)
         return workflow.make(success=False,
-                             state=state,
-                             step='auth/update-terrateam-github-token',
-                             payload={'text': text})
+                                state=state,
+                                step='auth/update-terrateam-github-token',
+                                payload={
+                                    'text': text,
+                                    'visible_on': 'error'
+                                })

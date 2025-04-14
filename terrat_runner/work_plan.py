@@ -87,7 +87,8 @@ class Exec(work_exec.ExecInterface):
                 state.working_dir,
                 os.path.join(state.working_dir, path))
 
-            state = state._replace(env=env)
+            state = state._replace(env=env,
+                                   engine=work_exec.convert_engine(workflow['engine']))
 
             plan_steps = _merge_integrations(state, workflow['plan'], workflow['integrations'])
 
