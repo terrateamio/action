@@ -28,6 +28,18 @@ class Engine:
         if os.path.exists(terraform_path):
             shutil.rmtree(terraform_path)
 
+        (proc, stdout, stderr) = retry.run(
+            lambda: cmd.run_with_output(
+                state,
+                {
+                    'cmd': [self.tf_cmd, 'init'] + config.get('extra_args', [])
+                }),
+            retry.finite_tries(TRIES, lambda result: result[0].returncode != 0),
+            retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
+
+        if proc.returncode != 0:
+            return (False, stdout, stderr)
+
         if create_and_select_workspace is None:
             create_and_select_workspace = repo_config.get_create_and_select_workspace(
                 state.repo_config,
@@ -59,15 +71,6 @@ class Engine:
                     return (False,
                             '\n'.join([select_stdout, new_stdout]),
                             '\n'.join([select_stderr, new_stderr]))
-
-        (proc, stdout, stderr) = retry.run(
-            lambda: cmd.run_with_output(
-                state,
-                {
-                    'cmd': [self.tf_cmd, 'init'] + config.get('extra_args', [])
-                }),
-            retry.finite_tries(TRIES, lambda result: result[0].returncode != 0),
-            retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
         return (proc.returncode == 0, stdout, stderr)
 
