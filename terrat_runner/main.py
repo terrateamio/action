@@ -21,6 +21,45 @@ import github_actions.run_time
 DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
 
 
+def set_env_context(env, context):
+    try:
+        vals = json.loads(context)
+
+        if vals:
+            for k, v in vals.items():
+                env[k] = str(v)
+    except json.decoder.JSONDecodeError as exn:
+        logging.error('Failed to decode {}'.format(context))
+        logging.exception(exn)
+
+
+def install_ca_bundles():
+    env = os.environ.copy()
+    set_env_context(env, env.get('SECRETS_CONTEXT', '{}'))
+    set_env_context(env, env.get('VARIABLES_CONTEXT', '{}'))
+    set_env_context(env, env.get('ENVIRONMENT_CONTEXT', '{}'))
+
+    bundles = []
+    for k, v in env.items():
+        if k.startswith('CUSTOM_CA_BUNDLE_'):
+            logging.info('CUSTOM_CA_BUNDLES : %s : FOUND', k)
+            if v.strip():
+                bundles.append((k, v))
+            else:
+                logging.info('CUSTOM_CA_BUNDLES : %s : EMPTY', k)
+
+    for k, v in bundles:
+        path = os.path.join('/usr/local/share/ca-certificates', '{}.crt'.format(k))
+        logging.info('CUSTOM_CA_BUNDLES : %s : CREATING : %s', k, path)
+
+        with open(path, 'w') as f:
+            f.write(v)
+
+    if bundles:
+        logging.info('CUSTOM_CA_BUNDLES : UPDATING')
+        subprocess.check_call(['update-ca-certificates'])
+
+
 def perform_merge(working_dir, base_ref):
     current_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
                                              cwd=working_dir).decode('utf-8').strip()
@@ -134,18 +173,6 @@ def make_parser():
                         help='SHA of the checkout being run on')
 
     return parser
-
-
-def set_env_context(env, context):
-    try:
-        vals = json.loads(context)
-
-        if vals:
-            for k, v in vals.items():
-                env[k] = str(v)
-    except json.decoder.JSONDecodeError as exn:
-        logging.error('Failed to decode {}'.format(context))
-        logging.exception(exn)
 
 
 # Iterate the environment and convert any environment variables starting with
@@ -279,6 +306,9 @@ def main():
     print('- Email us directly at support@terrateam.io')
     print('***')
     print('***')
+
+    logging.info('CUSTOM_CA_BUNDLES : INSTALLING')
+    install_ca_bundles()
 
     parser = make_parser()
     args = parser.parse_args()
