@@ -39,7 +39,7 @@ class Engine:
                         'init'
                     ] + config.get('extra_args', [])
                 }),
-            retry.finite_tries(TRIES, lambda result: result[0].returncode != 0),
+            retry.finite_tries(TRIES, lambda result: result[0].returncode == 0),
             retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
         if proc.returncode != 0:
