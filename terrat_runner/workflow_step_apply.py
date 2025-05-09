@@ -80,10 +80,14 @@ def run(state, config):
     (success, stdout, stderr) = state.engine.apply(state, config)
 
     if not success:
-        return workflow.make(payload={'text': '\n'.join([stderr, stdout])},
-                                state=state,
-                                step=state.engine.name + '/apply',
-                                success=False)
+        return workflow.make(
+            payload={
+                'text': '\n'.join([stderr, stdout]),
+                'visible_on': 'always'
+            },
+            state=state,
+            step=state.engine.name + '/apply',
+            success=False)
 
     res = state.engine.outputs(state, config)
 

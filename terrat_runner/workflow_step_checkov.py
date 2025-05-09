@@ -25,7 +25,8 @@ def run(state, config):
     if proc.returncode != 0:
         return workflow.make(
             payload={
-                'text': '\n'.join([stderr, stdout])
+                'text': '\n'.join([stderr, stdout]),
+                'visible_on': 'error',
             },
             state=state,
             step='tf/checkov',
