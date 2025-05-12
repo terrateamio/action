@@ -73,10 +73,14 @@ def assume_role_with_web_identity(state, config, web_identity_token):
     else:
         output = proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
         logging.error('OIDC : %s : ERROR : %s', role_arn, output)
-        return workflow.make(payload={'text': output},
-                             state=state,
-                             step='auth/oidc',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': output,
+                'visible_on': 'error'
+            },
+            state=state,
+            step='auth/oidc',
+            success=False)
 
 
 def assume_role(state, config):
@@ -120,10 +124,14 @@ def assume_role(state, config):
     else:
         output = proc.stdout.decode('utf-8') + '\n' + proc.stderr.decode('utf-8')
         logging.error('OIDC : %s : ERROR : %s', assume_role_arn, output)
-        return workflow.make(payload={'text': output},
-                             state=state,
-                             step='auth/oidc',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': output,
+                'visible_on': 'error'
+            },
+            state=state,
+            step='auth/oidc',
+            success=False)
 
 
 def run_aws(state, config):
@@ -172,10 +180,14 @@ def run_aws(state, config):
         logging.error('OIDC : %s : ERROR : %s',
                       role_arn,
                       res.content.decode('utf-8'))
-        return workflow.make(payload={'text': res.content.decode('utf-8')},
-                             state=state,
-                             step='auth/oidc',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': res.content.decode('utf-8'),
+                'visible_on': 'error'
+            },
+            state=state,
+            step='auth/oidc',
+            success=False)
 
 
 def build_domain_wide_deligation_jwt(service_account, access_token_subject, lifetime):
@@ -365,17 +377,25 @@ def run_gcp(state, config):
                                  step='auth/oidc',
                                  success=True)
         except Auth_error as exn:
-            return workflow.make(payload={'text': exn.args[0]},
-                                 state=state,
-                                 step='auth/oidc',
-                                 success=False)
+            return workflow.make(
+                payload={
+                    'text': exn.args[0],
+                    'visible_on': 'error'
+                },
+                state=state,
+                step='auth/oidc',
+                success=False)
     else:
         logging.error('OIDC : gcp : ERROR : %s',
                       res.content.decode('utf-8'))
-        return workflow.make(payload={'text': res.content.decode('utf-8')},
-                             state=state,
-                             step='auth/oidc',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': res.content.decode('utf-8'),
+                'visible_on': 'error'
+            },
+            state=state,
+            step='auth/oidc',
+            success=False)
 
 
 def run(state, config):
@@ -385,7 +405,11 @@ def run(state, config):
     elif provider == 'gcp':
         return run_gcp(state, config)
     else:
-        return workflow.make(payload={'text': 'Unknown provider: {}'.config.get('provider')},
-                             state=state,
-                             step='auth/oidc',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': 'Unknown provider: {}'.config.get('provider'),
+                'visible_on': 'error'
+            },
+            state=state,
+            step='auth/oidc',
+            success=False)

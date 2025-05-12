@@ -33,10 +33,14 @@ def setup(state):
     # Keyscan github.com and append to known_hosts
     subprocess.check_call(['ssh-keyscan-pre-hook', 'github.com'])
 
-    return workflow.make(payload={'text': 'Writing TERRATEAM_SSH_KEY.* to ~/.ssh/'},
-                         state=state,
-                         step='tf/terrateam_ssh_key_setup',
-                         success=True)
+    return workflow.make(
+        payload={
+            'text': 'Writing TERRATEAM_SSH_KEY.* to ~/.ssh/',
+            'visible_on': 'error',
+        },
+        state=state,
+        step='tf/terrateam_ssh_key_setup',
+        success=True)
 
 
 def run(state, config):
@@ -44,13 +48,21 @@ def run(state, config):
         return setup(state)
     except subprocess.CalledProcessError as exn:
         logging.error('TERRATEAM_SSH_KEY : FAIL : %s', exn)
-        return workflow.make(payload={'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn)},
-                             state=state,
-                             step='tf/terrateam_ssh_key_setup',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn),
+                'visible_on': 'error',
+            },
+            state=state,
+            step='tf/terrateam_ssh_key_setup',
+            success=False)
     except Exception as exn:
         logging.error('TERRATEAM_SSH_KEY : FAIL : %s', exn)
-        return workflow.make(payload={'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn)},
-                             state=state,
-                             step='tf/terrateam_ssh_key_setup',
-                             success=False)
+        return workflow.make(
+            payload={
+                'text': 'TERRATEAM_SSH_KEY : FAIL : {}'.format(exn),
+                'visible_on': 'error'
+            },
+            state=state,
+            step='tf/terrateam_ssh_key_setup',
+            success=False)
