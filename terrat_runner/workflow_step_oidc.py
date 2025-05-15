@@ -31,10 +31,24 @@ class Auth_error(Exception):
     pass
 
 
+def _subst(state, s):
+    if isinstance(s, str):
+        return string.Template(s).substitute(state.env)
+    else:
+        return s
+
+
+def _safe_coerce(coerce, default, v):
+    try:
+        return coerce(v)
+    except:
+        return default
+
+
 def assume_role_with_web_identity(state, config, web_identity_token):
-    role_arn = string.Template(config['role_arn']).substitute(state.env)
-    duration = config.get('duration', DEFAULT_DURATION)
-    session_name = config.get('session_name', DEFAULT_SESSION_NAME)
+    role_arn = _subst(state, config['role_arn'])
+    duration = _safe_coerce(int, DEFAULT_DURATION, _subst(state, config.get('duration', DEFAULT_DURATION)))
+    session_name = _subst(state, config.get('session_name', DEFAULT_SESSION_NAME))
 
     proc = retry.run(
         lambda: subprocess.run(
@@ -84,9 +98,9 @@ def assume_role_with_web_identity(state, config, web_identity_token):
 
 
 def assume_role(state, config):
-    assume_role_arn = string.Template(config['assume_role_arn']).substitute(state.env)
-    duration = config.get('duration', DEFAULT_DURATION)
-    session_name = config.get('session_name', DEFAULT_SESSION_NAME)
+    assume_role_arn = _subst(state, config['assume_role_arn'])
+    duration = _safe_coerce(int, DEFAULT_DURATION, _subst(state, config.get('duration', DEFAULT_DURATION)))
+    session_name = _subst(state, config.get('session_name', DEFAULT_SESSION_NAME))
 
     proc = retry.run(
         lambda: subprocess.run(
@@ -135,8 +149,8 @@ def assume_role(state, config):
 
 
 def run_aws(state, config):
-    role_arn = string.Template(config['role_arn']).substitute(state.env)
-    audience = string.Template(config.get('audience', DEFAULT_AWS_AUDIENCE)).substitute(state.env)
+    role_arn = _subst(state, config['role_arn'])
+    audience = _subst(state, config.get('audience', DEFAULT_AWS_AUDIENCE))
 
     request_url = state.env[REQUEST_URL_VAR]
     request_token = state.env[REQUEST_TOKEN_VAR]
@@ -159,7 +173,7 @@ def run_aws(state, config):
         with open(web_identity_token_file, 'w') as f:
             f.write(web_identity_token)
 
-        region = config.get('region', DEFAULT_REGION)
+        region = _subst(state, config.get('region', DEFAULT_REGION))
 
         env = state.env.copy()
         env['AWS_REGION'] = region
@@ -322,17 +336,20 @@ def create_token(web_identity_token,
 
 
 def run_gcp(state, config):
-    service_account = string.Template(config['service_account']).substitute(state.env)
-    workload_identity_provider = string.Template(config['workload_identity_provider']).substitute(state.env)
-    access_token_lifetime = config.get('access_token_lifetime', 3600)
-    audience = config.get('audience', 'https://iam.googleapis.com/' + workload_identity_provider)
-    access_token_scopes = [string.Template(s).substitute(state.env)
+    service_account = _subst(state, config['service_account'])
+    workload_identity_provider = _subst(state, config['workload_identity_provider'])
+    access_token_lifetime = _safe_coerce(
+        int,
+        DEFAULT_DURATION,
+        _subst(state, config.get('access_token_lifetime', DEFAULT_DURATION)))
+    audience = _subst(state, config.get('audience', 'https://iam.googleapis.com/' + workload_identity_provider))
+    access_token_scopes = [_subst(state, s)
                            for s in config.get('access_token_scopes',
                                                ['https://www.googleapis.com/auth/cloud-platform'])]
 
     access_token_subject = config.get('access_token_subject')
     if access_token_subject:
-        access_token_subject = string.Template(access_token_subject).substitute(state.env)
+        access_token_subject = _subst(state, access_token_subject)
 
     request_url = state.env[REQUEST_URL_VAR]
     request_token = state.env[REQUEST_TOKEN_VAR]
