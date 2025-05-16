@@ -25,7 +25,12 @@ def _cleanup_path(terrateam_root, path):
 #
 # 2. Trees should not start with any relative paths, like ./
 def _cleanup(terrateam_root, files):
-    return [{'path': _cleanup_path(terrateam_root, v['path']), 'changed': v.get('changed')}
+    return [
+        {
+            'path': _cleanup_path(terrateam_root, v['path']),
+            'changed': v.get('changed'),
+            'id': v.get('id')
+        }
             for v in files]
 
 
