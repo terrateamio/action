@@ -19,13 +19,31 @@ def _cleanup_path(terrateam_root, path):
         return path
 
 
+def _remove_none(d):
+    keys = list(d.keys())
+    for k in keys:
+        if d[k] is None:
+            d.pop(k)
+
+    return d
+
+
 # Clean up some common ways building a tree might be done wrong.  In particular:
 #
 # 1. Trees should not start with any absolute path, such as $TERRATEAM_ROOT
 #
 # 2. Trees should not start with any relative paths, like ./
 def _cleanup(terrateam_root, files):
-    return [{'path': _cleanup_path(terrateam_root, v['path']), 'changed': v.get('changed')}
+    return [
+        # Remove any None's because, depending on how old the server is, it may
+        # reject trees with the "id" key.  Older versions of the server are not
+        # as accepting of extra keys.
+        _remove_none(
+            {
+                'path': _cleanup_path(terrateam_root, v['path']),
+                'changed': v.get('changed'),
+                'id': v.get('id')
+            })
             for v in files]
 
 
