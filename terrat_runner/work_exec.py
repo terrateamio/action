@@ -144,7 +144,10 @@ def _store_results(state, work_token, api_base_url, results):
                    + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
                    + [step['step'] for step in results['steps']])
 
-    results = _mask_secrets(state.secrets, unmasked, results)
+    # Sort the secrets by longest-first.  This ensures that the longest secret
+    # is always matched first when masking.
+    secrets = sorted(state.secrets, key=len, reverse=True)
+    results = _mask_secrets(secrets, unmasked, results)
     results = results_compat.transform(state, results)
 
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
