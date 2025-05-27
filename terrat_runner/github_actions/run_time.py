@@ -123,3 +123,14 @@ class Run_time(object):
 
     def update_workflow_steps(self, run_type, steps):
         return [{'type': 'update_terrateam_github_token'}] + steps
+
+    def is_command(self, str):
+        return str.startswith('::add-mask::')
+
+    def extract_secrets(self, str):
+        secrets = []
+        for s in str.splitlines():
+            if s.startswith('::add-mask::'):
+                secrets.append(s[len('::add-mask::'):])
+
+        return secrets

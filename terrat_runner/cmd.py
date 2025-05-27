@@ -51,6 +51,14 @@ def run(state, config):
         return subprocess.run(cmd, cwd=state.working_dir, env=env, stdout=subprocess.DEVNULL)
 
 
+def _handle_line(state, config, name, stream, line):
+    stream.write(line)
+    if state.run_time.is_command(line):
+        sys.stdout.write(line)
+    elif config.get('log_output', True):
+        sys.stderr.write('cwd={}: {}: {}'.format(state.working_dir, name, line))
+
+
 def run_with_output(state, config):
     cmd = config['cmd']
     env = _create_env(state.env, config.get('env', {}))
@@ -100,13 +108,9 @@ def run_with_output(state, config):
                     raise Exception('Unknown data: {}'.format(key.data))
 
             elif key.data == 'stdout':
-                stdout.write(line)
-                if config.get('log_output', True):
-                    sys.stderr.write('cwd={}: stdout : {}'.format(state.working_dir, line))
+                _handle_line(state, config, key.data, stdout, line)
             elif key.data == 'stderr':
-                stderr.write(line)
-                if config.get('log_output', True):
-                    sys.stderr.write('cwd={}: stderr: {}'.format(state.working_dir, line))
+                _handle_line(state, config, key.data, stderr, line)
             else:
                 raise Exception('Unknown data: {}'.format(key.data))
 
