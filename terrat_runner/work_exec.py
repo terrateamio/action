@@ -139,14 +139,34 @@ def _mask_secrets(secrets, unmasked, value):
         return value
 
 
+def _extract_secrets(run_time, value):
+    if isinstance(value, str):
+        return run_time.extract_secrets(value)
+    elif isinstance(value, dict):
+        ret = []
+        for v in value.values():
+            ret.extend(_extract_secrets(run_time, v))
+        return ret
+    elif isinstance(value, list):
+        ret = []
+        for v in value:
+            ret.extend(_extract_secrets(run_time, v))
+        return ret
+    else:
+        return []
+
+
 def _store_results(state, work_token, api_base_url, results):
     unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
                    + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
                    + [step['step'] for step in results['steps']])
 
-    # Sort the secrets by longest-first.  This ensures that the longest secret
-    # is always matched first when masking.
-    secrets = sorted(state.secrets, key=len, reverse=True)
+    # Collect any secrets that are in the result output.  Sort the secrets by
+    # longest-first.  This ensures that the longest secret is always matched
+    # first when masking.
+    secrets = _extract_secrets(state.run_time, results)
+    secrets = state.secrets | set(secrets)
+    secrets = sorted(secrets, key=len, reverse=True)
     results = _mask_secrets(secrets, unmasked, results)
     results = results_compat.transform(state, results)
 
