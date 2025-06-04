@@ -13,10 +13,8 @@ else
     else
         flock /tmp/ansible-playbook-install pip install ansible 1>&2
     fi
-
+    # We're installing pywinrm globally for $CUSTOMER, despite best practices.
+    # This should be removed once they start building their own image.
+    flock /tmp/pywinrm-install pip install pywinrm
     exec /usr/local/bin/ansible-playbook "$@"
 fi
-
-# We're installing pywinrm globally for $CUSTOMER, despite best practices.
-# This should be removed once they start building their own image.
-pip install pywinrm
