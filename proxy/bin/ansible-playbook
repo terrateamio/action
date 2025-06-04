@@ -16,3 +16,7 @@ else
 
     exec /usr/local/bin/ansible-playbook "$@"
 fi
+
+# We're installing pywinrm globally for $CUSTOMER, despite best practices.
+# This should be removed once they start building their own image.
+pip install pywinrm
