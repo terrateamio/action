@@ -79,7 +79,7 @@ class Engine:
                     'cmd': self.plan_args + config.get('extra_args', [])
                 })
 
-            return (proc.returncode == 0, True, stdout.strip(), stderr.strip())
+            return (proc.returncode in [0, 2], proc.returncode == 0, stdout.strip(), stderr.strip())
         else:
             return (True, False, '', '')
 
