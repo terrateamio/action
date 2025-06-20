@@ -1,4 +1,6 @@
 FROM debian:bullseye-20220622-slim
+ARG GITHUB_TOKEN
+ENV TENV_GITHUB_TOKEN=${GITHUB_TOKEN}
 RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	apt-utils \
@@ -24,7 +26,10 @@ RUN apt-get update \
 
 ENV TENV_LATEST_VERSION=v4.2.4
 RUN curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
-    dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb"
+    dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
+    tenv tofu install 1.6.3 && \
+    tenv tofu install 1.9.1 && \
+    tenv terraform install 1.5.7
 
 ENV INFRACOST_VERSION v0.10.29
 RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-${INFRACOST_VERSION}-linux-amd64.tar.gz" \

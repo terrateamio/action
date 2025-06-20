@@ -27,6 +27,8 @@ jobs:
           push: true
           file: Dockerfile.base
           tags: ghcr.io/terrateamio/action-base:latest
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
       -
         name: Build and push action
