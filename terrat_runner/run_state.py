@@ -11,7 +11,7 @@ State = collections.namedtuple('State', [
     'path',
     'repo_config',
     'result_version',
-    'run_time',
+    'runtime',
     'secrets',
     'sha',
     'success',
@@ -28,7 +28,7 @@ def create(api_base_url,
            api_token,
            repo_config,
            result_version,
-           run_time,
+           runtime,
            sha,
            work_manifest,
            work_token,
@@ -42,7 +42,7 @@ def create(api_base_url,
         path=None,
         repo_config=repo_config,
         result_version=result_version,
-        run_time=run_time,
+        runtime=runtime,
         secrets=set(),
         sha=sha,
         success=True,
@@ -57,7 +57,7 @@ def create(api_base_url,
 
 def set_secret(state, secret):
     if secret:
-        state.run_time.set_secret(secret)
+        state.runtime.set_secret(secret)
         return state._replace(secrets=state.secrets | set([secret]))
     else:
         return state

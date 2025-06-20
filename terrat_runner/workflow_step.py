@@ -62,7 +62,7 @@ def execute_on_error(state, on_error, gates):
 
 def run_steps(state, scope, steps):
     valid_steps = STEPS.copy()
-    valid_steps.update(state.run_time.steps())
+    valid_steps.update(state.runtime.steps())
 
     results = []
 

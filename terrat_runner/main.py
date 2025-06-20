@@ -15,8 +15,8 @@ import work_manifest
 import work_plan
 import work_unsafe_apply
 
-import github_actions.run_time
-
+from runtime.github_actions import runtime as github_actions
+from runtime.gitlab_ci import runtime as gitlab_ci
 
 DEFAULT_API_BASE_URL = 'https://app.terrateam.io'
 
@@ -125,7 +125,7 @@ WORK_MANIFEST_DISPATCH = {
     'plan': lambda state: tf_operation(state, work_plan.Exec()),
     'apply': lambda state: tf_operation(state, work_apply.Exec()),
     'unsafe-apply': lambda state: tf_operation(state, work_unsafe_apply.Exec()),
-    'index': lambda state: state.run_time.work_index(state),
+    'index': lambda state: state.runtime.work_index(state),
     'build-config': lambda state: ensure_merged(state, work_build_config.run),
     'build-tree': lambda state: ensure_merged(state, work_build_tree.run),
 }
@@ -171,6 +171,10 @@ def make_parser():
     parser.add_argument('--sha',
                         required=True,
                         help='SHA of the checkout being run on')
+    parser.add_argument('--runtime',
+                        default='github',
+                        choices=['github', 'gitlab'],
+                        help='Which runtime to use')
 
     return parser
 
@@ -219,11 +223,18 @@ def run(args):
     logging.debug('LOADING: REPO_CONFIG')
     rc = wm['config']
 
-    run_time = github_actions.run_time.Run_time()
-
-    run_time.group_output('Repository Configuration', json.dumps(rc, indent=2))
-
-    run_time.set_secret(wm['token'])
+    if args.runtime == 'github':
+        logging.info('Starting GitHub runtime')
+        runtime = github_actions.Runtime()
+        runtime.group_output('Repository Configuration', json.dumps(rc, indent=2))
+        runtime.set_secret(wm['token'])
+    elif args.runtime == 'gitlab':
+        logging.info('Starting GitLab runtime')
+        runtime = gitlab_ci.Runtime()
+        runtime.group_output('Repository Configuration', json.dumps(rc, indent=2))
+        runtime.set_secret(wm['token'])
+    else:
+        raise Exception('Unknown runtime: {}'.format(args.runtime))
 
     result_version = wm.get('result_version', 1)
 
@@ -231,7 +242,7 @@ def run(args):
         api_base_url=args.api_base_url,
         api_token=wm['token'],
         repo_config=rc,
-        run_time=run_time,
+        runtime=runtime,
         sha=args.sha,
         work_manifest=wm,
         work_token=args.work_token,
@@ -239,7 +250,7 @@ def run(args):
         result_version=result_version
     )
 
-    state = run_time.initialize(state)
+    state = runtime.initialize(state)
 
     state = run_state.set_secret(state, wm['token'])
 

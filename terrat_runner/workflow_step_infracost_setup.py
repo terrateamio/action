@@ -50,7 +50,7 @@ def _configure_infracost(state, config):
     env = state.env
     if INFRACOST_API_KEY in env:
         logging.info('INFRACOST : SETUP : PUBLIC_ENDPOINT')
-        state.run_time.set_secret(env[INFRACOST_API_KEY].strip())
+        state.runtime.set_secret(env[INFRACOST_API_KEY].strip())
         _run_retry(state,
                    ['infracost',
                     'configure',

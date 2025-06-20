@@ -15,7 +15,7 @@ from . import workflow_step_resourcely
 from . import workflow_step_update_terrateam_github_token
 
 
-class Run_time(object):
+class Runtime(object):
     def initialize(self, state):
         subprocess.check_call(['git',
                                'config',
