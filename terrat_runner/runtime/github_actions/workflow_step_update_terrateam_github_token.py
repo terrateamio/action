@@ -8,7 +8,7 @@ def run(state, config):
 
     if res.status_code == 200:
         access_token = res.json()['access_token']
-        state.run_time.set_secret(access_token)
+        state.runtime.set_secret(access_token)
         env = state.env.copy()
         env['TERRATEAM_GITHUB_TOKEN'] = access_token
         state = state._replace(env=env)
