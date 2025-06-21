@@ -275,13 +275,12 @@ def run(args):
         # remote operations.  This gets around the limitation in http request
         # rate limiting.
         logging.info('CONFIGURING FOR TENV SERVER SUPPORT')
-        env['TOFUENV_LIST_MODE'] = 'api'
-        env['TG_LIST_MODE'] = 'api'
-        env['TOFUENV_LIST_URL'] = state.api_base_url + '/tenv/opentofu/opentofu/releases'
-        env['TG_LIST_URL'] = state.api_base_url + '/tenv/gruntwork-io/terragrunt/releases'
-        env['TOFUENV_REMOTE'] = state.api_base_url + '/tenv'
-        env['TG_REMOTE'] = state.api_base_url + '/tenv'
-        env['TENV_GITHUB_TOKEN'] = state.work_token
+        env['TOFUENV_LIST_MODE'] = 'direct'
+        env['TG_LIST_MODE'] = 'direct'
+        env['TOFUENV_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/opentofu/opentofu/releases'
+        env['TG_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/gruntwork-io/terragrunt/releases'
+        env['TOFUENV_REMOTE'] = state.api_base_url + '/tenv/' + state.work_token
+        env['TG_REMOTE'] = state.api_base_url + '/tenv/' + state.work_token
 
     secret_env = {}
     set_env_context(secret_env, env.get('SECRETS_CONTEXT', '{}'))
