@@ -70,3 +70,6 @@ COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
 RUN mkdir /usr/local/share/keys
 COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
 ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
+
+RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
+ENV TOFUENV_OPENTOFU_PGP_KEY /usr/local/share/keys/opentofu.asc
