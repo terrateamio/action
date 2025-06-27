@@ -161,7 +161,7 @@ def maybe_create_issue(state):
             all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
             report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
 
-            update_terrateam_github_token = state.run_time.steps()['update_terrateam_github_token']
+            update_terrateam_github_token = state.runtime.steps()['update_terrateam_github_token']
             result = update_terrateam_github_token(state, {})
 
             if result.success:

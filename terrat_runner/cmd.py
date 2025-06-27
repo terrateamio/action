@@ -53,7 +53,7 @@ def run(state, config):
 
 def _handle_line(state, config, name, stream, line):
     stream.write(line)
-    if state.run_time.is_command(line):
+    if state.runtime.is_command(line):
         sys.stdout.write(line)
     elif config.get('log_output', True):
         sys.stderr.write('cwd={}: {}: {}'.format(state.working_dir, name, line))
