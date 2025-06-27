@@ -89,7 +89,7 @@ class Exec(work_exec.ExecInterface):
                                workspace=workspace,
                                workflow=workflow),
                 {'type': 'dirspace', 'dir': path, 'workspace': workspace},
-                state.run_time.update_workflow_steps('apply', _fix_up_apply(workflow['apply'])))
+                state.runtime.update_workflow_steps('apply', _fix_up_apply(workflow['apply'])))
 
             result = {
                 'path': path,

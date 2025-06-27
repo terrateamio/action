@@ -139,18 +139,18 @@ def _mask_secrets(secrets, unmasked, value):
         return value
 
 
-def _extract_secrets(run_time, value):
+def _extract_secrets(runtime, value):
     if isinstance(value, str):
-        return run_time.extract_secrets(value)
+        return runtime.extract_secrets(value)
     elif isinstance(value, dict):
         ret = []
         for v in value.values():
-            ret.extend(_extract_secrets(run_time, v))
+            ret.extend(_extract_secrets(runtime, v))
         return ret
     elif isinstance(value, list):
         ret = []
         for v in value:
-            ret.extend(_extract_secrets(run_time, v))
+            ret.extend(_extract_secrets(runtime, v))
         return ret
     else:
         return []
@@ -164,7 +164,7 @@ def _store_results(state, work_token, api_base_url, results):
     # Collect any secrets that are in the result output.  Sort the secrets by
     # longest-first.  This ensures that the longest secret is always matched
     # first when masking.
-    secrets = _extract_secrets(state.run_time, results)
+    secrets = _extract_secrets(state.runtime, results)
     secrets = state.secrets | set(secrets)
     secrets = sorted(secrets, key=len, reverse=True)
     results = _mask_secrets(secrets, unmasked, results)
