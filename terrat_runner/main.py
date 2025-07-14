@@ -65,6 +65,12 @@ def perform_merge(working_dir, base_ref):
                                              cwd=working_dir).decode('utf-8').strip()
     logging.debug('current commit=%s : fetching base ref', current_commit)
     try:
+        logging.info('%r',
+                     ['git',
+                      'fetch',
+                      '--depth=1',
+                      'origin',
+                      base_ref + ':refs/remotes/origin/' + base_ref])
         print(subprocess.check_output(['git',
                                        'fetch',
                                        '--depth=1',
@@ -83,6 +89,7 @@ def perform_merge(working_dir, base_ref):
 
     for i in range(100):
         try:
+            logging.info('%r', ['git', 'merge', '--no-edit', 'origin/' + base_ref])
             print(subprocess.check_output(['git', 'merge', '--no-edit', 'origin/' + base_ref],
                                           stderr=subprocess.STDOUT))
             return
