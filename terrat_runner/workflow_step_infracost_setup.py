@@ -38,6 +38,14 @@ def _run_retry(state, c):
 def _checkout_base(state):
     current_branch = subprocess.check_output(['git', 'branch', '--show-current'],
                                              cwd=state.working_dir)
+    logging.info('INFRACOST : SETUP: current_branch=%s', current_branch)
+
+    # If there is no branch because we're on a detached HEAD then make a branch
+    # that we will use to switch back to.
+    if current_branch == b'':
+        subprocess.check_call(['git', 'checkout', '-b', 'terrateam-infracost-base'])
+        current_branch = b'terrateam-infracost-base'
+
     subprocess.check_call(['git', 'branch'], cwd=state.working_dir)
     # If they made any changes to the repo, stash it for now
     subprocess.call(['git', 'stash', 'push'])
