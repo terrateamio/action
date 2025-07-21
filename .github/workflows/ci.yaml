@@ -27,6 +27,7 @@ jobs:
           push: true
           file: Dockerfile.base
           tags: ghcr.io/terrateamio/action-base:latest
+          platforms: linux/amd64,linux/arm64
           build-args: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
@@ -37,3 +38,4 @@ jobs:
           push: true
           file: Dockerfile
           tags: ghcr.io/terrateamio/action:v1
+          platforms: linux/amd64,linux/arm64
