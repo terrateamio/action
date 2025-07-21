@@ -27,7 +27,9 @@ RUN ARCH=$(dpkg --print-architecture) && \
     curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     tenv tofu install 1.6.3 && \
+    sleep 5 && \
     tenv tofu install 1.9.1 && \
+    sleep 5 && \
     tenv terraform install 1.5.7
 
 ENV INFRACOST_VERSION v0.10.29
