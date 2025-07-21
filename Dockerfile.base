@@ -23,31 +23,35 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV TENV_LATEST_VERSION=v4.2.4
-RUN curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
-    dpkg -i "tenv_${TENV_LATEST_VERSION}_amd64.deb" && \
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
+    dpkg -i "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     tenv tofu install 1.6.3 && \
     tenv tofu install 1.9.1 && \
     tenv terraform install 1.5.7
 
 ENV INFRACOST_VERSION v0.10.29
-RUN curl -fsSL -o /tmp/infracost-linux-amd64.tar.gz "https://github.com/terrateamio/packages/raw/main/infracost/infracost-${INFRACOST_VERSION}-linux-amd64.tar.gz" \
-    && tar -C /tmp -xzf /tmp/infracost-linux-amd64.tar.gz \
-    && mv /tmp/infracost-linux-amd64 /usr/local/bin/infracost \
-    && rm -f /tmp/infracost-linux-amd64.tar.gz
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
+    curl -fsSL -o /tmp/infracost-linux-${ARCH}.tar.gz "https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-${ARCH}.tar.gz" && \
+    tar -C /tmp -xzf /tmp/infracost-linux-${ARCH}.tar.gz && \
+    mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
+    rm -f /tmp/infracost-linux-${ARCH}.tar.gz
 
 ENV CONFTEST_VERSION 0.58.0
-RUN mkdir /tmp/conftest \
-    && curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/terrateamio/packages/raw/main/conftest/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
-    && tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz \
-    && mv /tmp/conftest/conftest /usr/local/bin/conftest \
-    && rm -rf /tmp/conftest
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
+    mkdir /tmp/conftest && \
+    curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
+    tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz && \
+    mv /tmp/conftest/conftest /usr/local/bin/conftest && \
+    rm -rf /tmp/conftest
 
 ENV AWSCLI_VERSION 2.13.26
-RUN mkdir /tmp/awscli \
-    && curl -fsSL -o /tmp/awscli/awscli.zip "https://github.com/terrateamio/packages/raw/main/aws/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" \
-    && unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ \
-    && /tmp/awscli/aws/install > /dev/null \
-    && rm -rf /tmp/awscli
+RUN ARCH=$(uname -m) && \
+    mkdir /tmp/awscli && \
+    curl -fsSL -o /tmp/awscli/awscli.zip "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" && \
+    unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ && \
+    /tmp/awscli/aws/install > /dev/null && \
+    rm -rf /tmp/awscli
 
 ENV CHECKOV_VERSION=2.5.10
 RUN pip3 install checkov==${CHECKOV_VERSION}
