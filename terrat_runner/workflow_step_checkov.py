@@ -15,12 +15,20 @@ def run(state, config):
         config.setdefault('on_error', []).append(gate)
         config['ignore_errors'] = True
 
-    (proc, stdout, stderr) = cmd.run_with_output(
-        state,
-        {
-            'cmd': ['${TERRATEAM_TF_CMD}', 'show', '-json', '${TERRATEAM_PLAN_FILE}'],
-            'log_output': False,
-        })
+    if state.env['TERRATEAM_ENGINE_NAME'] == 'terragrunt':
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': ['terragrunt', 'show', '-json', '${TERRATEAM_PLAN_FILE}'],
+                'log_output': False,
+            })
+    else:
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': ['${TERRATEAM_TF_CMD}', 'show', '-json', '${TERRATEAM_PLAN_FILE}'],
+                'log_output': False,
+            })
 
     if proc.returncode != 0:
         return workflow.make(
