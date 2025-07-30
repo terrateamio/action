@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import logging
+import os
 import string
 import time
 
@@ -170,6 +171,11 @@ def run(state, config):
             state=state,
             step=state.engine.name + '/plan',
             success=success)
+
+    # Create the plan file output if it wasn't created
+    if not os.path.exists(state.env['TERRATEAM_PLAN_FILE']):
+        with open(state.env['TERRATEAM_PLAN_FILE'], 'w') as f:
+            f.write('{}')
 
     res = state.engine.diff(state, config)
 
