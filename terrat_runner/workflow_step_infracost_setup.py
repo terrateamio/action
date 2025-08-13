@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import logging
 import os
@@ -43,8 +44,8 @@ def _checkout_base(state):
     # If there is no branch because we're on a detached HEAD then make a branch
     # that we will use to switch back to.
     if current_branch == b'':
-        subprocess.check_call(['git', 'checkout', '-b', 'terrateam-infracost-base'])
-        current_branch = b'terrateam-infracost-base'
+        current_branch = datetime.now().strftime('terrateam-cost-estimation-%Y%m%d_%H%M%S')
+        subprocess.check_call(['git', 'checkout', '-b', current_branch])
 
     subprocess.check_call(['git', 'branch'], cwd=state.working_dir)
     # If they made any changes to the repo, stash it for now
