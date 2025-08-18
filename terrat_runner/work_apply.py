@@ -2,6 +2,7 @@ import logging
 import os
 import tempfile
 
+import cmd
 import repo_config as rc
 import work_exec
 import workflow_step
@@ -27,6 +28,14 @@ class Exec(work_exec.ExecInterface):
                 + rc.get_apply_hooks(state.repo_config)['post'])
 
     def exec(self, state, d):
+        # Clean the CWD entirely from untracked files, this ensure that we are
+        # operating in a fresh directory.
+        cmd.run(
+            state._replace(working_dir=os.path.join(state.working_dir, d['path'])),
+            {
+                'cmd': ['git', 'clean', '-fxd', '.'],
+            })
+
         with tempfile.TemporaryDirectory() as tmpdir:
             logging.debug('EXEC : DIR : %s', d['path'])
 
