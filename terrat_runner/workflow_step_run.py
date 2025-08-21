@@ -8,6 +8,12 @@ def run(state, config):
     capture_output = config.get('capture_output', True)
     visible_on = config.get('visible_on', 'error')
 
+    # Set ignore errors to true by default if any gates are set and the user
+    # hasn't explicitly set a config.
+    config['ignore_errors'] = config.get(
+        'ignore_errors',
+        any(c.get('type') == 'gate' for c in config.get('on_error', [])))
+
     try:
         # Only capture output if we want to save it somewhere or we have
         # explicitly enabled it.
