@@ -47,6 +47,8 @@ RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mv /tmp/conftest/conftest /usr/local/bin/conftest && \
     rm -rf /tmp/conftest
 
+ENV OPA_VERSION 1.7.1
+
 ENV AWSCLI_VERSION 2.13.26
 RUN ARCH=$(uname -m) && \
     mkdir /tmp/awscli && \
