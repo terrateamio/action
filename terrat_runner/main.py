@@ -203,7 +203,7 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
-def run(args):
+def run(args, env):
     logging.debug('LOADING : WORK_MANIFEST')
 
     try:
@@ -250,6 +250,7 @@ def run(args):
         api_token=wm['token'],
         repo_config=rc,
         runtime=runtime,
+        env=env,
         sha=args.sha,
         work_manifest=wm,
         work_token=args.work_token,
@@ -352,8 +353,10 @@ def main():
     done = False
     run_count = 0
 
+    env = os.environ.copy()
+
     while not done:
-        done = run(args)
+        done = run(args, env)
         run_count += 1
         if run_count > 10:
             print('*** Performed too many work manifests, exiting to prevent unexpected loop')

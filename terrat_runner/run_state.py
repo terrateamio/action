@@ -1,5 +1,4 @@
 import collections
-import os
 
 
 State = collections.namedtuple('State', [
@@ -29,6 +28,7 @@ def create(api_base_url,
            repo_config,
            result_version,
            runtime,
+           env,
            sha,
            work_manifest,
            work_token,
@@ -37,7 +37,7 @@ def create(api_base_url,
         api_base_url=api_base_url,
         api_token=api_token,
         engine=None,
-        env=os.environ.copy(),
+        env=env,
         outputs=[],
         path=None,
         repo_config=repo_config,
