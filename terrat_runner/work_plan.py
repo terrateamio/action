@@ -58,6 +58,7 @@ class Exec(work_exec.ExecInterface):
             path = d['path']
             workspace = d['workspace']
             workflow_idx = d.get('workflow')
+            variables = d.get('variables', {})
 
             plan_file = os.path.join(tmpdir, 'plan')
 
@@ -66,6 +67,12 @@ class Exec(work_exec.ExecInterface):
             env['TERRATEAM_DIR'] = path
             env['TERRATEAM_WORKSPACE'] = workspace
             env['TERRATEAM_TMPDIR'] = tmpdir
+            env['TERRATEAM_STACK'] = d.get('stack_name', 'default')
+
+            # Setup any environment variables specified from the stack config
+            for k, v in variables.items():
+                logging.info('cwd=%s : VARIABLE : %s : %s', path, k, v)
+                env[k] = v
 
             if workflow_idx is None:
                 workflow = rc.get_default_workflow(state.repo_config)
