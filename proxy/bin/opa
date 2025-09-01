@@ -1,0 +1,23 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+# OPA version is set in Dockerfile.base as an environment variable
+OPA_VERSION="${OPA_VERSION:-1.7.1}"
+
+# Detect architecture
+ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g')
+
+if [[ ! -f /usr/local/bin/opa ]]; then
+    flock /tmp/opa-install \
+          curl \
+          -fsSL \
+          -o \
+          /usr/local/bin/opa \
+          "https://github.com/open-policy-agent/opa/releases/download/v${OPA_VERSION}/opa_linux_${ARCH}_static"
+    
+    flock /tmp/opa-install chmod +x /usr/local/bin/opa
+fi
+
+exec /usr/local/bin/opa "$@"
