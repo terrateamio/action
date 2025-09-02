@@ -138,20 +138,6 @@ WORK_MANIFEST_DISPATCH = {
 }
 
 
-BANNER = r"""
- ____  _____    _    ____
-|  _ \| ____|  / \  |  _ \
-| |_) |  _|   / _ \ | | | |
-|  _ <| |___ / ___ \| |_| |
-|_| \_\_____/_/   \_\____/
-
- __  __ _____
-|  \/  | ____|
-| |\/| |  _|
-| |  | | |___
-|_|  |_|_____|
-"""
-
 ERROR_BANNER = r"""
  _____ ____  ____   ___  ____
 | ____|  _ \|  _ \ / _ \|  _ \
@@ -317,16 +303,6 @@ def run(args):
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
-
-    print(BANNER)
-    print('*** These are not the logs you are looking for ***')
-    print('***')
-    print('*** The output of the action is not meant for debugging purposes ***')
-    print('*** If you are reading this to debug an issue please: ***')
-    print('- Join our Slack community https://slack.terrateam.io/ (Fastest)')
-    print('- Email us directly at support@terrateam.io')
-    print('***')
-    print('***')
 
     logging.info('CUSTOM_CA_BUNDLES : INSTALLING')
     install_ca_bundles()
