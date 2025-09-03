@@ -56,6 +56,9 @@ class Engine:
         with open(state.env['TERRATEAM_PLAN_FILE']) as f:
             return (True, f.read(), '')
 
+    def diff_json(self, state, config):
+        return None
+
     def plan(self, state, config):
         logging.info(
             'PLAN : %s : engine=%s',

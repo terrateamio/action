@@ -183,6 +183,7 @@ def convert_engine(engine):
             init_args=engine.get('init'),
             apply_args=engine.get('apply'),
             diff_args=engine.get('diff'),
+            diff_json_args=engine.get('diff_json'),
             plan_args=engine.get('plan'),
             unsafe_apply_args=engine.get('unsafe_apply'),
             outputs_args=engine.get('outputs'))

@@ -111,6 +111,28 @@ class Engine:
 
         return (proc.returncode == 0, stdout, stderr)
 
+
+    def diff_json(self, state, config):
+        logging.info(
+            'DIFF_JSON : %s : engine=%s',
+            state.path,
+            state.workflow['engine']['name'])
+
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': [self.tf_cmd, 'show', '-json', '${TERRATEAM_PLAN_FILE}']
+            })
+
+        if proc.returncode == 0:
+            try:
+                return (True, json.loads(stdout))
+            except json.JSONDecodeError as exn:
+                return (False, stdout, str(exn))
+
+        return (False, stdout, stderr)
+
+
     def plan(self, state, config):
         logging.info(
             'PLAN : %s : engine=%s',
