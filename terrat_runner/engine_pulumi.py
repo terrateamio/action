@@ -47,6 +47,10 @@ def diff(state, config):
     return None
 
 
+def diiff_json(state, config):
+    return None
+
+
 def plan(state, config):
     logging.info(
         'PLAN : %s : engine=%s',
@@ -96,4 +100,5 @@ def make():
         apply=apply,
         plan=plan,
         diff=diff,
-        unsafe_apply=unsafe_apply)
+        unsafe_apply=unsafe_apply,
+        outputs=outputs)

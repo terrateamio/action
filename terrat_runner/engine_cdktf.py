@@ -62,6 +62,9 @@ class Engine:
     def diff(self, state, config):
         return _run(state, config, self.engine_tf.diff)
 
+    def diff_json(self, state, config):
+        return _run(state, config, self.engine_tf.diff_json)
+
     def plan(self, state, config):
         return _run(state, config, self.engine_tf.plan)
 

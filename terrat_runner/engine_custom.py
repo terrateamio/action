@@ -1,3 +1,4 @@
+import json
 import logging
 
 import cmd
@@ -9,6 +10,7 @@ class Engine:
                  init_args,
                  apply_args,
                  diff_args,
+                 diff_json_args,
                  plan_args,
                  unsafe_apply_args,
                  outputs_args):
@@ -16,6 +18,7 @@ class Engine:
         self.init_args = init_args
         self.apply_args = apply_args
         self.diff_args = diff_args
+        self.diff_json_args = diff_json_args
         self.plan_args = plan_args
         self.unsafe_apply_args = unsafe_apply_args
         self.outputs_args = outputs_args
@@ -55,6 +58,11 @@ class Engine:
             return (True, '', '')
 
     def diff(self, state, config):
+        logging.info(
+            'DIFF : %s : engine=%s',
+            state.path,
+            state.workflow['engine']['name'])
+
         if self.diff_args:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
@@ -63,6 +71,29 @@ class Engine:
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())
+        else:
+            return None
+
+    def diff_json(self, state, config):
+        logging.info(
+            'DIFF_JSON : %s : engine=%s',
+            state.path,
+            state.workflow['engine']['name'])
+
+        if self.diff_json_args:
+            (proc, stdout, stderr) = cmd.run_with_output(
+                state,
+                {
+                    'cmd': self.diff_json_args
+                })
+
+            if proc.returncode == 0:
+                try:
+                    return (True, json.loads(stdout))
+                except json.JSONDecodeError as exn:
+                    return (False, stdout, str(exn))
+            else:
+                return (False, stdout.strip(), stderr.strip())
         else:
             return None
 
