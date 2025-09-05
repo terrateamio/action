@@ -47,17 +47,15 @@ def execute_on_error(state, on_error, gates):
         if 'type' not in e:
             raise Exception('Missing "type"')
         elif e['type'] == 'gate':
-            if 'token' not in e:
-                raise Exception('Missing token in gate')
-            else:
-                gates.append({
-                    'all_of': e.get('all_of', []),
-                    'any_of': e.get('any_of', []),
-                    'any_of_count': e.get('any_of_count', 0),
-                    'token': e['token'],
-                    'dir': state.env.get('TERRATEAM_DIR'),
-                    'workspace': state.env.get('TERRATEAM_WORKSPACE')
-                })
+            gates.append({
+                'all_of': e.get('all_of', []),
+                'any_of': e.get('any_of', []),
+                'any_of_count': e.get('any_of_count', 0),
+                'token': e.get('token'),
+                'name': e.get('name'),
+                'dir': state.env.get('TERRATEAM_DIR'),
+                'workspace': state.env.get('TERRATEAM_WORKSPACE')
+            })
         else:
             raise Exception('Unknown type: {}'.format(type))
 
