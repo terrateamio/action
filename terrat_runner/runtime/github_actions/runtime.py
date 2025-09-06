@@ -134,3 +134,33 @@ class Runtime(object):
                 secrets.append(s[len('::add-mask::'):])
 
         return secrets
+
+
+    def add_reviewers(self, env, reviewers):
+        if env['TERRATEAM_RUN_KIND'] == 'pr' and reviewers:
+            data = json.loads(env['TERRATEAM_RUN_KIND_DATA'])
+            pr_number = data['id']
+
+            url = '{}/repos/{}/pulls/{}/requested_reviewers'.format(
+                env['GITHUB_API_URL'],
+                env['GITHUB_REPOSITORY'],
+                pr_number
+            )
+
+            user_reviewers = [r.split('user:')[1] for r in reviewers if r.startswith('user:')]
+            team_reviewers = [r.split('team:')[1] for r in reviewers if r.startswith('team:')]
+
+            data = {
+                'reviewers': user_reviewers,
+                'team_reviewers': team_reviewers
+            }
+
+            headers = {
+                'content-type': 'application/json',
+                'authorization': 'bearer {}'.format(env['TERRATEAM_GITHUB_TOKEN'])
+            }
+
+            res = requests_retry.post(url, headers=headers, json=data)
+
+            if res.status_code != 201:
+                raise Exception('Could not add reviewers')
