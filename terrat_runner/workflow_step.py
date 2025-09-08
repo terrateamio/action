@@ -9,6 +9,7 @@ import workflow_step_apply
 import workflow_step_checkov
 import workflow_step_conftest
 import workflow_step_env
+import workflow_step_gates
 import workflow_step_infracost_setup
 import workflow_step_init
 import workflow_step_oidc
@@ -30,6 +31,7 @@ STEPS = {
     'checkov': workflow_step_checkov.run,
     'conftest': workflow_step_conftest.run,
     'env': workflow_step_env.run,
+    'gates': workflow_step_gates.run,
     'infracost_setup': workflow_step_infracost_setup.run,
     'init': workflow_step_init.run,
     'oidc': workflow_step_oidc.run,

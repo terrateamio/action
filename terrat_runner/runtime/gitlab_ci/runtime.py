@@ -102,3 +102,7 @@ class Runtime(object):
                 secrets.append(s[len('::add-mask::'):])
 
         return secrets
+
+    def add_reviewers(self, env, reviewers):
+        pass
+
