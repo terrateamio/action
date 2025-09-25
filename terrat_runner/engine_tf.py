@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import shutil
+import tempfile
 
 import cmd
 import repo_config
@@ -14,9 +15,11 @@ BACKOFF = 1.5
 
 
 def format_diff(text):
-    s = re.sub(r'^(\s+)([+\-~])', r'\2\1', text, flags=re.MULTILINE)
-    s = re.sub(r'^~', r'!', s, flags=re.MULTILINE)
-    return s
+    s = re.sub(r'^(\s+)([+\-~])', r'\2\1', text)
+    if s and s[0] == '~':
+        return '!' + s[1:]
+    else:
+        return s
 
 
 class Engine:
@@ -39,7 +42,8 @@ class Engine:
                         '/tmp/tf-init.lock',
                         self.tf_cmd,
                         'init'
-                    ] + config.get('extra_args', [])
+                    ] + config.get('extra_args', []),
+                    'tee': config['tee'],
                 }),
             retry.finite_tries(TRIES, lambda result: result[0].returncode == 0),
             retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
@@ -61,23 +65,25 @@ class Engine:
             create_and_select_workspace)
 
         if create_and_select_workspace:
-            (proc, select_stdout, select_stderr) = cmd.run_with_output(
+            (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': [self.tf_cmd, 'workspace', 'select', state.workspace]
+                    'cmd': [self.tf_cmd, 'workspace', 'select', state.workspace],
+                    'tee': config['tee'],
+                    'tee_append': True
                 })
 
             if proc.returncode != 0:
-                (proc, new_stdout, new_stderr) = cmd.run_with_output(
+                (proc, stdout, stderr) = cmd.run_with_output(
                     state,
                     {
-                        'cmd': [self.tf_cmd, 'workspace', 'new', state.workspace]
+                        'cmd': [self.tf_cmd, 'workspace', 'new', state.workspace],
+                        'tee': config['tee'],
+                        'tee_append': True
                     })
 
                 if proc.returncode != 0:
-                    return (False,
-                            '\n'.join([select_stdout, new_stdout]),
-                            '\n'.join([select_stderr, new_stderr]))
+                    return (False, stdout, stderr)
 
         return (proc.returncode == 0, stdout, stderr)
 
@@ -91,7 +97,8 @@ class Engine:
             state,
             {
                 'cmd': [self.tf_cmd, 'apply'
-                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}']
+                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}'],
+                'tee': config['tee']
             })
 
         return (proc.returncode == 0, stdout, stderr)
@@ -105,11 +112,17 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': [self.tf_cmd, 'show', '${TERRATEAM_PLAN_FILE}']
+                'cmd': [self.tf_cmd, 'show', '${TERRATEAM_PLAN_FILE}'],
+                'tee': config['tee']
             })
 
         if proc.returncode == 0:
-            stdout = format_diff(stdout)
+            with tempfile.NamedTemporaryFile(dir=os.path.dirname(stdout), delete=False) as fout:
+                with open(stdout, 'r') as fin:
+                    for l in fin:
+                        fout.write(format_diff(l).encode('utf-8'))
+
+                os.rename(fout.name, stdout)
 
         return (proc.returncode == 0, stdout, stderr)
 
@@ -123,16 +136,21 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': [self.tf_cmd, 'show', '-json', '${TERRATEAM_PLAN_FILE}']
+                'cmd': [self.tf_cmd, 'show', '-json', '${TERRATEAM_PLAN_FILE}'],
+                'tee': config['tee']
             })
 
         if proc.returncode == 0:
-            try:
-                return (True, json.loads(stdout))
-            except json.JSONDecodeError as exn:
-                return (False, stdout, str(exn))
-
-        return (False, stdout, stderr)
+                try:
+                    with open(stdout) as fin:
+                        json.loads(fin.read())
+                    return (True, stdout)
+                except json.JSONDecodeError as exn:
+                    with open(stderr, 'a') as fout:
+                        fout.write('\n' + str(exn) + '\n')
+                    return (False, stdout, stderr)
+        else:
+            return (False, stdout, stderr)
 
 
     def plan(self, state, config):
@@ -146,7 +164,7 @@ class Engine:
                 state,
                 {
                     'cmd': [self.tf_cmd, 'plan', '-detailed-exitcode', '-json', '-refresh=false'
-                            ] + config.get('extra_args', [])
+                            ] + config.get('extra_args', []),
                 })
 
             targets = []
@@ -170,7 +188,8 @@ class Engine:
                     '-detailed-exitcode',
                     '-out',
                     '${TERRATEAM_PLAN_FILE}'
-                ] + targets + config.get('extra_args', [])
+                ] + targets + config.get('extra_args', []),
+                'tee': config['tee']
             })
 
         return (proc.returncode in [0, 2], proc.returncode == 2, stdout, stderr)
@@ -185,7 +204,8 @@ class Engine:
             state,
             {
                 'cmd': [self.tf_cmd, 'apply', '-auto-approve'
-                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}']
+                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}'],
+                'tee': config['tee']
             })
 
         return (proc.returncode == 0, stdout, stderr)
