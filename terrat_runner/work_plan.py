@@ -2,6 +2,7 @@ import logging
 import os
 import tempfile
 
+import kv_store
 import repo_config as rc
 import work_exec
 import workflow_step
@@ -63,11 +64,12 @@ class Exec(work_exec.ExecInterface):
             plan_file = os.path.join(tmpdir, 'plan')
 
             env = state.env.copy()
-            env['TERRATEAM_PLAN_FILE'] = plan_file
             env['TERRATEAM_DIR'] = path
             env['TERRATEAM_WORKSPACE'] = workspace
             env['TERRATEAM_TMPDIR'] = tmpdir
             env['TERRATEAM_STACK'] = d.get('stack_name', 'default')
+            env['TERRATEAM_PLAN_FILE'] = os.path.join(state.outputs_dir,
+                                                      kv_store.mk_dirspace_key(state._replace(env=env), 'plan'))
 
             # Setup any environment variables specified from the stack config
             for k, v in variables.items():
