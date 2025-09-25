@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import tempfile
 
 import cmd
 import workflow
@@ -39,28 +40,31 @@ def run(state, config):
             step='tf/opa',
             success=False)
 
-    plan_show = os.path.join(state.tmpdir, 'opa.plan.json')
-    with open(plan_show, 'w') as f:
-        f.write(stdout)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        plan_show = os.path.join(tmpdir, 'opa.plan.json')
+        with open(plan_show, 'w') as f:
+            f.write(stdout)
 
-    extra_args = config.get('extra_args', [])
+        extra_args = config.get('extra_args', [])
 
-    fail_on = config.get('fail_on', 'undefined')
-    if fail_on == 'undefined':
-        fail_on_opt = '--fail'
-    elif fail_on == 'defined':
-        fail_on_opt = '--fail-defined'
+        fail_on = config.get('fail_on', 'undefined')
+        if fail_on == 'undefined':
+            fail_on_opt = '--fail'
+        elif fail_on == 'defined':
+            fail_on_opt = '--fail-defined'
 
-    res = workflow_step_run.run(
-        state._replace(working_dir=working_dir),
-        {
-            'cmd': ['opa', 'eval', fail_on_opt, '--format', 'json', '--ignore', '.git', '-i', plan_show] + extra_args,
-        })._replace(step='tf/opa')
+        res = workflow_step_run.run(
+            state._replace(working_dir=working_dir),
+            {
+                'cmd': ['opa', 'eval', fail_on_opt, '--format', 'json', '--ignore', '.git', '-i', plan_show] + extra_args,
+            })._replace(step='tf/opa')
 
-    try:
-        data = json.loads(res.payload['text'])
-        res.payload['data'] = data
-    except json.JSONDecodeError as exn:
-        logging.exception(exn)
+        try:
+            with open(os.path.join(state.outputs_dir, res.payload['@text']), 'r') as fin:
+                data = json.loads(fin.read())
 
-    return res
+            res.payload['data'] = data
+        except json.JSONDecodeError as exn:
+            logging.exception(exn)
+
+        return res

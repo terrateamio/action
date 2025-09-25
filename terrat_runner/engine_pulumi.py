@@ -13,7 +13,8 @@ def init(state, config):
     (proc, stdout, stderr) = cmd.run_with_output(
         state,
         {
-            'cmd': ['pulumi', 'login'] + config.get('extra_args', [])
+            'cmd': ['pulumi', 'login'] + config.get('extra_args', []),
+            'tee': config['tee']
         })
 
     if proc.returncode != 0:
@@ -22,7 +23,9 @@ def init(state, config):
     (proc, stdout, stderr) = cmd.run_with_output(
         state,
         {
-            'cmd': ['pulumi', 'stack', 'select', state.workspace]
+            'cmd': ['pulumi', 'stack', 'select', state.workspace],
+            'tee': config['tee'],
+            'tee_append': True
         })
 
     return (proc.returncode == 0, stdout, stderr)
@@ -37,7 +40,8 @@ def apply(state, config):
     (proc, stdout, stderr) = cmd.run_with_output(
         state,
         {
-            'cmd': ['pulumi', 'up', '--yes']
+            'cmd': ['pulumi', 'up', '--yes'],
+            'tee': config['tee']
         })
 
     return (proc.returncode == 0, stdout, stderr)
@@ -60,7 +64,8 @@ def plan(state, config):
     (proc, stdout, stderr) = cmd.run_with_output(
         state,
         {
-            'cmd': ['pulumi', 'preview'] + config.get('extra_args', [])
+            'cmd': ['pulumi', 'preview'] + config.get('extra_args', []),
+            'tee': config['tee']
         })
 
     with open(state.env['TERRATEAM_PLAN_FILE'], 'w') as f:
@@ -78,7 +83,8 @@ def unsafe_apply(state, config):
     (proc, stdout, stderr) = cmd.run_with_output(
         state,
         {
-            'cmd': ['pulumi', 'up', '--yes']
+            'cmd': ['pulumi', 'up', '--yes'],
+            'tee': config['tee']
         })
 
     return (proc.returncode == 0, stdout, stderr)

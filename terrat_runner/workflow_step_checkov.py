@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import cmd
 import workflow
@@ -40,20 +41,21 @@ def run(state, config):
             step='tf/checkov',
             success=False)
 
-    plan_show = os.path.join(state.tmpdir, 'checkov.plan.json')
-    with open(plan_show, 'w') as f:
-        f.write(stdout)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        plan_show = os.path.join(tmpdir, 'checkov.plan.json')
+        with open(plan_show, 'w') as f:
+            f.write(stdout)
 
-    extra_args = config.get('extra_args')
-    if extra_args:
-        return workflow_step_run.run(
-            state,
-            {
-                'cmd': ['checkov'] + extra_args + ['-f', plan_show],
-            })._replace(step='tf/checkov')
-    else:
-        return workflow_step_run.run(
-            state,
-            {
-                'cmd': ['checkov', '--quiet', '--compact', '-f', plan_show],
-            })._replace(step='tf/checkov')
+        extra_args = config.get('extra_args')
+        if extra_args:
+            return workflow_step_run.run(
+                state,
+                {
+                    'cmd': ['checkov'] + extra_args + ['-f', plan_show],
+                })._replace(step='tf/checkov')
+        else:
+            return workflow_step_run.run(
+                state,
+                {
+                    'cmd': ['checkov', '--quiet', '--compact', '-f', plan_show],
+                })._replace(step='tf/checkov')

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 
 import repo_config
 import run_state
@@ -203,7 +204,7 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
-def run(args, env):
+def run(args, env, outputs_dir):
     logging.debug('LOADING : WORK_MANIFEST')
 
     try:
@@ -244,18 +245,21 @@ def run(args, env):
         raise Exception('Unknown runtime: {}'.format(args.runtime))
 
     result_version = wm.get('result_version', 1)
+    protocol_version = wm.get('protocol_version')
 
     state = run_state.create(
         api_base_url=args.api_base_url,
         api_token=wm['token'],
-        repo_config=rc,
-        runtime=runtime,
         env=env,
+        outputs_dir=outputs_dir,
+        protocol_version=protocol_version,
+        repo_config=rc,
+        result_version=result_version,
+        runtime=runtime,
         sha=args.sha,
         work_manifest=wm,
         work_token=args.work_token,
         working_dir=args.workspace,
-        result_version=result_version
     )
 
     state = runtime.initialize(state)
@@ -272,6 +276,9 @@ def run(args, env):
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
     env['TERRATEAM_RUN_KIND_DATA'] = json.dumps(wm.get('run_kind_data', {}))
+
+    # Setup the API token for the TTM CLI
+    env['TTM_API_KEY'] = state.api_token
 
     # Set log level to error because when we run things in parallel,
     # sometimes the logging around the lockfile breaks parsing underlying
@@ -310,6 +317,7 @@ def run(args, env):
     state = state._replace(env=env)
 
     logging.debug('RESULT_VERSION : %r', result_version)
+    logging.debug('PROTOCOL_VERSION : %r', protocol_version)
     logging.debug('EXEC : %s', wm['type'])
     WORK_MANIFEST_DISPATCH[wm['type']](state)
 
@@ -356,7 +364,8 @@ def main():
     env = os.environ.copy()
 
     while not done:
-        done = run(args, env)
+        with tempfile.TemporaryDirectory() as outputs_dir:
+            done = run(args, env, outputs_dir)
         run_count += 1
         if run_count > 10:
             print('*** Performed too many work manifests, exiting to prevent unexpected loop')
