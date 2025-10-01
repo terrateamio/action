@@ -12,10 +12,12 @@ import engine_pulumi
 import engine_terragrunt
 import engine_tf
 import hooks
+import kv_store
 import repo_config as rc
 import requests_retry
 import results_compat
 import run_state
+import ttm
 
 
 TOFU_DEFAULT_VERSION = '1.9.0'
@@ -156,6 +158,89 @@ def _extract_secrets(runtime, value):
         return []
 
 
+def _upload_results(state, results):
+    files = os.listdir(state.outputs_dir)
+    for fname in files:
+        # This is a cheap trick to upload the diff json as actual json rather than a file
+        if 'diff_json.stdout' in fname:
+            with open(os.path.join(state.outputs_dir, fname), 'rb') as fin:
+                data = fin.read()
+
+            try:
+                json.loads(data)
+                ttm.kv_set(
+                    state,
+                    state.work_manifest['api_base_url'],
+                    state.work_manifest['installation_id'],
+                    fname,
+                    data,
+                    draft=True)
+            except json.JSONDecodeError:
+                logging.exception('Could not load diff')
+                ttm.kv_upload(
+                    state,
+                    state.work_manifest['api_base_url'],
+                    state.work_manifest['installation_id'],
+                    fname,
+                    os.path.join(state.outputs_dir, fname),
+                    draft=True)
+        else:
+            ttm.kv_upload(
+                state,
+                state.work_manifest['api_base_url'],
+                state.work_manifest['installation_id'],
+                fname,
+                os.path.join(state.outputs_dir, fname),
+                draft=True)
+
+def _set_steps(state, results):
+    for (idx, step) in zip(range(len(results['steps'])), results['steps']):
+        ttm.kv_set(
+            state,
+            state.work_manifest['api_base_url'],
+            state.work_manifest['installation_id'],
+            kv_store.mk_steps_key(state),
+            json.dumps(step).encode('utf-8'),
+            idx=idx,
+            draft=True)
+
+
+def _commit_steps(state):
+    keys = os.listdir(state.outputs_dir) + [kv_store.mk_steps_key(state)]
+    ttm.kv_commit(
+        state,
+        state.work_manifest['api_base_url'],
+        state.work_manifest['installation_id'],
+        keys)
+
+
+def _realize_links(state, value):
+    if isinstance(value, dict):
+        for k in list(value.keys()):
+            # We're actually going to remove diff rather than realize it because
+            # we've found it's just too large in many instances.  We'll make use
+            # of it when we transition over to the kv store representation.
+            if k == '@diff':
+                del value[k]
+            elif k.startswith('@'):
+                v = value[k]
+                del value[k]
+                k = k[1:]
+                with open(os.path.join(state.outputs_dir, v), 'r') as f:
+                    value[k] = f.read()
+            else:
+                _realize_links(state, value[k])
+    elif isinstance(value, list):
+        for v in value:
+            _realize_links(state, v)
+    else:
+        pass
+
+
+def _realize_step_links(state, results):
+    _realize_links(state, results['steps'])
+
+
 def _store_results(state, work_token, api_base_url, results):
     unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
                    + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
@@ -168,6 +253,14 @@ def _store_results(state, work_token, api_base_url, results):
     secrets = state.secrets | set(secrets)
     secrets = sorted(secrets, key=len, reverse=True)
     results = _mask_secrets(secrets, unmasked, results)
+
+    if state.protocol_version == 1:
+        _upload_results(state, results)
+        _set_steps(state, results)
+        _commit_steps(state)
+        # Turn all steps into what the exiting API expects
+        _realize_step_links(state, results)
+
     results = results_compat.transform(state, results)
 
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
