@@ -196,22 +196,21 @@ def run(state, config):
             step=state.engine.name + '/plan',
             success=success)
 
-    res = state.engine.diff_json(state, config)
-    if res and res[0]:
-        (success, diff_json) = res
-    elif res:
-        (success, stdout, stderr) = res
-        return workflow.Result2(
-            payload={
-                'text': '\n'.join([stderr, stdout]),
-                'visible_on': 'always',
-            },
-            state=state,
-            step=state.engine.name + '/plan',
-            success=success)
-    else:
-        diff_json = None
-
+    # res = state.engine.diff_json(state, config)
+    # if res and res[0]:
+    #     (success, diff_json) = res
+    # elif res:
+    #     (success, stdout, stderr) = res
+    #     return workflow.Result2(
+    #         payload={
+    #             'text': '\n'.join([stderr, stdout]),
+    #             'visible_on': 'always',
+    #         },
+    #         state=state,
+    #         step=state.engine.name + '/plan',
+    #         success=success)
+    # else:
+    #     diff_json = None
 
     plan_storage = rc.get_plan_storage(state.repo_config)
 
@@ -241,7 +240,7 @@ def run(state, config):
     return workflow.Result2(
         payload={
             'plan': diff_stdout,
-            'diff': diff_json,
+            # 'diff': diff_json,
             'has_changes': has_changes,
             'text': stdout,
             'visible_on': 'always',
