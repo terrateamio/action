@@ -10,6 +10,8 @@ import requests_retry
 
 from . import core
 
+from . import workflow_step_drift_create_issue
+
 
 class Runtime(object):
     def initialize(self, state):
@@ -83,7 +85,9 @@ class Runtime(object):
 
 
     def steps(self):
-        return {}
+        return {
+            'drift_create_issue': workflow_step_drift_create_issue.run,
+        }
 
     def group_output(self, title, output):
         sys.stdout.write(output)
