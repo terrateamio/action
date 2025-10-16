@@ -14,7 +14,11 @@ BACKOFF = 1.5
 
 
 def format_diff(text):
-    return re.sub(r'^(\s+)([+\-~])', r'\2\1', text, flags=re.MULTILINE)
+    s = re.sub(r'^(\s+)([+\-~])', r'\2\1', text, flags=re.MULTILINE)
+    if s and s[0] == '~':
+        return '!' + s[1:]
+    else:
+        return s
 
 
 class Engine:
