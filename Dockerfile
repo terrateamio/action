@@ -1,4 +1,4 @@
-FROM ghcr.io/terrateamio/action-base:latest
+FROM ghcr.io/terrateamio/action-base:369
 
 COPY entrypoint.sh /entrypoint.sh
 COPY entrypoint_gitlab.sh /entrypoint_gitlab.sh
