@@ -1,0 +1,19 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+set -x
+
+CHECKOV_VERSION="${CHECKOV_VERSION:-2.5.10}"
+
+if [[ ! -f /usr/local/bin/checkov ]]; then
+    flock /tmp/checkov-install pip3 install --quiet "checkov==${CHECKOV_VERSION}"
+else
+    INSTALLED_VERSION=$(checkov --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -n1 || echo "")
+    if [[ "$INSTALLED_VERSION" != "$CHECKOV_VERSION" ]]; then
+        flock /tmp/checkov-install pip3 install --quiet --upgrade "checkov==${CHECKOV_VERSION}"
+    fi
+fi
+
+exec checkov "$@"
