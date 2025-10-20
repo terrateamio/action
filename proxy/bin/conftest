@@ -3,33 +3,31 @@
 set -e
 set -u
 
-set -x
-
 CONFTEST_VERSION="${CONFTEST_VERSION:-0.58.0}"
 ARCH=$(uname -m | sed 's/aarch64/arm64/g')
 
 if [[ ! -f /usr/local/bin/conftest ]]; then
-    flock /tmp/conftest-install \
-          curl \
+    flock /tmp/conftest-install bash -c "
+        curl \
           -fsSL \
           -o \
           /tmp/conftest.tar.gz \
-          "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz"
-
-    flock /tmp/conftest-install tar -C /tmp -xzf /tmp/conftest.tar.gz
-    flock /tmp/conftest-install mv /tmp/conftest /usr/local/bin/conftest
+          \"https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz\"
+        tar -C /tmp -xzf /tmp/conftest.tar.gz
+        mv /tmp/conftest /usr/local/bin/conftest
+    "
 else
     INSTALLED_VERSION=$(/usr/local/bin/conftest --version 2>/dev/null | grep -oP 'Conftest: \K[0-9.]+' || echo "")
     if [[ "$INSTALLED_VERSION" != "$CONFTEST_VERSION" ]]; then
-        flock /tmp/conftest-install \
-              curl \
+        flock /tmp/conftest-install bash -c "
+            curl \
               -fsSL \
               -o \
               /tmp/conftest.tar.gz \
-              "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz"
-
-        flock /tmp/conftest-install tar -C /tmp -xzf /tmp/conftest.tar.gz
-        flock /tmp/conftest-install mv /tmp/conftest /usr/local/bin/conftest
+              \"https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz\"
+            tar -C /tmp -xzf /tmp/conftest.tar.gz
+            mv /tmp/conftest /usr/local/bin/conftest
+        "
     fi
 fi
 
