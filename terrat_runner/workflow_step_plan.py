@@ -7,6 +7,7 @@ import string
 import time
 
 import cmd
+import kv_store
 import repo_config as rc
 import requests_retry
 
@@ -31,7 +32,7 @@ def _store_plan_data(plan_data, work_token, api_base_url, dir_path, workspace, h
     return (res.status_code == 200, res.text)
 
 
-def _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
+def _store_plan_terrateam_1(work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
     try:
         with open(plan_path, 'rb') as f:
             plan_data_raw = f.read()
@@ -46,6 +47,34 @@ def _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_pa
                       dir_path,
                       workspace,
                       hashlib.md5(plan_data_raw).hexdigest())
+
+        return _store_plan_data(plan_data,
+                                work_token,
+                                api_base_url,
+                                dir_path,
+                                workspace,
+                                has_changes)
+    except Exception as exn:
+        logging.exception('Failed')
+        return (False, str(exn))
+
+
+def _store_plan_terrateam_2(state, api_base_url, work_token, dir_path, workspace, has_changes):
+    try:
+        plan_data = {
+            'data': {
+                'path': dir_path,
+                'workspace': workspace,
+                '@plan_data': os.path.basename(state.env['TERRATEAM_PLAN_FILE']),
+                'has_changes': has_changes
+            },
+            'method': 'terrateam',
+            'version': 2
+        }
+
+        logging.debug('PLAN : STORE_PLAN : dir_path=%s : workspace=%s',
+                      dir_path,
+                      workspace)
 
         return _store_plan_data(plan_data,
                                 work_token,
@@ -135,8 +164,20 @@ def _store_plan_s3(state, plan_storage, work_token, api_base_url, dir_path, work
 
 def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
     method = plan_storage['method']
-    if method == 'terrateam':
-        return _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_path, has_changes)
+    if method == 'terrateam' and state.protocol_version == 1:
+        return _store_plan_terrateam_2(state,
+                                       api_base_url,
+                                       work_token,
+                                       dir_path,
+                                       workspace,
+                                       has_changes)
+    elif method == 'terrateam':
+        return _store_plan_terrateam_1(work_token,
+                                       api_base_url,
+                                       dir_path,
+                                       workspace,
+                                       plan_path,
+                                       has_changes)
     elif method == 'cmd':
         return _store_plan_cmd(state,
                                plan_storage,
@@ -160,12 +201,18 @@ def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspa
 
 
 def run(state, config):
-    (success, has_changes, stdout, stderr) = state.engine.plan(state, config)
+    config = config.copy()
+
+    config['tee'] = kv_store.gen_unique_key_path(
+        state,
+        lambda _: kv_store.mk_dirspace_key(state, 'plan.text'))
+    (success, has_changes, plan_stdout_key, plan_stderr_key) = state.engine.plan(state, config)
 
     if not success:
         return workflow.Result2(
             payload={
-                'text': '\n'.join([stderr, stdout]),
+                '@text': os.path.basename(plan_stdout_key),
+                '@stderr': os.path.basename(plan_stderr_key),
                 'visible_on': 'always',
             },
             state=state,
@@ -177,33 +224,41 @@ def run(state, config):
         with open(state.env['TERRATEAM_PLAN_FILE'], 'w') as f:
             f.write('{}')
 
+    config['tee'] = kv_store.gen_unique_key_path(
+        state,
+        lambda _: kv_store.mk_dirspace_key(state, 'diff'))
     res = state.engine.diff(state, config)
 
     if res:
-        (success, diff_stdout, diff_stderr) = res
+        (success, diff_stdout_key, diff_stderr_key) = res
     else:
         success = True
-        diff_stdout = ''
-        diff_stderr = ''
+        diff_stdout_key = None
+        diff_stderr_key = None
 
     if not success:
         return workflow.Result2(
             payload={
-                'text': '\n'.join([diff_stderr, diff_stdout]),
+                '@text': os.path.basename(diff_stdout_key),
+                '@stderr': os.path.basename(diff_stderr_key),
                 'visible_on': 'always',
             },
             state=state,
             step=state.engine.name + '/plan',
             success=success)
 
+    # config['tee'] = kv_store.gen_unique_key_path(
+    #     state,
+    #     lambda _: kv_store.mk_dirspace_key(state, 'diff_json'))
     # res = state.engine.diff_json(state, config)
     # if res and res[0]:
     #     (success, diff_json) = res
     # elif res:
-    #     (success, stdout, stderr) = res
+    #     (success, diff_json_stdout, diff_json_stderr) = res
     #     return workflow.Result2(
     #         payload={
-    #             'text': '\n'.join([stderr, stdout]),
+    #             '@text': os.path.basename(diff_json_stdout),
+    #             '@stderr': os.path.basename(diff_json_stderr),
     #             'visible_on': 'always',
     #         },
     #         state=state,
@@ -211,6 +266,7 @@ def run(state, config):
     #         success=success)
     # else:
     #     diff_json = None
+
 
     plan_storage = rc.get_plan_storage(state.repo_config)
 
@@ -237,14 +293,19 @@ def run(state, config):
             step=state.engine.name + '/plan',
             success=success)
 
+    payload = {
+        '@plan': os.path.basename(diff_stdout_key),
+        'has_changes': has_changes,
+        '@text': os.path.basename(plan_stdout_key),
+        '@stderr': os.path.basename(plan_stderr_key),
+        'visible_on': 'always',
+    }
+
+    # if diff_json:
+    #     payload['@diff'] = os.path.basename(diff_json)
+
     return workflow.Result2(
-        payload={
-            'plan': diff_stdout,
-            # 'diff': diff_json,
-            'has_changes': has_changes,
-            'text': stdout,
-            'visible_on': 'always',
-        },
+        payload=payload,
         state=state,
         step=state.engine.name + '/plan',
         success=True)

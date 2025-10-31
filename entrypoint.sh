@@ -1,5 +1,16 @@
 #! /bin/sh
 
+if [ -n "$TTM_DEV_IMAGE" ]; then
+    set -x
+    apt-get update
+    apt-get install -y docker.io
+    docker pull "$TTM_DEV_IMAGE"
+    docker create --name ttm "$TTM_DEV_IMAGE"
+    docker cp ttm:/usr/local/bin/ttm /usr/local/bin/ttm
+    docker rm ttm
+    set +x
+fi
+
 # Set PATH
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
