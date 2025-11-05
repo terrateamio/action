@@ -7,4 +7,8 @@ COPY terrat_runner /terrat_runner
 
 COPY proxy/bin /usr/local/proxy/bin
 
+ENV TTM_DEV_IMAGE="ghcr.io/terrateamio/ttm-dev:20251105-971-add-kv-store-caps-0dac2d4-amd64"
+
+ENV SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+
 ENTRYPOINT ["/entrypoint.sh"]

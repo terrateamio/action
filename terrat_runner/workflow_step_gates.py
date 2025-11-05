@@ -5,8 +5,6 @@ import os
 import cmd
 import workflow
 
-import workflow_step_run
-
 
 def run(state, config):
     # Errors will always be ignored for gates.
