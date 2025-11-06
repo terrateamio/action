@@ -87,6 +87,13 @@ class Exec(work_exec.ExecInterface):
                          path,
                          create_and_select_workspace)
 
+            create_if_missing = rc.get_create_if_missing(state.repo_config, path)
+            if create_if_missing:
+                os.makedirs(path, exist_ok=True)
+            logging.info('PLAN : CREATE_IF_MISSING: %s : %r',
+                         path,
+                         create_if_missing)
+
             work_exec.set_engine_env(
                 env,
                 state.repo_config,

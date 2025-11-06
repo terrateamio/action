@@ -59,10 +59,16 @@ class Exec(work_exec.ExecInterface):
             create_and_select_workspace = rc.get_create_and_select_workspace(
                 state.repo_config,
                 path)
-
             logging.info('APPLY : CREATE_AND_SELECT_WORKSPACE : %s : %r',
                          path,
                          create_and_select_workspace)
+
+            create_if_missing = rc.get_create_if_missing(state.repo_config, path)
+            if create_if_missing:
+                os.makedirs(path, exist_ok=True)
+            logging.info('APPLY : CREATE_IF_MISSING: %s : %r',
+                         path,
+                         create_if_missing)
 
             work_exec.set_engine_env(
                 env,

@@ -75,6 +75,14 @@ class Exec(work_exec.ExecInterface):
                          path,
                          create_and_select_workspace)
 
+            create_if_missing = rc.get_create_if_missing(state.repo_config, path)
+            if create_if_missing:
+                os.makedirs(path, exist_ok=True)
+
+            logging.info('UNSAFE_APPLY : CREATE_IF_MISSING: %s : %r',
+                         path,
+                         create_if_missing)
+
             if workflow_idx is None:
                 workflow = rc.get_default_workflow(state.repo_config)
             else:
