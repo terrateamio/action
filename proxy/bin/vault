@@ -1,0 +1,38 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+VAULT_VERSION="${VAULT_VERSION:-1.18.3}"
+ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g')
+
+if [[ ! -f /usr/local/bin/vault ]]; then
+    flock /tmp/vault-install bash -c "
+        curl \
+          -fsSL \
+          -o \
+          /tmp/vault.zip \
+          \"https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_${ARCH}.zip\"
+        unzip -q -o /tmp/vault.zip -d /tmp
+        mv /tmp/vault /usr/local/bin/vault
+        chmod +x /usr/local/bin/vault
+        rm -f /tmp/vault.zip
+    "
+else
+    INSTALLED_VERSION=$(/usr/local/bin/vault version 2>/dev/null | grep -oP 'Vault v\K[0-9.]+' || echo "")
+    if [[ "$INSTALLED_VERSION" != "$VAULT_VERSION" ]]; then
+        flock /tmp/vault-install bash -c "
+            curl \
+              -fsSL \
+              -o \
+              /tmp/vault.zip \
+              \"https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_${ARCH}.zip\"
+            unzip -q -o /tmp/vault.zip -d /tmp
+            mv /tmp/vault /usr/local/bin/vault
+            chmod +x /usr/local/bin/vault
+            rm -f /tmp/vault.zip
+        "
+    fi
+fi
+
+exec /usr/local/bin/vault "$@"
