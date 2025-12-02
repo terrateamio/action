@@ -27,9 +27,9 @@ def _run(state, config, f):
 
 
 class Engine:
-    def __init__(self):
+    def __init__(self, **options):
         self.name = 'tf'
-        self.engine_tf = engine_tf.make()
+        self.engine_tf = engine_tf.make(**options)
 
     def init(self, state, config):
         (proc, stdout, stderr) = cmd.run_with_output(
@@ -75,5 +75,5 @@ class Engine:
         return _run(state, config, self.engine_tf.outputs)
 
 
-def make():
-    return Engine()
+def make(**options):
+    return Engine(**options)
