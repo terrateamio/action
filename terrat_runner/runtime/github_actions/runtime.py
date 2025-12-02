@@ -124,6 +124,9 @@ class Runtime(object):
     def update_workflow_steps(self, run_type, steps):
         return [{'type': 'update_terrateam_github_token'}] + steps
 
+    def update_pre_hook_steps(self, run_type, steps):
+        return [{'type': 'update_terrateam_github_token'}] + steps
+
     def is_command(self, str):
         return str.startswith('::add-mask::')
 
@@ -134,7 +137,6 @@ class Runtime(object):
                 secrets.append(s[len('::add-mask::'):])
 
         return secrets
-
 
     def add_reviewers(self, env, reviewers):
         if env['TERRATEAM_RUN_KIND'] == 'pr' and reviewers:

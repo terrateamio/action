@@ -20,7 +20,9 @@ def _merge_integrations(state, steps, integrations):
 
 class Exec(work_exec.ExecInterface):
     def pre_hooks(self, state):
-        pre_hooks = rc.get_all_hooks(state.repo_config)['pre']
+        pre_hooks = state.runtime.update_pre_hook_steps(
+            'plan',
+            rc.get_all_hooks(state.repo_config)['pre'])
 
         env = state.env
         if 'TF_API_TOKEN' in env:
