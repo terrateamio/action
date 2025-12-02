@@ -96,6 +96,9 @@ class Runtime(object):
     def update_workflow_steps(self, run_type, steps):
         return steps
 
+    def update_pre_hook_steps(self, run_type, steps):
+        return steps
+
     def is_command(self, str):
         return str.startswith('::add-mask::')
 
