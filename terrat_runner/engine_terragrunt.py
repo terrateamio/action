@@ -1,5 +1,6 @@
 import engine_tf
 
 
-def make():
-    return engine_tf.make(tf_cmd='terragrunt')
+def make(**options):
+    options['tf_cmd'] = 'terragrunt'
+    return engine_tf.make(**options)
