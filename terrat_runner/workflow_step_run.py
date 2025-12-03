@@ -1,7 +1,19 @@
 import logging
+import os
 
 import cmd
+import kv_store
 import workflow
+
+
+def _mk_key(state):
+    def _f(unique):
+        if 'TERRATEAM_DIR' in state.env and 'TERRATEAM_WORKSPACE' in state.env:
+            return kv_store.mk_dirspace_key(state, 'run.' + unique)
+        else:
+            return kv_store.mk_hooks_key(state, 'run', unique)
+
+    return _f
 
 
 def run(state, config):
@@ -18,19 +30,13 @@ def run(state, config):
         # Only capture output if we want to save it somewhere or we have
         # explicitly enabled it.
         if capture_output:
-            proc, stdout, stderr = cmd.run_with_output(state, config)
-            if proc.returncode == 0:
-                payload = {
-                    'text': stdout,
-                    'stderr': stderr
-                }
-            else:
-                # Not a great solution but the best for shor term.  If the
-                # command failed, just combine stdout and stderr.  Otherwise
-                # we'll keep them separate on success because probably you don't
-                # need to look at stderr on success and stdout might need to be
-                # something like JSON that needs to be parsed.
-                payload = {'text': '\n'.join([stderr, stdout])}
+            config = config.copy()
+            config['tee'] = kv_store.gen_unique_key_path(state, _mk_key(state))
+            proc, stdout_key, stderr_key = cmd.run_with_output(state, config)
+            payload = {
+                '@text': os.path.basename(stdout_key),
+                '@stderr': os.path.basename(stderr_key),
+            }
         else:
             proc = cmd.run(state, config)
             payload = {}

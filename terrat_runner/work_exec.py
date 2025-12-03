@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import tempfile
+import urllib
 
 import dir_exec
 import engine_cdktf
@@ -12,15 +13,20 @@ import engine_pulumi
 import engine_terragrunt
 import engine_tf
 import hooks
+import kv_store
 import repo_config as rc
 import requests_retry
 import results_compat
 import run_state
+import ttm
 
 
 TOFU_DEFAULT_VERSION = '1.9.0'
 TERRAFORM_DEFAULT_VERSION = '1.5.7'
 TERRAGRUNT_DEFAULT_VERSION = '0.75.3'
+
+# 100 kilobytes
+PLAN_DIFF_SIZE_THRESHOLD = 1024 * 100
 
 
 class ExecInterface(abc.ABC):
@@ -156,6 +162,183 @@ def _extract_secrets(runtime, value):
         return []
 
 
+def _upload_results(state, secrets, unmasks, results):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        secrets_file = os.path.join(tmpdir, 'secrets')
+        secrets_null_file = os.path.join(tmpdir, 'secrets.null')
+        unmasks_file = os.path.join(tmpdir, 'unmasks')
+
+        # Convert to secrets format, which has secrets starting with a dot, and
+        # using '+' for multi-line secrets
+        with open(secrets_file, 'w') as f:
+            for s in secrets:
+                l = '.' + s.replace('\n', '\n+')
+                f.write(l)
+                f.write('\n')
+
+        with open(unmasks_file, 'w') as f:
+            for s in unmasks:
+                l = '.' + s.replace('\n', '\n+')
+                f.write(l)
+                f.write('\n')
+
+        with open(secrets_null_file, 'wb') as f:
+            f.write(b'\0')
+
+        files = os.listdir(state.outputs_dir)
+        for fname in files:
+            key = urllib.parse.unquote(fname)
+
+            # This is a cheap trick to upload the diff json as actual json rather than a file
+            if 'diff_json.stdout' in fname:
+                ttm.secrets_mask(
+                    state,
+                    secrets_file,
+                    unmasks_file,
+                    os.path.join(state.outputs_dir, fname))
+                # For the diff, we're actually going to go a step further and
+                # mask out null bytes because there is a chance they are in the
+                # json representation of the plan (one can put binary data into
+                # a plan).  Uploading the actual plan is not an issue because we
+                # base64 encode it, but this needs to be modified so we can
+                # store it in the database (PostgreSQL does not like null
+                # bytes).
+                ttm.secrets_mask(
+                    state,
+                    secrets_null_file,
+                    unmasks_file,
+                    os.path.join(state.outputs_dir, fname))
+
+                with open(os.path.join(state.outputs_dir, fname), 'rb') as fin:
+                    data = fin.read()
+
+                try:
+                    # Try to convert to JSON just to verify it is JSON
+                    plan_data = json.loads(data)
+                    # If the data is very large, we'll actually push
+                    # "resource_changes" up as separate values in order to keep
+                    # the total blob size down.  It is likely almost all the
+                    # size of a plan is in "resource_change".  This assumes that
+                    # the diff is a terrraform diff, which it could not be, but
+                    # we'll optimize for othat path.
+                    if len(data) > PLAN_DIFF_SIZE_THRESHOLD:
+                        if 'resource_changes' in plan_data:
+                            resource_changes = plan_data['resource_changes']
+                            del plan_data['resource_changes']
+                            plan_data['@resource_changes'] = key
+                            ttm.kv_set(
+                                state,
+                                state.work_manifest['api_base_url'],
+                                state.work_manifest['installation_id'],
+                                key,
+                                json.dumps(plan_data),
+                                draft=True)
+                            for (idx, rc) in zip(range(len(resource_changes)), resource_changes):
+                                ttm.kv_set(
+                                    state,
+                                    state.work_manifest['api_base_url'],
+                                    state.work_manifest['installation_id'],
+                                    key + '.resource_changes',
+                                    json.dumps(rc),
+                                    idx=idx,
+                                    draft=True)
+                    else:
+                        ttm.kv_set(
+                            state,
+                            state.work_manifest['api_base_url'],
+                            state.work_manifest['installation_id'],
+                            key,
+                            data,
+                            draft=True)
+                except json.JSONDecodeError:
+                    logging.exception('Could not load diff')
+                    ttm.kv_upload(
+                        state,
+                        state.work_manifest['api_base_url'],
+                        state.work_manifest['installation_id'],
+                        key,
+                        os.path.join(state.outputs_dir, fname),
+                        draft=True)
+            elif 'plan-data' in fname:
+                # Another hack, but for plan data we want to make sure only
+                # accounts with system access can read/write the plans.
+                ttm.kv_upload(
+                    state,
+                    state.work_manifest['api_base_url'],
+                    state.work_manifest['installation_id'],
+                    key,
+                    os.path.join(state.outputs_dir, fname),
+                    draft=True,
+                    read_caps=['kv_store_system_read'],
+                    write_caps=['kv_store_system_write'])
+            else:
+                ttm.secrets_mask(
+                    state,
+                    secrets_file,
+                    unmasks_file,
+                    os.path.join(state.outputs_dir, fname))
+
+                ttm.kv_upload(
+                    state,
+                    state.work_manifest['api_base_url'],
+                    state.work_manifest['installation_id'],
+                    key,
+                    os.path.join(state.outputs_dir, fname),
+                    draft=True)
+
+def _set_steps(state, results):
+    for (idx, step) in zip(range(len(results['steps'])), results['steps']):
+        ttm.kv_set(
+            state,
+            state.work_manifest['api_base_url'],
+            state.work_manifest['installation_id'],
+            kv_store.mk_steps_key(state),
+            json.dumps(step).encode('utf-8'),
+            idx=idx,
+            draft=True)
+
+
+def _commit_steps(state):
+    fnames = os.listdir(state.outputs_dir)
+    keys = ([urllib.parse.unquote(fname) for fname in fnames]
+            + [kv_store.mk_steps_key(state)]
+            + [urllib.parse.unquote(key + '.resource_changes')
+               for key in fnames
+               if 'diff_json.stdout' in key])
+    ttm.kv_commit(
+        state,
+        state.work_manifest['api_base_url'],
+        state.work_manifest['installation_id'],
+        keys)
+
+
+def _realize_links(state, value):
+    if isinstance(value, dict):
+        for k in list(value.keys()):
+            # We're actually going to remove diff rather than realize it because
+            # we've found it's just too large in many instances.  We'll make use
+            # of it when we transition over to the kv store representation.
+            if k == '@diff':
+                del value[k]
+            elif k.startswith('@'):
+                v = value[k]
+                del value[k]
+                k = k[1:]
+                with open(os.path.join(state.outputs_dir, v), 'r') as f:
+                    value[k] = f.read()
+            else:
+                _realize_links(state, value[k])
+    elif isinstance(value, list):
+        for v in value:
+            _realize_links(state, v)
+    else:
+        pass
+
+
+def _realize_step_links(state, results):
+    _realize_links(state, results['steps'])
+
+
 def _store_results(state, work_token, api_base_url, results):
     unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
                    + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
@@ -167,7 +350,18 @@ def _store_results(state, work_token, api_base_url, results):
     secrets = _extract_secrets(state.runtime, results)
     secrets = state.secrets | set(secrets)
     secrets = sorted(secrets, key=len, reverse=True)
-    results = _mask_secrets(secrets, unmasked, results)
+
+
+    if state.protocol_version == 1:
+        _upload_results(state, secrets, unmasked, results)
+        _set_steps(state, results)
+        _commit_steps(state)
+        # Turn all steps into what the exiting API expects
+        _realize_step_links(state, results)
+        results = _mask_secrets(secrets, unmasked, results)
+    else:
+        results = _mask_secrets(secrets, unmasked, results)
+
     results = results_compat.transform(state, results)
 
     res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,

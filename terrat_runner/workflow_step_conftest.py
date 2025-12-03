@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import cmd
 import workflow
@@ -37,13 +38,14 @@ def run(state, config):
             step='tf/conftest',
             success=False)
 
-    plan_show = os.path.join(state.tmpdir, 'conftest.plan.json')
-    with open(plan_show, 'w') as f:
-        f.write(stdout)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        plan_show = os.path.join(tmpdir, 'conftest.plan.json')
+        with open(plan_show, 'w') as f:
+            f.write(stdout)
 
-    extra_args = config.get('extra_args', [])
-    return workflow_step_run.run(
-        state._replace(working_dir=working_dir),
-        {
-            'cmd': ['conftest', 'test', '--ignore', '.git'] + extra_args + [plan_show],
-        })._replace(step='tf/conftest')
+        extra_args = config.get('extra_args', [])
+        return workflow_step_run.run(
+            state._replace(working_dir=working_dir),
+            {
+                'cmd': ['conftest', 'test', '--ignore', '.git'] + extra_args + [plan_show],
+            })._replace(step='tf/conftest')
