@@ -20,9 +20,17 @@ def format_diff(text):
 
 
 class Engine:
-    def __init__(self, name, tf_cmd):
+    def __init__(self, name, tf_cmd, **options):
         self.name = name
         self.tf_cmd = tf_cmd
+
+        # Outputs can sometimes be set to None, so we get it with a default and
+        # if its None then set it to the default
+        outputs = options.get('outputs', {})
+        if outputs is None:
+            outputs = {}
+        self.__outputs = outputs
+
 
     def init(self, state, config, create_and_select_workspace=None):
         # If there is already a .terraform dir, delete it
@@ -191,19 +199,26 @@ class Engine:
         return (proc.returncode == 0, stdout, stderr)
 
     def outputs(self, state, config):
-        logging.info(
-            'OUTPUTS : %s : engine=%s',
-            state.path,
-            state.workflow['engine']['name'])
+        if self.__outputs.get('collect', True):
+            logging.info(
+                'OUTPUTS : %s : engine=%s',
+                state.path,
+                state.workflow['engine']['name'])
 
-        (proc, stdout, stderr) = cmd.run_with_output(
-            state,
-            {
-                'cmd': [self.tf_cmd, 'output', '-json']
-            })
+            (proc, stdout, stderr) = cmd.run_with_output(
+                state,
+                {
+                    'cmd': [self.tf_cmd, 'output', '-json']
+                })
 
-        return (proc.returncode == 0, stdout, stderr)
+            return (proc.returncode == 0, stdout, stderr)
+        else:
+            logging.info(
+                'OUTPUTS : %s : DISABLED',
+                state.path)
+            return None
 
 
-def make(tf_cmd='${TERRATEAM_TF_CMD}'):
-    return Engine(name='tf', tf_cmd=tf_cmd)
+def make(**options):
+    options['name'] = 'tf'
+    return Engine(**options)

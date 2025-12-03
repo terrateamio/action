@@ -187,12 +187,16 @@ def convert_engine(engine):
             plan_args=engine.get('plan'),
             unsafe_apply_args=engine.get('unsafe_apply'),
             outputs_args=engine.get('outputs'))
-    elif engine['name'] in ['terraform', 'tofu']:
-        return engine_tf.make()
+    elif engine['name'] in 'terraform':
+        engine.setdefault('tf_cmd', 'terraform')
+        return engine_tf.make(**engine)
+    elif engine['name'] in 'tofu':
+        engine.setdefault('tf_cmd', 'tofu')
+        return engine_tf.make(**engine)
     elif engine['name'] == 'terragrunt':
-        return engine_terragrunt.make()
+        return engine_terragrunt.make(**engine)
     elif engine['name'] == 'cdktf':
-        return engine_cdktf.make()
+        return engine_cdktf.make(**engine)
     elif engine['name'] == 'pulumi':
         return engine_pulumi.make()
     elif engine['name'] == 'fly':
