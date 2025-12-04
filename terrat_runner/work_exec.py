@@ -188,10 +188,10 @@ def convert_engine(engine):
             unsafe_apply_args=engine.get('unsafe_apply'),
             outputs_args=engine.get('outputs'))
     elif engine['name'] in 'terraform':
-        engine.setdefault('tf_cmd', 'terraform')
+        engine.setdefault('override_tf_cmd', 'terraform')
         return engine_tf.make(**engine)
     elif engine['name'] in 'tofu':
-        engine.setdefault('tf_cmd', 'tofu')
+        engine.setdefault('override_tf_cmd', 'tofu')
         return engine_tf.make(**engine)
     elif engine['name'] == 'terragrunt':
         return engine_terragrunt.make(**engine)
