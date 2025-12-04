@@ -20,9 +20,9 @@ def format_diff(text):
 
 
 class Engine:
-    def __init__(self, name, tf_cmd, **options):
+    def __init__(self, name, override_tf_cmd, **options):
         self.name = name
-        self.tf_cmd = tf_cmd
+        self.tf_cmd = override_tf_cmd
 
         # Outputs can sometimes be set to None, so we get it with a default and
         # if its None then set it to the default
