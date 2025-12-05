@@ -196,6 +196,7 @@ def convert_engine(engine):
     elif engine['name'] == 'terragrunt':
         return engine_terragrunt.make(**engine)
     elif engine['name'] == 'cdktf':
+        engine.setdefault('override_tf_cmd', engine.get('tf_cmd', 'terraform'))
         return engine_cdktf.make(**engine)
     elif engine['name'] == 'pulumi':
         return engine_pulumi.make()
