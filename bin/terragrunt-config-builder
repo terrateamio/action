@@ -255,6 +255,21 @@ def is_local_source(source: str) -> bool:
         if source.startswith(prefix):
             return False
 
+    # Check for git SSH URLs (e.g., git@github.com:user/repo.git)
+    # These contain @ character and typically match pattern: git@hostname:path
+    if '@' in source and ':' in source:
+        # Check if it looks like a git SSH URL
+        at_index = source.index('@')
+        if at_index > 0:
+            # Check if there's text before @ (usually 'git')
+            prefix = source[:at_index]
+            if prefix in ['git', 'ssh', 'hg', 'svn'] or not prefix:
+                return False
+            # Also check if there's a colon after @ (SSH URL pattern)
+            after_at = source[at_index + 1:]
+            if ':' in after_at and not after_at.startswith('/'):
+                return False
+
     # Check if it looks like a Terraform registry module (e.g., "hashicorp/consul/aws")
     if '/' in source and not source.startswith('.') and not source.startswith('/'):
         parts = source.split('/')
