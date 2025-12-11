@@ -236,6 +236,10 @@ def is_local_source(source: str) -> bool:
     """
     Determine if a terraform source is a local path (not remote).
 
+    Per Terraform's specification, local module paths must start with ./ or ../
+    for relative paths, or / for absolute paths. Everything else (registry modules,
+    git URLs, HTTP URLs, etc.) is treated as remote.
+
     Args:
         source: The terraform source string
 
@@ -247,37 +251,8 @@ def is_local_source(source: str) -> bool:
     if source.startswith('${') and '}' in source:
         return False
 
-    # Remote sources typically start with these prefixes
-    remote_prefixes = ['git::', 'hg::', 'http://', 'https://', 's3::', 'gcs::']
-
-    # Check if it starts with a remote prefix
-    for prefix in remote_prefixes:
-        if source.startswith(prefix):
-            return False
-
-    # Check for git SSH URLs (e.g., git@github.com:user/repo.git)
-    # These contain @ character and typically match pattern: git@hostname:path
-    if '@' in source and ':' in source:
-        # Check if it looks like a git SSH URL
-        at_index = source.index('@')
-        if at_index > 0:
-            # Check if there's text before @ (usually 'git')
-            prefix = source[:at_index]
-            if prefix in ['git', 'ssh', 'hg', 'svn'] or not prefix:
-                return False
-            # Also check if there's a colon after @ (SSH URL pattern)
-            after_at = source[at_index + 1:]
-            if ':' in after_at and not after_at.startswith('/'):
-                return False
-
-    # Check if it looks like a Terraform registry module (e.g., "hashicorp/consul/aws")
-    if '/' in source and not source.startswith('.') and not source.startswith('/'):
-        parts = source.split('/')
-        if len(parts) >= 2 and '.' not in parts[0]:  # namespace/name format
-            return False
-
-    # Otherwise, it's likely a local path
-    return True
+    # Per Terraform spec: local paths start with ./ or ../ (relative) or / (absolute)
+    return source.startswith('./') or source.startswith('../') or source.startswith('/')
 
 
 def resolve_relative_path(base_dir: str, relative_path: str) -> Optional[str]:
