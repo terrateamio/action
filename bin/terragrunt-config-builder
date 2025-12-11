@@ -16,6 +16,7 @@ Environment Variables:
 import json
 import os
 import sys
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
 import re
@@ -74,9 +75,101 @@ def discover_terragrunt_files(root_path: str, exclude_patterns: Optional[List[st
     return sorted(terragrunt_dirs)
 
 
+def get_terragrunt_dependencies(root_path: str) -> Dict[str, List[str]]:
+    """
+    Use terragrunt to get the dependency graph with all interpolations evaluated.
+
+    Args:
+        root_path: Root directory of the repository
+
+    Returns:
+        Dictionary mapping directory paths to their dependencies
+    """
+    dependency_graph = {}
+
+    try:
+        log("Running terragrunt list -l --dependencies to get evaluated dependency graph...")
+
+        # Run terragrunt list from the root directory
+        result = subprocess.run(
+            ['terragrunt', 'list', '-l', '--dependencies'],
+            cwd=root_path,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+
+        if result.returncode != 0:
+            log(f"Terragrunt list failed with return code {result.returncode}", "WARN")
+            log(f"stderr: {result.stderr}", "DEBUG")
+            return dependency_graph
+
+        # Parse the table output
+        # Format:
+        # Type  Path           Dependencies
+        # unit  live/dev/db    live/dev/vpc
+        # unit  live/dev/ec2   live/dev/db, live/dev/vpc
+
+        lines = result.stdout.strip().split('\n')
+
+        # Skip header line
+        for line in lines[1:]:
+            if not line.strip():
+                continue
+
+            # Split on whitespace, handling variable spacing
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+
+            # First column is Type, second is Path
+            unit_type = parts[0]
+            path = parts[1]
+
+            # Everything after the second column is dependencies (comma-separated)
+            if len(parts) > 2:
+                # Join the rest and split by comma
+                deps_str = ' '.join(parts[2:])
+                dependencies = [d.strip() for d in deps_str.split(',')]
+            else:
+                dependencies = []
+
+            # Convert absolute paths to relative paths
+            rel_path = os.path.relpath(path, root_path) if os.path.isabs(path) else path
+            if rel_path == '.':
+                rel_path = ''
+
+            # Also convert dependency paths to relative
+            rel_dependencies = []
+            for dep in dependencies:
+                rel_dep = os.path.relpath(dep, root_path) if os.path.isabs(dep) else dep
+                if rel_dep == '.':
+                    rel_dep = ''
+                rel_dependencies.append(rel_dep)
+
+            dependency_graph[rel_path] = rel_dependencies
+            log(f"  {rel_path} depends on: {rel_dependencies}", "DEBUG")
+
+        log(f"Loaded {len(dependency_graph)} units from terragrunt list")
+
+    except subprocess.TimeoutExpired:
+        log("Terragrunt list timed out after 5 minutes", "ERROR")
+    except FileNotFoundError:
+        log("terragrunt command not found. Please ensure Terragrunt is installed and in PATH.", "ERROR")
+    except Exception as e:
+        log(f"Error running terragrunt list: {e}", "ERROR")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+
+    return dependency_graph
+
+
 def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, List[str]]:
     """
-    Parse a terragrunt.hcl file and extract all dependencies.
+    Parse a terragrunt.hcl file and extract file patterns for when_modified tracking.
+
+    NOTE: This function does NOT parse dependency/dependencies blocks anymore.
+    Dependencies are obtained from terragrunt itself via get_terragrunt_dependencies().
 
     Args:
         file_path: Absolute path to the terragrunt.hcl file
@@ -84,13 +177,11 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, Li
 
     Returns:
         Dictionary with keys:
-            - dependencies: List of terragrunt module paths (from dependency/dependencies blocks)
             - includes: List of parent config file paths (from include blocks)
             - terraform_sources: List of local terraform module paths (from terraform.source)
             - extra_deps: List of extra dependency paths (from locals.extra_atlantis_dependencies)
     """
     result = {
-        "dependencies": [],
         "includes": [],
         "terraform_sources": [],
         "extra_deps": []
@@ -106,36 +197,6 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, Li
             except lark.exceptions.LarkError as e:
                 log(f"HCL parse error in {file_path}: {e}", "WARN")
                 return result
-
-        # Extract dependency blocks
-        # HCL2 parses dependency blocks as: [{'dep_name': {'config_path': ['../path']}}]
-        if 'dependency' in parsed:
-            dependency_data = parsed['dependency']
-            if isinstance(dependency_data, list):
-                for dep_dict in dependency_data:
-                    # Each element is a dict with dep_name as key
-                    for dep_name, dep_config in dep_dict.items():
-                        if 'config_path' in dep_config:
-                            config_path_value = dep_config['config_path']
-                            # config_path is usually a list with one element
-                            if isinstance(config_path_value, list) and len(config_path_value) > 0:
-                                config_path = config_path_value[0]
-                            else:
-                                config_path = config_path_value
-                            resolved_path = resolve_relative_path(base_dir, config_path)
-                            if resolved_path:
-                                result['dependencies'].append(resolved_path)
-                                log(f"  Found dependency '{dep_name}': {config_path} -> {resolved_path}", "DEBUG")
-
-        # Extract dependencies block (plural)
-        if 'dependencies' in parsed:
-            for deps_block in parsed['dependencies']:
-                if 'paths' in deps_block:
-                    for path in deps_block['paths']:
-                        resolved_path = resolve_relative_path(base_dir, path)
-                        if resolved_path:
-                            result['dependencies'].append(resolved_path)
-                            log(f"  Found dependencies.paths: {path} -> {resolved_path}", "DEBUG")
 
         # Extract include blocks
         if 'include' in parsed:
@@ -193,7 +254,8 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, Li
                         source = source_value[0]
                     else:
                         source = source_value
-                    if is_local_source(source):
+                    # Only evaluate local module paths that are strings
+                    if isinstance(source, str) and is_local_source(source):
                         resolved_path = resolve_relative_path(base_dir, source)
                         if resolved_path:
                             result['terraform_sources'].append(resolved_path)
@@ -238,20 +300,17 @@ def is_local_source(source: str) -> bool:
 
     Per Terraform's specification, local module paths must start with ./ or ../
     for relative paths, or / for absolute paths. Everything else (registry modules,
-    git URLs, HTTP URLs, etc.) is treated as remote.
+    git URLs, HTTP URLs, interpolations, etc.) is treated as remote and should
+    NOT be tracked for file changes.
 
     Args:
         source: The terraform source string
 
     Returns:
-        True if the source is a local file path
+        True if the source is a local file path that should be tracked
     """
-    # Skip Terragrunt variable interpolations - we can't evaluate these at parse time
-    # Examples: ${include.envcommon.locals.base_source_url}, ${local.source_url}
-    if source.startswith('${') and '}' in source:
-        return False
-
     # Per Terraform spec: local paths start with ./ or ../ (relative) or / (absolute)
+    # Everything else is remote or unresolvable - skip it
     return source.startswith('./') or source.startswith('../') or source.startswith('/')
 
 
@@ -318,26 +377,6 @@ def find_parent_configs(base_dir: str) -> List[str]:
         parent_configs.append(config_file)
 
     return parent_configs
-
-
-def build_dependency_graph(terragrunt_dirs: List[str], all_dependencies: Dict[str, Dict]) -> Dict[str, List[str]]:
-    """
-    Build a dependency graph showing which directories depend on which.
-
-    Args:
-        terragrunt_dirs: List of directory paths containing terragrunt.hcl
-        all_dependencies: Dictionary mapping directory paths to their parsed dependencies
-
-    Returns:
-        Adjacency dictionary: {dir_path: [list of dependency paths]}
-    """
-    graph = {}
-
-    for dir_path in terragrunt_dirs:
-        deps = all_dependencies.get(dir_path, {})
-        graph[dir_path] = deps.get("dependencies", [])
-
-    return graph
 
 
 def generate_terrateam_config(
@@ -442,16 +481,16 @@ def main():
             json.dump(input_config, sys.stdout, indent=2)
             return
 
-        # Phase 2: Parse dependencies (placeholder for now)
-        log("Phase 2: Parsing dependencies...")
+        # Phase 2: Get dependency graph from Terragrunt
+        log("Phase 2: Getting dependency graph from Terragrunt...")
+        dependency_graph = get_terragrunt_dependencies(repo_root)
+
+        # Phase 3: Parse file patterns for when_modified
+        log("Phase 3: Parsing file patterns from HCL files...")
         all_dependencies = {}
         for dir_path in terragrunt_dirs:
             file_path = os.path.join(repo_root, dir_path, "terragrunt.hcl")
             all_dependencies[dir_path] = parse_terragrunt_dependencies(file_path, dir_path)
-
-        # Phase 3: Build dependency graph
-        log("Phase 3: Building dependency graph...")
-        dependency_graph = build_dependency_graph(terragrunt_dirs, all_dependencies)
 
         # Phase 4: Generate Terrateam config
         log("Phase 4: Generating Terrateam configuration...")
