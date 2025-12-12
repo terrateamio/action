@@ -170,7 +170,7 @@ def get_default_workflow(repo_config):
 
 
 def get_default_tf_version(repo_config):
-    return repo_config.get('default_tf_version', 'latest')
+    return repo_config.get('default_tf_version')
 
 
 def get_parallelism(repo_config):

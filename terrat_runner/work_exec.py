@@ -85,9 +85,10 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
             env[TOFU_ENV_NAME] = _get(engine, 'tf_version', TOFU_DEFAULT_VERSION)
         else:
             env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'terraform')
-            env[TERRAFORM_ENV_NAME] = _get(engine,
-                                           'tf_version',
-                                           rc.get_default_tf_version(repo_config))
+            env[TERRAFORM_ENV_NAME] = _get(
+                engine,
+                'tf_version',
+                rc.get_default_tf_version(repo_config) or TERRAFORM_DEFAULT_VERSION)
 
         # If it is terragrunt specific environment
         if engine['name'] == 'terragrunt':
