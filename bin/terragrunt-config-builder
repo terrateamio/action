@@ -88,7 +88,9 @@ def get_terragrunt_dependencies(root_path: str) -> Dict[str, List[str]]:
     dependency_graph = {}
 
     try:
-        log("Running terragrunt list -l --dependencies to get evaluated dependency graph...")
+        # Allow timeout to be configured via environment variable
+        timeout_seconds = int(os.environ.get('TERRAGRUNT_LIST_TIMEOUT', '30'))
+        log(f"Running terragrunt list -l --dependencies (timeout: {timeout_seconds}s)...")
 
         # Run terragrunt list from the root directory
         result = subprocess.run(
@@ -96,7 +98,7 @@ def get_terragrunt_dependencies(root_path: str) -> Dict[str, List[str]]:
             cwd=root_path,
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=timeout_seconds
         )
 
         if result.returncode != 0:
@@ -153,7 +155,9 @@ def get_terragrunt_dependencies(root_path: str) -> Dict[str, List[str]]:
         log(f"Loaded {len(dependency_graph)} units from terragrunt list")
 
     except subprocess.TimeoutExpired:
-        log("Terragrunt list timed out after 5 minutes", "ERROR")
+        timeout_seconds = int(os.environ.get('TERRAGRUNT_LIST_TIMEOUT', '30'))
+        log(f"Terragrunt list timed out after {timeout_seconds} seconds", "WARN")
+        log("Continuing without dependency graph from Terragrunt", "WARN")
     except FileNotFoundError:
         log("terragrunt command not found. Please ensure Terragrunt is installed and in PATH.", "ERROR")
     except Exception as e:
