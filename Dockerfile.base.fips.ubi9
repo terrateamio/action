@@ -1,0 +1,102 @@
+# FIPS-capable base image using Red Hat Universal Base Image (UBI) 9
+# This image supports FIPS mode when the host OS has FIPS enabled.
+# IMPORTANT: This image does NOT guarantee FIPS compliance. FIPS mode depends on
+# the runner host OS configuration. This image is FIPS-capable, meaning it can
+# operate in FIPS mode when the underlying host system has FIPS enabled.
+
+FROM registry.access.redhat.com/ubi9/ubi:9.7
+
+# Install base packages using dnf (full UBI has dnf)
+# Note: We exclude python3-pycryptodome and similar non-FIPS crypto packages
+# Use --allowerasing to replace curl-minimal with full curl
+RUN dnf update -y && \
+    dnf install -y --allowerasing \
+    bash \
+    ca-certificates \
+    curl \
+    git \
+    git-lfs \
+    gnupg2 \
+    groff-base \
+    jq \
+    less \
+    openssh-clients \
+    openssl \
+    python3 \
+    python3-pip \
+    python3-requests \
+    python3-pyyaml \
+    tar \
+    gzip \
+    unzip \
+    which \
+    findutils \
+    && dnf clean all
+
+# Set up PGP keys for Terraform/OpenTofu verification BEFORE tenv installs
+# This prevents tenv from trying to download keys during install
+RUN mkdir -p /usr/local/share/keys
+COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
+ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
+RUN curl -fsSL --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
+ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+
+# Install tenv for managing Terraform/OpenTofu versions
+# The tarball contains tenv plus shims: terraform, tofu, terragrunt, tf
+ENV TENV_LATEST_VERSION=v4.2.4
+RUN ARCH=$(uname -m) && \
+    curl -fsSL -o /tmp/tenv.tar.gz "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_Linux_${ARCH}.tar.gz" && \
+    tar -C /usr/local/bin -xzf /tmp/tenv.tar.gz && \
+    rm -f /tmp/tenv.tar.gz && \
+    tenv tofu install 1.6.3 && \
+    sleep 5 && \
+    tenv tofu install 1.9.1 && \
+    sleep 5 && \
+    tenv terraform install 1.5.7
+
+# Install Infracost
+ENV INFRACOST_VERSION v0.10.42
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
+    curl -fsSL -o /tmp/infracost-linux-${ARCH}.tar.gz "https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-${ARCH}.tar.gz" && \
+    tar -C /tmp -xzf /tmp/infracost-linux-${ARCH}.tar.gz && \
+    mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
+    rm -f /tmp/infracost-linux-${ARCH}.tar.gz
+
+# Install Conftest
+ENV CONFTEST_VERSION 0.58.0
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
+    mkdir /tmp/conftest && \
+    curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
+    tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz && \
+    mv /tmp/conftest/conftest /usr/local/bin/conftest && \
+    rm -rf /tmp/conftest
+
+ENV OPA_VERSION 1.7.1
+
+# Install AWS CLI v2
+ENV AWSCLI_VERSION 2.13.26
+RUN ARCH=$(uname -m) && \
+    mkdir /tmp/awscli && \
+    curl -fsSL -o /tmp/awscli/awscli.zip "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" && \
+    unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ && \
+    /tmp/awscli/aws/install > /dev/null && \
+    rm -rf /tmp/awscli
+
+# Install Checkov
+# Note: We use pip install without pycryptodome to avoid non-FIPS crypto packages
+# Checkov's cryptography dependency should use system OpenSSL when properly built
+ENV CHECKOV_VERSION=2.5.10
+RUN pip3 install --no-cache-dir checkov==${CHECKOV_VERSION}
+
+ENV RESOURCELY_VERSION=1.0.45
+
+# Copy utility scripts and wrappers
+COPY ./bin/ /usr/local/bin
+COPY proxy/bin /usr/local/proxy/bin
+COPY conftest-wrapper /usr/local/bin/conftest-wrapper
+COPY checkov-wrapper /usr/local/bin/checkov-wrapper
+COPY cdktf-setup.sh /cdktf-setup.sh
+COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
+COPY azure-cli-setup.sh /azure-cli-setup.sh
+COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
+

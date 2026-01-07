@@ -39,3 +39,43 @@ jobs:
           file: Dockerfile
           tags: ghcr.io/terrateamio/action:v1
           platforms: linux/amd64,linux/arm64
+
+      -
+        name: Build and push FIPS UBI9 base
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: Dockerfile.base.fips.ubi9
+          tags: ghcr.io/terrateamio/action-base:fips-ubi9
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+      -
+        name: Build and push FIPS UBI9 action
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: Dockerfile.fips.ubi9
+          tags: ghcr.io/terrateamio/action:fips-ubi9
+          platforms: linux/amd64,linux/arm64
+
+      -
+        name: Build and push FIPS AL2023 base
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: Dockerfile.base.fips.al2023
+          tags: ghcr.io/terrateamio/action-base:fips-al2023
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+      -
+        name: Build and push FIPS AL2023 action
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: Dockerfile.fips.al2023
+          tags: ghcr.io/terrateamio/action:fips-al2023
+          platforms: linux/amd64,linux/arm64

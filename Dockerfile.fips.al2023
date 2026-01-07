@@ -1,0 +1,14 @@
+# FIPS-capable action image using Amazon Linux 2023
+# This is a thin wrapper around the FIPS-capable AL2023 base image.
+# FIPS mode depends on the runner host OS configuration; this image is FIPS-capable.
+
+FROM ghcr.io/terrateamio/action-base:fips-al2023
+
+COPY entrypoint.sh /entrypoint.sh
+COPY entrypoint_gitlab.sh /entrypoint_gitlab.sh
+COPY entrypoint_github.sh /entrypoint_github.sh
+COPY terrat_runner /terrat_runner
+
+COPY proxy/bin /usr/local/proxy/bin
+
+ENTRYPOINT ["/entrypoint.sh"]

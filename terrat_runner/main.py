@@ -33,6 +33,15 @@ def set_env_context(env, context):
         logging.exception(exn)
 
 
+def get_ca_bundle_config():
+    """Return CA bundle path and update command based on OS."""
+    # RHEL/AL2023 use /etc/pki, Debian/Ubuntu use /usr/local/share/ca-certificates
+    if os.path.isdir('/etc/pki/ca-trust/source/anchors'):
+        return ('/etc/pki/ca-trust/source/anchors', ['update-ca-trust'])
+    else:
+        return ('/usr/local/share/ca-certificates', ['update-ca-certificates'])
+
+
 def install_ca_bundles():
     env = os.environ.copy()
     set_env_context(env, env.get('SECRETS_CONTEXT', '{}'))
@@ -48,8 +57,10 @@ def install_ca_bundles():
             else:
                 logging.info('CUSTOM_CA_BUNDLES : %s : EMPTY', k)
 
+    ca_path, update_cmd = get_ca_bundle_config()
+
     for k, v in bundles:
-        path = os.path.join('/usr/local/share/ca-certificates', '{}.crt'.format(k))
+        path = os.path.join(ca_path, '{}.crt'.format(k))
         logging.info('CUSTOM_CA_BUNDLES : %s : CREATING : %s', k, path)
 
         with open(path, 'w') as f:
@@ -57,7 +68,7 @@ def install_ca_bundles():
 
     if bundles:
         logging.info('CUSTOM_CA_BUNDLES : UPDATING')
-        subprocess.check_call(['update-ca-certificates'])
+        subprocess.check_call(update_cmd)
 
 
 def perform_merge(working_dir, base_ref):

@@ -1,0 +1,16 @@
+name: 'Terrateam Workflow (FIPS UBI9)'
+description: 'Terraform Automation with GitHub Pull Requests - FIPS-capable UBI9/RHEL'
+inputs:
+  work-token:
+    description: 'Work token for run'
+    required: true
+  api-base-url:
+    description: 'Base URL to API'
+    required: true
+    default: 'https://app.terrateam.io'
+runs:
+  using: 'docker'
+  image: '../Dockerfile.fips.ubi9'
+  args:
+    - '${{ inputs.work-token }}'
+    - '${{ inputs.api-base-url }}'
