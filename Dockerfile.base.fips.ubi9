@@ -33,6 +33,14 @@ RUN dnf update -y && \
     findutils \
     && dnf clean all
 
+# Set up PGP keys for Terraform/OpenTofu verification BEFORE tenv installs
+# This prevents tenv from trying to download keys during install
+RUN mkdir -p /usr/local/share/keys
+COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
+ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
+RUN curl -fsSL --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
+ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+
 # Install tenv for managing Terraform/OpenTofu versions
 # The tarball contains tenv plus shims: terraform, tofu, terragrunt, tf
 ENV TENV_LATEST_VERSION=v4.2.4
@@ -92,12 +100,3 @@ COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
 COPY azure-cli-setup.sh /azure-cli-setup.sh
 COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
 
-# Copy PGP keys for Terraform/OpenTofu verification
-# 2025-02-03 HCP removed its public key file from the internet for a few hours,
-# which broke runs. So we include the key file to protect against HCP outages.
-RUN mkdir -p /usr/local/share/keys
-COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
-ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
-
-RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
-ENV TOFUENV_OPENTOFU_PGP_KEY /usr/local/share/keys/opentofu.asc
