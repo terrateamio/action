@@ -1,0 +1,16 @@
+name: 'Terrateam Workflow (FIPS AL2023)'
+description: 'Terraform Automation with GitHub Pull Requests - FIPS-capable AL2023'
+inputs:
+  work-token:
+    description: 'Work token for run'
+    required: true
+  api-base-url:
+    description: 'Base URL to API'
+    required: true
+    default: 'https://app.terrateam.io'
+runs:
+  using: 'docker'
+  image: '../Dockerfile.fips.al2023'
+  args:
+    - '${{ inputs.work-token }}'
+    - '${{ inputs.api-base-url }}'
