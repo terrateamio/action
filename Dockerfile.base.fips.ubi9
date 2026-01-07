@@ -4,7 +4,7 @@
 # the runner host OS configuration. This image is FIPS-capable, meaning it can
 # operate in FIPS mode when the underlying host system has FIPS enabled.
 
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi9/ubi:9.7
 
 # Install base packages using dnf (full UBI has dnf)
 # Note: We exclude python3-pycryptodome and similar non-FIPS crypto packages
