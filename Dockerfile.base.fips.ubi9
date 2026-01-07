@@ -34,11 +34,11 @@ RUN dnf update -y && \
     && dnf clean all
 
 # Install tenv for managing Terraform/OpenTofu versions
+# The tarball contains tenv plus shims: terraform, tofu, terragrunt, tf
 ENV TENV_LATEST_VERSION=v4.2.4
 RUN ARCH=$(uname -m) && \
     curl -fsSL -o /tmp/tenv.tar.gz "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_Linux_${ARCH}.tar.gz" && \
-    tar -C /tmp -xzf /tmp/tenv.tar.gz && \
-    mv /tmp/tenv /usr/local/bin/tenv && \
+    tar -C /usr/local/bin -xzf /tmp/tenv.tar.gz && \
     rm -f /tmp/tenv.tar.gz && \
     tenv tofu install 1.6.3 && \
     sleep 5 && \
