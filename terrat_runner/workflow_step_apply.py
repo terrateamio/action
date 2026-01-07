@@ -24,10 +24,10 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
         if plan_data['method'] == 'terrateam':
             plan_data_encoded = plan_data['data']
             plan_data_raw = base64.b64decode(plan_data_encoded)
-            logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
+            logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : sha256=%s',
                           dir_path,
                           workspace,
-                          hashlib.md5(plan_data_raw).hexdigest())
+                          hashlib.sha256(plan_data_raw).hexdigest())
 
             with open(plan_path, 'wb') as f:
                 f.write(plan_data_raw)
@@ -48,10 +48,10 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
             raise Exception('Unknown method')
     except json.JSONDecodeError:
         plan_data_raw = plan_data
-        logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
+        logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : sha256=%s',
                       dir_path,
                       workspace,
-                      hashlib.md5(plan_data_raw).hexdigest())
+                      hashlib.sha256(plan_data_raw).hexdigest())
 
         with open(plan_path, 'wb') as f:
             f.write(plan_data_raw)

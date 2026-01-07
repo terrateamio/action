@@ -32,6 +32,11 @@ if [ "$TERRATEAM_APPEND_PATH" ]; then
   export PATH="$PATH:$TERRATEAM_APPEND_PATH"
 fi
 
+# Check FIPS status (non-fatal unless REQUIRE_FIPS=1)
+if [ -x /usr/local/bin/fips-status.sh ]; then
+  /usr/local/bin/fips-status.sh || true
+fi
+
 export TENV_AUTO_INSTALL=true
 
 if [ "$TERRAT_VCS_PROVIDER" = "gitlab" ]; then
