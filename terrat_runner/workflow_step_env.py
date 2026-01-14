@@ -1,4 +1,5 @@
 import logging
+import os
 import tempfile
 
 import cmd
@@ -26,7 +27,8 @@ def run_exec(state, config):
     result = workflow_step_run.run(state, run_config)
 
     if result.success:
-        cmd_output = result.payload['text']
+        with open(os.path.join(state.outputs_dir, result.payload['@text']), 'r') as fin:
+            cmd_output = fin.read()
 
         if config.get('trim_trailing_newlines', True):
             cmd_output = cmd_output.rstrip('\n')
@@ -42,7 +44,7 @@ def run_exec(state, config):
     payload = {
         'cmd': result.payload.get('cmd', config['cmd']),
         'method': 'exec',
-        'text': result.payload['text']
+        '@text': result.payload['@text']
     }
 
     return result._replace(payload=payload,
@@ -71,7 +73,9 @@ def run_source(state, config):
 
     if result.success:
         state = result.state
-        cmd_output = result.payload['text']
+
+        with open(os.path.join(state.outputs_dir, result.payload['@text']), 'r') as fin:
+            cmd_output = fin.read()
 
         env = dict([line.split('=', 1) for line in cmd_output.split('\0') if line])
 

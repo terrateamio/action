@@ -2,10 +2,13 @@ import base64
 import hashlib
 import json
 import logging
+import os
 import string
 
 import cmd
+import kv_store
 import requests_retry
+import ttm
 import workflow
 
 
@@ -21,7 +24,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
     try:
         plan_data = json.loads(plan_data)
 
-        if plan_data['method'] == 'terrateam':
+        if plan_data['method'] == 'terrateam' and plan_data['version'] == 1:
             plan_data_encoded = plan_data['data']
             plan_data_raw = base64.b64decode(plan_data_encoded)
             logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
@@ -31,6 +34,24 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
 
             with open(plan_path, 'wb') as f:
                 f.write(plan_data_raw)
+
+            return (True, None)
+        elif plan_data['method'] == 'terrateam' and plan_data['version'] == 2:
+            logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : key=%s',
+                          dir_path,
+                          workspace,
+                          plan_data['data']['@plan_data'])
+
+            ttm.kv_download(state,
+                            state.work_manifest['api_base_url'],
+                            state.work_manifest['installation_id'],
+                            plan_data['data']['@plan_data'],
+                            plan_path)
+
+            ttm.kv_delete(state,
+                          state.work_manifest['api_base_url'],
+                          state.work_manifest['installation_id'],
+                          plan_data['data']['@plan_data'])
 
             return (True, None)
         elif plan_data['method'] == 'cmd':
@@ -60,6 +81,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
 
 
 def run(state, config):
+    config = config.copy()
     (success, output) = _load_plan(state,
                                    state.work_token,
                                    state.api_base_url,
@@ -77,12 +99,16 @@ def run(state, config):
             step=state.engine.name + '/apply',
             success=False)
 
-    (success, stdout, stderr) = state.engine.apply(state, config)
+    config['tee'] = kv_store.gen_unique_key_path(
+        state,
+        lambda _: kv_store.mk_dirspace_key(state, 'apply'))
+    (success, stdout_key, stderr_key) = state.engine.apply(state, config)
 
     if not success:
         return workflow.make(
             payload={
-                'text': '\n'.join([stderr, stdout]),
+                '@text': os.path.basename(stdout_key),
+                '@stderr': os.path.basename(stderr_key),
                 'visible_on': 'always'
             },
             state=state,
@@ -103,7 +129,7 @@ def run(state, config):
         if outputs:
             return workflow.Result2(
                 payload={
-                    'text': stdout,
+                    '@text': os.path.join(stdout_key),
                     'outputs': outputs,
                     'visible_on': 'always',
                 },
@@ -113,7 +139,7 @@ def run(state, config):
         else:
             return workflow.Result2(
                 payload={
-                    'text': stdout,
+                    '@text': os.path.basename(stdout_key),
                     'visible_on': 'always',
                 },
                 state=state,
