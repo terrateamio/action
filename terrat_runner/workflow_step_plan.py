@@ -237,6 +237,11 @@ def run(state, config):
             step=state.engine.name + '/plan',
             success=success)
 
+    logging.info('PLAN : RESULTS : %s : %s : has_changes=%r',
+                 state.env['TERRATEAM_DIR'],
+                 state.env['TERRATEAM_WORKSPACE'],
+                 has_changes)
+
     return workflow.Result2(
         payload={
             'plan': diff_stdout,
