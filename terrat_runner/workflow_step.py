@@ -62,6 +62,17 @@ def execute_on_error(state, on_error, gates):
             raise Exception('Unknown type: {}'.format(type))
 
 
+# This should be moved to the action step itself, but that would be a large
+# refactoring so instead we'll inject the override itself here.  It's only for a
+# single action right now so manageable.
+def get_run_on(step):
+    default_run_on = RUN_ON_SUCCESS
+    if step['type'] == 'drift_create_issue':
+        default_run_on = RUN_ON_ALWAYS
+
+    return step.get('run_on', default_run_on)
+
+
 def run_steps(state, scope, steps):
     valid_steps = STEPS.copy()
     valid_steps.update(state.runtime.steps())
@@ -72,7 +83,7 @@ def run_steps(state, scope, steps):
         # Flush all outputs between steps
         sys.stdout.flush()
         sys.stderr.flush()
-        run_on = step.get('run_on', RUN_ON_SUCCESS)
+        run_on = get_run_on(step)
 
         if run_on == RUN_ON_ALWAYS \
            or (not state.success and run_on == RUN_ON_FAILURE) \
