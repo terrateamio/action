@@ -85,3 +85,11 @@ ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
 
 RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
 ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+
+ARG ADDITIONAL_PKGS_TO_INSTALL
+# Install additional OS packages dynamically based on ADDITIONAL_PKGS_TO_INSTALL. versions should be comma separated.
+RUN if [ -n "${ADDITIONAL_PKGS_TO_INSTALL}" ]; then \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $(echo "${ADDITIONAL_PKGS_TO_INSTALL}" | tr ',' ' ') && \
+    rm -rf /var/lib/apt/lists/*; \
+    fi
