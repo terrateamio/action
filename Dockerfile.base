@@ -24,8 +24,9 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENV TENV_LATEST_VERSION=v4.2.4
-RUN ARCH=$(dpkg --print-architecture) && \
+ARG TENV_LATEST_VERSION=v4.2.4
+RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
+    ARCH=$(dpkg --print-architecture) && \
     curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     tenv tofu install 1.6.3 && \
@@ -51,8 +52,9 @@ RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
 
 ENV OPA_VERSION=1.7.1
 
-ENV AWSCLI_VERSION=2.13.26
-RUN ARCH=$(uname -m) && \
+ARG AWSCLI_VERSION=2.13.26
+RUN echo "AWSCLI_VERSION: ${AWSCLI_VERSION}" && \
+    ARCH=$(uname -m) && \
     mkdir /tmp/awscli && \
     curl -fsSL -o /tmp/awscli/awscli.zip "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" && \
     unzip -q /tmp/awscli/awscli.zip -d /tmp/awscli/ && \
