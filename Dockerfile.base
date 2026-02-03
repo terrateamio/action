@@ -29,12 +29,13 @@ RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     ARCH=$(dpkg --print-architecture) && \
     curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
-    rm -f "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
-    tenv tofu install 1.6.3 && \
-    sleep 5 && \
-    tenv tofu install 1.9.1 && \
-    sleep 5 && \
-    tenv terraform install 1.5.7
+    rm -f "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb"
+
+ARG TOFU_VERSIONS=1.6.3,1.9.1
+ARG TERRAFORM_VERSIONS=1.5.7
+# Install tofu and terraform versions dynamically based on TOFU_VERSIONS and TERRAFORM_VERSIONS. versions should be comma separated.
+RUN for version in $(echo "${TOFU_VERSIONS}" | tr ',' ' '); do tenv tofu install ${version}; sleep 5; done && \
+    for version in $(echo "${TERRAFORM_VERSIONS}" | tr ',' ' '); do tenv terraform install ${version}; sleep 5; done
 
 ENV INFRACOST_VERSION=v0.10.42
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
