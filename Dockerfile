@@ -1,4 +1,5 @@
-FROM ghcr.io/terrateamio/action-base:latest
+ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:latest
+FROM ${BASE_IMAGE}
 
 COPY entrypoint.sh /entrypoint.sh
 COPY entrypoint_gitlab.sh /entrypoint_gitlab.sh

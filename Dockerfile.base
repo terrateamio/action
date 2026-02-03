@@ -1,4 +1,6 @@
-FROM debian:bullseye-20220622-slim
+ARG BASE_IMAGE=debian:bullseye-20220622-slim
+FROM ${BASE_IMAGE}
+
 RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	apt-utils \
