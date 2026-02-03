@@ -34,14 +34,14 @@ RUN ARCH=$(dpkg --print-architecture) && \
     sleep 5 && \
     tenv terraform install 1.5.7
 
-ENV INFRACOST_VERSION v0.10.42
+ENV INFRACOST_VERSION=v0.10.42
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     curl -fsSL -o /tmp/infracost-linux-${ARCH}.tar.gz "https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-${ARCH}.tar.gz" && \
     tar -C /tmp -xzf /tmp/infracost-linux-${ARCH}.tar.gz && \
     mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
     rm -f /tmp/infracost-linux-${ARCH}.tar.gz
 
-ENV CONFTEST_VERSION 0.58.0
+ENV CONFTEST_VERSION=0.58.0
 RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mkdir /tmp/conftest && \
     curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
@@ -49,9 +49,9 @@ RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mv /tmp/conftest/conftest /usr/local/bin/conftest && \
     rm -rf /tmp/conftest
 
-ENV OPA_VERSION 1.7.1
+ENV OPA_VERSION=1.7.1
 
-ENV AWSCLI_VERSION 2.13.26
+ENV AWSCLI_VERSION=2.13.26
 RUN ARCH=$(uname -m) && \
     mkdir /tmp/awscli && \
     curl -fsSL -o /tmp/awscli/awscli.zip "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" && \
@@ -80,4 +80,4 @@ COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
 ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
 
 RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
-ENV TOFUENV_OPENTOFU_PGP_KEY /usr/local/share/keys/opentofu.asc
+ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
