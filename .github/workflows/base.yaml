@@ -1,4 +1,16 @@
 name: build-base
+# This workflow is triggered manually (workflow_dispatch) and intentionally does
+# NOT publish an action-base:latest tag.
+#
+# Background: users who pin to a specific action commit SHA are still affected
+# by base image changes because GitHub Actions rebuilds the Docker image from
+# the Dockerfile at that commit, which pulls whatever action-base:latest
+# resolves to at build time. When we updated action-base:latest as part of the
+# trixie migration, it broke all pinned users unexpectedly.
+#
+# Fix: the base image is now tagged with a Unix timestamp (e.g. action-base:1234567890)
+# and the Dockerfile is updated to reference that specific tag. This ensures that
+# pinning to an action commit SHA truly isolates users from future base image changes.
 on:
   workflow_dispatch:
 jobs:
