@@ -42,10 +42,10 @@ def _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_pa
                 'version': 1
             }
 
-        logging.debug('PLAN : STORE_PLAN : dir_path=%s : workspace=%s : md5=%s',
+        logging.debug('PLAN : STORE_PLAN : dir_path=%s : workspace=%s : sha256=%s',
                       dir_path,
                       workspace,
-                      hashlib.md5(plan_data_raw).hexdigest())
+                      hashlib.sha256(plan_data_raw).hexdigest())
 
         return _store_plan_data(plan_data,
                                 work_token,
