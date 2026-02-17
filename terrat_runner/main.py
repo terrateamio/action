@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 import os
-import re
 import subprocess
 
 import repo_config
@@ -49,26 +48,16 @@ def install_ca_bundles():
             else:
                 logging.info('CUSTOM_CA_BUNDLES : %s : EMPTY', k)
 
-    cert_pattern = re.compile(r'(-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----)', re.DOTALL)
-    cert_index = 0
     for k, v in bundles:
-        certs = cert_pattern.findall(v)
-        if not certs:
-            logging.warning('CUSTOM_CA_BUNDLES : %s : NO VALID CERTIFICATES FOUND', k)
-            continue
-        for cert in certs:
-            path = os.path.join('/usr/local/share/ca-certificates', '{}-{}.crt'.format(k, cert_index))
-            logging.info('CUSTOM_CA_BUNDLES : %s : CREATING : %s', k, path)
-            cert_index += 1
-            cert_lines = cert.strip().split('\n')
-            clean_cert = '\n'.join(line.strip() for line in cert_lines) + '\n'
-            with open(path, 'w') as f:
-                f.write(clean_cert)
+        path = os.path.join('/usr/local/share/ca-certificates', '{}.crt'.format(k))
+        logging.info('CUSTOM_CA_BUNDLES : %s : CREATING : %s', k, path)
+
+        with open(path, 'w') as f:
+            f.write(v)
 
     if bundles:
         logging.info('CUSTOM_CA_BUNDLES : UPDATING')
         subprocess.check_call(['update-ca-certificates'])
-        os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
 
 def perform_merge(working_dir, base_ref):
