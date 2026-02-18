@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:latest
+ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:1771403461
 FROM ${BASE_IMAGE}
 
 COPY entrypoint.sh /entrypoint.sh
