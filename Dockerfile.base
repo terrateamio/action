@@ -70,6 +70,12 @@ RUN python3 -m venv /opt/checkov && \
     /opt/checkov/bin/pip install checkov==${CHECKOV_VERSION} && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
 
+ENV ANSIBLE_CORE_VERSION=2.20.3
+RUN python3 -m venv /opt/ansible && \
+    /opt/ansible/bin/pip install ansible-core==${ANSIBLE_CORE_VERSION} && \
+    ln -s /opt/ansible/bin/ansible-galaxy /usr/local/bin/ansible-galaxy && \
+    ln -s /opt/ansible/bin/ansible-playbook /usr/local/bin/ansible-playbook
+
 ENV RESOURCELY_VERSION=1.0.45
 
 COPY ./bin/ /usr/local/bin
