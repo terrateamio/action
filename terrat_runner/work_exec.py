@@ -157,9 +157,9 @@ def _extract_secrets(runtime, value):
         return []
 
 
-def _store_results(state, work_token, api_base_url, results):
-    unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
-                   + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
+def store_results(state, work_token, api_base_url, results):
+    unmasked = set([ds['path'] for ds in state.work_manifest.get('changed_dirspaces', [])]
+                   + [ds['workspace'] for ds in state.work_manifest.get('changed_dirspaces', [])]
                    + [step['step'] for step in results['steps']])
 
     # Collect any secrets that are in the result output.  Sort the secrets by
@@ -243,7 +243,7 @@ def _run(state, exec_cb):
         results = {
             'steps': steps
         }
-        ret = _store_results(state, state.work_token, state.api_base_url, results)
+        ret = store_results(state, state.work_token, state.api_base_url, results)
 
         if not ret:
             raise Exception('Failed to send results')
@@ -303,7 +303,7 @@ def _run(state, exec_cb):
     if gates:
         results['gates'] = gates
 
-    ret = _store_results(state, state.work_token, state.api_base_url, results)
+    ret = store_results(state, state.work_token, state.api_base_url, results)
 
     if ret.status_code != 200:
         logging.info('RESPONSE : STATUS_CODE : %d', ret.status_code)
