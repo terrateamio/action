@@ -26,6 +26,10 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
+# Create and configure terraform/opentofu plugin-cache directory.
+RUN mkdir -p /root/.terraform.d/plugin-cache/
+COPY .terraformrc .tofurc /root/
+
 ARG TENV_LATEST_VERSION=v4.2.4
 RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     ARCH=$(dpkg --print-architecture) && \
