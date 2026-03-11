@@ -26,6 +26,14 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
+# 2025-02-03 HCP removed its public key file from the internet for a few hours,
+# which broke runs.  So we include the key file to protect against HCP outages.
+COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys/
+ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
+
+ADD https://get.opentofu.org/opentofu.asc /usr/local/share/keys/opentofu.asc
+ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+
 ARG TENV_LATEST_VERSION=v4.2.4
 RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     ARCH=$(dpkg --print-architecture) && \
@@ -39,14 +47,15 @@ ARG TERRAFORM_VERSIONS=1.5.7
 RUN for version in $(echo "${TOFU_VERSIONS}" | tr ',' ' '); do tenv tofu install ${version}; sleep 5; done && \
     for version in $(echo "${TERRAFORM_VERSIONS}" | tr ',' ' '); do tenv terraform install ${version}; sleep 5; done
 
-ENV INFRACOST_VERSION=v0.10.42
+ARG INFRACOST_VERSION=v0.10.42
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     curl -fsSL -o /tmp/infracost-linux-${ARCH}.tar.gz "https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-${ARCH}.tar.gz" && \
     tar -C /tmp -xzf /tmp/infracost-linux-${ARCH}.tar.gz && \
     mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
     rm -f /tmp/infracost-linux-${ARCH}.tar.gz
 
-ENV CONFTEST_VERSION=0.58.0
+ARG CONFTEST_VERSION=0.58.0
+ENV CONFTEST_VERSION=${CONFTEST_VERSION}
 RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mkdir /tmp/conftest && \
     curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
@@ -54,7 +63,8 @@ RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mv /tmp/conftest/conftest /usr/local/bin/conftest && \
     rm -rf /tmp/conftest
 
-ENV OPA_VERSION=1.7.1
+ARG OPA_VERSION=1.7.1
+ENV OPA_VERSION=${OPA_VERSION}
 
 ARG AWSCLI_VERSION=2.13.26
 RUN echo "AWSCLI_VERSION: ${AWSCLI_VERSION}" && \
@@ -65,30 +75,19 @@ RUN echo "AWSCLI_VERSION: ${AWSCLI_VERSION}" && \
     /tmp/awscli/aws/install > /dev/null && \
     rm -rf /tmp/awscli
 
-ENV CHECKOV_VERSION=2.5.10
+ARG CHECKOV_VERSION=2.5.10
+ENV CHECKOV_VERSION=${CHECKOV_VERSION}
 RUN python3 -m venv /opt/checkov && \
     /opt/checkov/bin/pip install checkov==${CHECKOV_VERSION} && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
 
-ENV RESOURCELY_VERSION=1.0.45
+ARG RESOURCELY_VERSION=1.0.45
+ENV RESOURCELY_VERSION=${RESOURCELY_VERSION}
 
 COPY ./bin/ /usr/local/bin
 COPY proxy/bin /usr/local/proxy/bin
-COPY conftest-wrapper /usr/local/bin/conftest-wrapper
-COPY checkov-wrapper /usr/local/bin/checkov-wrapper
-COPY cdktf-setup.sh /cdktf-setup.sh
-COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
-COPY azure-cli-setup.sh /azure-cli-setup.sh
-COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
-
-# 2025-02-03 HCP removed its public key file from the internet for a few hours,
-# which broke runs.  So we include the key file to protect against HCP outages.
-RUN mkdir /usr/local/share/keys
-COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
-ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
-
-RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
-ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+COPY conftest-wrapper checkov-wrapper /usr/local/bin/
+COPY cdktf-setup.sh gcloud-cli-setup.sh azure-cli-setup.sh kubectl-cli-setup.sh /
 
 ARG ADDITIONAL_PKGS_TO_INSTALL
 # Install additional OS packages dynamically based on ADDITIONAL_PKGS_TO_INSTALL. versions should be comma separated.
