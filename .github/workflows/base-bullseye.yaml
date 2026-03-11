@@ -1,0 +1,62 @@
+name: build-base-bullseye
+#
+# CONTEXT:
+# Some customers are pinned to older action repo SHAs from before we migrated
+# the base image to Debian trixie. Those older Dockerfiles reference
+# ghcr.io/terrateamio/action-base:latest, which at the time pointed to a
+# Debian bullseye image. We can't change their Dockerfiles (they're pinned),
+# so we maintain this separate bullseye-based base image for them.
+#
+# WHY TWO WORKFLOWS:
+# This workflow builds the image and pushes it to a staging tag
+# (e.g. action-base:bullseye-1710000000). It does NOT update :latest.
+# To promote a staging tag to :latest, use the promote-base-bullseye workflow.
+# This two-step process lets us build and test freely, then coordinate the
+# :latest update with affected customers before flipping the tag.
+#
+# RELATED FILES:
+# - Dockerfile.base.bullseye    — the Dockerfile this workflow builds
+# - Dockerfile.base              — the current trixie-based base image (see base.yaml)
+# - promote-base-bullseye.yaml  — workflow to promote a staging tag to :latest
+#
+on:
+  workflow_dispatch:
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+      -
+        name: Generate tag
+        id: tag
+        run: echo "tag=bullseye-$(date +%s)" >> $GITHUB_OUTPUT
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Build and push base (bullseye)
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          file: Dockerfile.base.bullseye
+          tags: ghcr.io/terrateamio/action-base:${{ steps.tag.outputs.tag }}
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      -
+        name: Print tag
+        run: echo "Pushed ghcr.io/terrateamio/action-base:${{ steps.tag.outputs.tag }}"
