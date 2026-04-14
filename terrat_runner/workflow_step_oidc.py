@@ -19,6 +19,7 @@ INITIAL_SLEEP = 2
 BACKOFF = 1.5
 
 DEFAULT_AWS_AUDIENCE = 'sts.amazonaws.com'
+DEFAULT_AZURE_AUDIENCE = 'api://AzureADTokenExchange'
 DEFAULT_DURATION = 3600
 DEFAULT_REGION = 'us-east-1'
 DEFAULT_SESSION_NAME = 'terrateam'
@@ -415,16 +416,69 @@ def run_gcp(state, config):
             success=False)
 
 
+def run_azure(state, config):
+    client_id = _subst(state, config['client_id'])
+    tenant_id = _subst(state, config['tenant_id'])
+    audience = _subst(state, config.get('audience', DEFAULT_AZURE_AUDIENCE))
+
+    request_url = state.env[REQUEST_URL_VAR]
+    request_token = state.env[REQUEST_TOKEN_VAR]
+
+    res = requests_retry.get(request_url,
+                             headers={
+                                 'authorization': 'bearer {}'.format(request_token)
+                             },
+                             params={
+                                 'audience': audience
+                             })
+
+    if res.status_code == 200:
+        logging.info('OIDC : azure : SUCCESS')
+        oidc_token = res.json()['value']
+
+        state = run_state.set_secret(state, oidc_token)
+
+        env = state.env.copy()
+        env['ARM_USE_OIDC'] = 'true'
+        env['ARM_CLIENT_ID'] = client_id
+        env['ARM_TENANT_ID'] = tenant_id
+        env['ARM_OIDC_TOKEN'] = oidc_token
+
+        subscription_id = config.get('subscription_id')
+        if subscription_id:
+            env['ARM_SUBSCRIPTION_ID'] = _subst(state, subscription_id)
+
+        state = state._replace(env=env)
+
+        return workflow.make(payload={},
+                             state=state,
+                             step='auth/oidc',
+                             success=True)
+    else:
+        logging.error('OIDC : azure : ERROR : %s',
+                      res.content.decode('utf-8'))
+        return workflow.make(
+            payload={
+                'text': res.content.decode('utf-8'),
+                'visible_on': 'error'
+            },
+            state=state,
+            step='auth/oidc',
+            success=False)
+
+
 def run(state, config):
     provider = config.get('provider', 'aws')
     if provider == 'aws':
         return run_aws(state, config)
+    elif provider == 'azure':
+        return run_azure(state, config)
     elif provider == 'gcp':
         return run_gcp(state, config)
     else:
         return workflow.make(
             payload={
-                'text': 'Unknown provider: {}'.config.get('provider'),
+                'text': 'Unknown provider: {}'.format(config.get('provider')),
                 'visible_on': 'error'
             },
             state=state,

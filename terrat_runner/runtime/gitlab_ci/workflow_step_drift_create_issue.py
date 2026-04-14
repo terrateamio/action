@@ -166,6 +166,7 @@ def maybe_create_issue(state):
     if run_kind == 'drift' and os.path.isfile(results_file):
         dirspaces_with_changes = extract_dirspace_plans(state.env['TERRATEAM_RESULTS_FILE'])
         if dirspaces_with_changes:
+            dirspaces_with_changes.sort(key=lambda v: (v['dir'], v['workspace']))
             all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
             report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
 

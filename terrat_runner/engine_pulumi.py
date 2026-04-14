@@ -47,7 +47,7 @@ def diff(state, config):
     return None
 
 
-def diiff_json(state, config):
+def diff_json(state, config):
     return None
 
 
@@ -100,5 +100,6 @@ def make():
         apply=apply,
         plan=plan,
         diff=diff,
+        diff_json=diff_json,
         unsafe_apply=unsafe_apply,
         outputs=outputs)
