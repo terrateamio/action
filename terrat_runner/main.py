@@ -332,6 +332,8 @@ def main():
     logging.info('CUSTOM_CA_BUNDLES : INSTALLING')
     install_ca_bundles()
 
+    subprocess.check_call(['upgrade-tenv.sh'])
+
     parser = make_parser()
     args = parser.parse_args()
 
