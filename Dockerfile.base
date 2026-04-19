@@ -26,7 +26,7 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ARG TENV_LATEST_VERSION=v4.2.4
+ARG TENV_LATEST_VERSION=v4.10.1
 RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     ARCH=$(dpkg --print-architecture) && \
     curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
@@ -81,14 +81,16 @@ COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
 COPY azure-cli-setup.sh /azure-cli-setup.sh
 COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
 
-# 2025-02-03 HCP removed its public key file from the internet for a few hours,
-# which broke runs.  So we include the key file to protect against HCP outages.
 RUN mkdir /usr/local/share/keys
-COPY keys/hashicorp-pgp-key.txt /usr/local/share/keys
+
+RUN curl --output /usr/local/share/keys/hashicorp-pgp-key.txt https://www.hashicorp.com/.well-known/pgp-key.txt
 ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
 
 RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
 ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+
+# HashiCorp's signatures for old releases of Terraform have expired so we can only do hash checks
+ENV TENV_VALIDATION=sha
 
 ARG ADDITIONAL_PKGS_TO_INSTALL
 # Install additional OS packages dynamically based on ADDITIONAL_PKGS_TO_INSTALL. versions should be comma separated.
