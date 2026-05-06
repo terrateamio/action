@@ -24,7 +24,7 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ARG TENV_LATEST_VERSION=v4.2.4
+ARG TENV_LATEST_VERSION=v4.12.0
 RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     ARCH=$(dpkg --print-architecture) && \
     curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
@@ -67,7 +67,7 @@ ENV CHECKOV_VERSION=2.5.10
 RUN pip3 install checkov==${CHECKOV_VERSION}
 
 ENV ANSIBLE_CORE_VERSION=2.15.13
-RUN pip3 install ansible-core==${ANSIBLE_CORE_VERSION}
+RUN pip3 install ansible-core==${ANSIBLE_CORE_VERSION} ansible
 
 ENV RESOURCELY_VERSION=1.0.45
 
