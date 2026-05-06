@@ -105,7 +105,7 @@ def find_matching_issue(env, report_id):
     }
     ret = requests_retry.get(url, headers=headers)
     for issue in ret.json():
-        if issue['title'] == 'Terrateam: Drift Detected':
+        if issue['title'].startswith(TITLE):
             if report_id_line in issue['body']:
                 return issue
 
@@ -127,7 +127,7 @@ def body_is_too_long(body):
     return False
 
 
-def create_issue(state, report_id, issue_body, compact_view=False):
+def create_issue(state, report_id, issue_body, title=TITLE, compact_view=False):
     if compact_view:
         issue_body = compact_issue_body(issue_body)
 
@@ -136,31 +136,58 @@ def create_issue(state, report_id, issue_body, compact_view=False):
         'User-Agent': 'Terrateam Action',
         'Authorization': 'token ' + state.env['TERRATEAM_GITHUB_TOKEN']}
     issue = {
-        'title': TITLE,
+        'title': title,
         'body': issue_body
     }
     ret = requests_retry.post(url, headers=headers, json=issue)
     if ret.status_code == 201:
         logging.info('DRIFT_CREATE_ISSUE : SUCCESS')
     elif ret.status_code == 422 and body_is_too_long(ret.json()) and not compact_view:
-        return create_issue(state, report_id, issue_body, compact_view=True)
+        return create_issue(state, report_id, issue_body, title=title, compact_view=True)
     elif ret.status_code == 422 and body_is_too_long(ret.json()):
-        return create_issue(state, report_id, drift_output_too_long(state.env, report_id))
+        return create_issue(state, report_id, drift_output_too_long(state.env, report_id), title=title)
     else:
         logging.error('Failed to make issue: %s', ret.text)
         raise Exception('Failed to make issue')
 
 
-def maybe_create_issue(state):
+def dirspace_issue_title(dirspace):
+    return '{title} - {dir} ({workspace})'.format(
+        title=TITLE, dir=dirspace['dir'], workspace=dirspace['workspace'])
+
+
+def create_aggregated_issue(state, dirspaces_with_changes):
+    all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
+    report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
+    existing_issue = find_matching_issue(state.env, report_id)
+    if existing_issue:
+        logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
+    else:
+        issue_body = format_issue_body(all_dirspace_plan_output, report_id)
+        create_issue(state, report_id, issue_body)
+
+
+def create_per_dirspace_issues(state, dirspaces_with_changes):
+    for dirspace in dirspaces_with_changes:
+        plan_output = format_dirspace_output(
+            dirspace['dir'], dirspace['workspace'], dirspace['plan'], dirspace['success'])
+        report_id = hashlib.md5(plan_output.encode('utf-8')).hexdigest()
+        title = dirspace_issue_title(dirspace)
+        existing_issue = find_matching_issue(state.env, report_id)
+        if existing_issue:
+            logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
+        else:
+            issue_body = format_issue_body(plan_output, report_id)
+            create_issue(state, report_id, issue_body, title=title)
+
+
+def maybe_create_issue(state, config):
     run_kind = state.env['TERRATEAM_RUN_KIND']
     results_file = state.env['TERRATEAM_RESULTS_FILE']
-    all_dirspace_plan_output = ''
     if run_kind == 'drift' and os.path.isfile(results_file):
         dirspaces_with_changes = extract_dirspace_plans(state.env['TERRATEAM_RESULTS_FILE'])
         if dirspaces_with_changes:
             dirspaces_with_changes.sort(key=lambda v: (v['dir'], v['workspace']))
-            all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
-            report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
 
             update_terrateam_github_token = state.runtime.steps()['update_terrateam_github_token']
             result = update_terrateam_github_token(state, {})
@@ -168,16 +195,14 @@ def maybe_create_issue(state):
             if result.success:
                 state = result.state
 
-                existing_issue = find_matching_issue(state.env, report_id)
-                if existing_issue:
-                    logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
+                if config.get('group_by', 'all') == 'dirspace':
+                    create_per_dirspace_issues(state, dirspaces_with_changes)
                 else:
-                    issue_body = format_issue_body(all_dirspace_plan_output, report_id)
-                    create_issue(state, report_id, issue_body)
+                    create_aggregated_issue(state, dirspaces_with_changes)
 
 
 def run(state, config):
-    maybe_create_issue(state)
+    maybe_create_issue(state, config)
     return workflow.make(success=True,
                          state=state,
                          step='tf/drift-create-issue',
