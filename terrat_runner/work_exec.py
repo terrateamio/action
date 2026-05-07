@@ -9,6 +9,7 @@ import engine_cdktf
 import engine_custom
 import engine_fly
 import engine_pulumi
+import engine_stategraph
 import engine_terragrunt
 import engine_tf
 import hooks
@@ -77,9 +78,9 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     if engine['name'] == 'tofu':
         env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'tofu')
         env[TOFU_ENV_NAME] = _get(engine, 'version', TOFU_DEFAULT_VERSION)
-    elif engine['name'] in ['cdktf', 'terragrunt']:
-        # If cdktf or terragrunt, set the appropriate terraform/tofu version if
-        # it exists.
+    elif engine['name'] in ['cdktf', 'terragrunt', 'stategraph']:
+        # If cdktf, terragrunt, or stategraph, set the appropriate
+        # terraform/tofu version if it exists.
         if engine['tf_cmd'] == 'tofu':
             env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'tofu')
             env[TOFU_ENV_NAME] = _get(engine, 'tf_version', TOFU_DEFAULT_VERSION)
@@ -89,6 +90,12 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
                 engine,
                 'tf_version',
                 rc.get_default_tf_version(repo_config) or TERRAFORM_DEFAULT_VERSION)
+
+        if engine['name'] == 'stategraph':
+            # Stategraph reads TF_CMD to pick the binary (defaults to tofu).
+            env['TF_CMD'] = env[TF_CMD_ENV_NAME]
+            if engine.get('version'):
+                env['STATEGRAPH_VERSION'] = engine['version']
 
         # If it is terragrunt specific environment
         if engine['name'] == 'terragrunt':
@@ -201,6 +208,8 @@ def convert_engine(engine):
         return engine_cdktf.make(**engine)
     elif engine['name'] == 'pulumi':
         return engine_pulumi.make()
+    elif engine['name'] == 'stategraph':
+        return engine_stategraph.make(**engine)
     elif engine['name'] == 'fly':
         return engine_fly.make(config_file=engine['config_file'])
     else:

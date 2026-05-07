@@ -1,0 +1,21 @@
+#! /usr/bin/env bash
+
+set -e
+set -u
+
+ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g')
+
+if [ ! -f /usr/local/bin/stategraph ]; then
+    VERSION="${STATEGRAPH_VERSION:-$(curl -fsSL https://api.github.com/repos/stategraph/releases/releases/latest \
+        | grep '"tag_name"' | head -1 | cut -d'"' -f4)}"
+
+    flock /tmp/stategraph-install \
+          curl -fsSL \
+          -o /tmp/stategraph-"${VERSION}"-linux-"${ARCH}".tar.gz \
+          "https://github.com/stategraph/releases/releases/download/${VERSION}/stategraph-linux-${ARCH}.tar.gz"
+
+    flock /tmp/stategraph-install tar -xzf /tmp/stategraph-"${VERSION}"-linux-"${ARCH}".tar.gz -C /tmp
+    flock /tmp/stategraph-install install -m 0755 /tmp/stategraph /usr/local/bin/stategraph
+fi
+
+exec /usr/local/bin/stategraph "$@"
