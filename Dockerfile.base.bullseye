@@ -80,6 +80,7 @@ COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
 COPY azure-cli-setup.sh /azure-cli-setup.sh
 COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
 
+RUN mkdir /usr/local/share/keys
 RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
 ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
 
