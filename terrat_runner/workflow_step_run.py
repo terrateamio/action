@@ -7,6 +7,7 @@ import workflow
 def run(state, config):
     capture_output = config.get('capture_output', True)
     visible_on = config.get('visible_on', 'error')
+    format_ = config.get('format')
 
     # Set ignore errors to true by default if any gates are set and the user
     # hasn't explicitly set a config.
@@ -38,6 +39,8 @@ def run(state, config):
         payload['cmd'] = proc.args
         payload['exit_code'] = proc.returncode
         payload['visible_on'] = visible_on
+        if format_ is not None:
+            payload['format'] = format_
 
         success = (proc.returncode == 0)
 
