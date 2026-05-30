@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 
 import repo_config
 import run_state
@@ -214,7 +215,7 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
-def run(args, env):
+def run(args, env, outputs_dir):
     logging.debug('LOADING : WORK_MANIFEST')
 
     try:
@@ -262,6 +263,7 @@ def run(args, env):
         repo_config=rc,
         runtime=runtime,
         env=env,
+        outputs_dir=outputs_dir,
         sha=args.sha,
         work_manifest=wm,
         work_token=args.work_token,
@@ -283,6 +285,9 @@ def run(args, env):
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
     env['TERRATEAM_RUN_KIND_DATA'] = json.dumps(wm.get('run_kind_data', {}))
+
+    # Setup the API token for the ttm CLI (KV store / secrets client)
+    env['TTM_API_KEY'] = state.api_token
 
     # Set log level to error because when we run things in parallel,
     # sometimes the logging around the lockfile breaks parsing underlying
@@ -367,7 +372,8 @@ def main():
     env = os.environ.copy()
 
     while not done:
-        done = run(args, env)
+        with tempfile.TemporaryDirectory() as outputs_dir:
+            done = run(args, env, outputs_dir)
         run_count += 1
         if run_count > 10:
             print('*** Performed too many work manifests, exiting to prevent unexpected loop')
