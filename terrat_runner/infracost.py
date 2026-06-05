@@ -24,6 +24,12 @@ def create_infracost_yml(outname, dirspaces):
             {
                 'path': ds['path'],
                 'terraform_workspace': ds['workspace'],
+                # Treat each dirspace as exactly one project. Without this,
+                # Infracost autodetect scans within every `path`, and a root
+                # dirspace (`path: .`) recursively re-discovers every nested
+                # module in a monorepo. Those collide with the explicit leaf
+                # entries -> "duplicate project name" -> `infracost diff` aborts.
+                'skip_autodetect': True,
             }
             for ds in dirspaces
         ]
