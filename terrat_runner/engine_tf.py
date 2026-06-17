@@ -13,10 +13,114 @@ INITIAL_SLEEP = 1
 BACKOFF = 1.5
 
 
+# Opens a Terraform heredoc string value, e.g. `foo = <<-EOT` or `foo =
+# <<EOT`, capturing the delimiter so we can find the matching closing line.
+# The delimiter is an arbitrary HCL identifier (EOT is just conventional).
+_HEREDOC_OPEN = re.compile(r'<<-?"?([A-Za-z_][A-Za-z0-9_]*)')
+
+
+def _leading_spaces(line):
+    return len(line) - len(line.lstrip(' '))
+
+
+def _format_diff_line(line):
+    # Promote a leading +/-/~ marker (with its indentation) to column 0 so the
+    # `diff` syntax highlighter colours the line, then turn a leading ~ (a
+    # change) into !.
+    line = re.sub(r'^(\s+)([+\-~])', r'\2\1', line)
+    line = re.sub(r'^~', r'!', line)
+    return line
+
+
+def _heredoc_gutter(body):
+    # When a heredoc string value changes, Terraform renders the whole body as a
+    # line-by-line diff by prepending a gutter to every line: a +/-/~ marker for
+    # changed lines, spaces for unchanged ones, followed by the original content.
+    # Because the gutter comes *before* the content's own indentation, the marker
+    # column is always strictly to the LEFT of every content line -- including a
+    # YAML list item (`- x`), whose dash is part of the content and so lands at
+    # the gutter column + 2 or deeper. So the gutter is simply the shallowest
+    # indent in the body, and only genuine markers ever sit there.
+    #
+    # Returns the gutter column, or None when the body carries no diff (so it
+    # should be emitted verbatim). Because the gutter is prepended to every line,
+    # in a genuinely changed body no content line can sit at the shallowest
+    # column -- that column belongs to the gutter. So the body is "changed" only
+    # when the shallowest column holds a marker and holds NO bare content line;
+    # if a content line (e.g. a map key, or a top-level YAML list item in an
+    # unchanged value) sits at the shallowest column, there is no room for a
+    # gutter to its left and the heredoc is shown unchanged.
+    indents = [_leading_spaces(line) for line in body if line.strip()]
+    if not indents:
+        return None
+    gutter = min(indents)
+    marker_at_gutter = False
+    content_at_gutter = False
+    for line in body:
+        if not line.strip() or _leading_spaces(line) != gutter:
+            continue
+        if line.lstrip(' ')[0] in '+-~':
+            marker_at_gutter = True
+        else:
+            content_at_gutter = True
+    return gutter if marker_at_gutter and not content_at_gutter else None
+
+
+def _format_heredoc_body(body):
+    # Only promote markers that sit in Terraform's diff gutter; leave the YAML
+    # content (including its `- ` list items, which sit to the right of the
+    # gutter) untouched.
+    gutter = _heredoc_gutter(body)
+    if gutter is None:
+        return body
+    out = []
+    for line in body:
+        stripped = line.lstrip(' ')
+        if stripped and stripped[0] in '+-~' and _leading_spaces(line) == gutter:
+            out.append(_format_diff_line(line))
+        else:
+            out.append(line)
+    return out
+
+
 def format_diff(text):
-    s = re.sub(r'^(\s+)([+\-~])', r'\2\1', text, flags=re.MULTILINE)
-    s = re.sub(r'^~', r'!', s, flags=re.MULTILINE)
-    return s
+    # A heredoc body is an opaque string value (often YAML, whose `- ` list
+    # items look exactly like removal markers), so it cannot be run through the
+    # blanket marker promotion. Outside a heredoc every line is a real diff
+    # line; inside one only the gutter markers are (see _format_heredoc_body).
+    lines = text.split('\n')
+    out = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = _HEREDOC_OPEN.search(line)
+        if m is None:
+            out.append(_format_diff_line(line))
+            i += 1
+            continue
+        # The opening line itself (e.g. `~ values = <<-EOT`) is a real diff line.
+        opener_marker = line.lstrip(' ')[0] if line.strip() else ' '
+        out.append(_format_diff_line(line))
+        delim = m.group(1)
+        i += 1
+        # Collect the body up to (but not including) the closing delimiter line.
+        body = []
+        while i < len(lines) and lines[i].strip() != delim:
+            body.append(lines[i])
+            i += 1
+        # When the whole value is added or removed (`+`/`-` opener) the body is
+        # emitted verbatim -- Terraform does not diff inside it, so its YAML
+        # content carries no gutter and must not be touched. Only an in-place
+        # change (`~` opener) renders the body as a line-by-line diff.
+        if opener_marker in '+-':
+            out.extend(body)
+        else:
+            out.extend(_format_heredoc_body(body))
+        # Emit the closing delimiter line verbatim, if present.
+        if i < len(lines):
+            out.append(lines[i])
+            i += 1
+    return '\n'.join(out)
 
 
 class Engine:
