@@ -3,18 +3,21 @@
 set -e
 set -u
 
-ANSIBLE_VERSION="${ANSIBLE_VERSION:-}"
+# ansible-core is baked into /opt/ansible (see Dockerfile.base). Default to that
+# version; if the caller pins a different ANSIBLE_VERSION, swap the venv to it at
+# runtime. Same pattern as proxy/bin/checkov and proxy/bin/conftest.
+ANSIBLE_VERSION="${ANSIBLE_VERSION:-2.20.3}"
+ANSIBLE_VENV=/opt/ansible
 
-if [ -f /usr/local/bin/ansible-playbook ]; then
-    exec /usr/local/bin/ansible-playbook "$@"
+if [[ ! -x "${ANSIBLE_VENV}/bin/ansible-playbook" ]]; then
+    flock /tmp/ansible-playbook-install \
+        bash -c "python3 -m venv '${ANSIBLE_VENV}' && '${ANSIBLE_VENV}/bin/pip' install 'ansible-core==${ANSIBLE_VERSION}' ansible pywinrm" 1>&2
 else
-    if [[ -n "$ANSIBLE_VERSION" ]]; then
-        flock /tmp/ansible-playbook-install pip install "ansible-core==$ANSIBLE_VERSION" ansible 1>&2
-    else
-        flock /tmp/ansible-playbook-install pip install ansible 1>&2
+    INSTALLED_VERSION=$("${ANSIBLE_VENV}/bin/ansible-playbook" --version 2>/dev/null | grep -oP 'core \K[0-9.]+' | head -n1 || echo "")
+    if [[ "${INSTALLED_VERSION}" != "${ANSIBLE_VERSION}" ]]; then
+        flock /tmp/ansible-playbook-install \
+            "${ANSIBLE_VENV}/bin/pip" install --upgrade "ansible-core==${ANSIBLE_VERSION}" ansible pywinrm 1>&2
     fi
-    # We're installing pywinrm globally for $CUSTOMER, despite best practices.
-    # This should be removed once they start building their own image.
-    flock /tmp/pywinrm-install pip install pywinrm
-    exec /usr/local/bin/ansible-playbook "$@"
 fi
+
+exec "${ANSIBLE_VENV}/bin/ansible-playbook" "$@"
