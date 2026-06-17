@@ -283,6 +283,7 @@ def run(args, env):
     env['TERRATEAM_ROOT'] = state.working_dir
     env['TERRATEAM_RUN_KIND'] = wm.get('run_kind', '')
     env['TERRATEAM_RUN_KIND_DATA'] = json.dumps(wm.get('run_kind_data', {}))
+    env['TERRATEAM_BASE_REF'] = wm.get('base_ref', '')
 
     # Set log level to error because when we run things in parallel,
     # sometimes the logging around the lockfile breaks parsing underlying

@@ -67,8 +67,7 @@ def run(state):
         os.chmod(script_path, 0o005)
 
         try:
-            env = {'TERRATEAM_BASE_REF': state.work_manifest['base_ref']}
-            env.update(state.env)
+            env = dict(state.env)
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
