@@ -12,6 +12,7 @@ import engine_pulumi
 import engine_stategraph
 import engine_terragrunt
 import engine_tf
+import engine_tfmigrate
 import hooks
 import repo_config as rc
 import requests_retry
@@ -78,8 +79,8 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     if engine['name'] == 'tofu':
         env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'tofu')
         env[TOFU_ENV_NAME] = _get(engine, 'version', TOFU_DEFAULT_VERSION)
-    elif engine['name'] in ['cdktf', 'terragrunt', 'stategraph']:
-        # If cdktf, terragrunt, or stategraph, set the appropriate
+    elif engine['name'] in ['cdktf', 'terragrunt', 'stategraph', 'tfmigrate']:
+        # If cdktf, terragrunt, stategraph, or tfmigrate, set the appropriate
         # terraform/tofu version if it exists.
         if engine['tf_cmd'] == 'tofu':
             env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'tofu')
@@ -96,6 +97,12 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
             env['TF_CMD'] = env[TF_CMD_ENV_NAME]
             if engine.get('version'):
                 env['STATEGRAPH_VERSION'] = engine['version']
+
+        if engine['name'] == 'tfmigrate':
+            # tfmigrate shells out to terraform/tofu via TFMIGRATE_EXEC_PATH; point
+            # it at the resolved tf binary so it reuses Terrateam's tenv-managed
+            # versions (the tofu/terraform tenv shim on PATH).
+            env['TFMIGRATE_EXEC_PATH'] = env[TF_CMD_ENV_NAME]
 
         # If it is terragrunt specific environment
         if engine['name'] == 'terragrunt':
@@ -210,6 +217,8 @@ def convert_engine(engine):
         return engine_pulumi.make()
     elif engine['name'] == 'stategraph':
         return engine_stategraph.make(**engine)
+    elif engine['name'] == 'tfmigrate':
+        return engine_tfmigrate.make(**engine)
     elif engine['name'] == 'fly':
         return engine_fly.make(config_file=engine['config_file'])
     else:
