@@ -70,16 +70,6 @@ RUN python3 -m venv /opt/checkov && \
     /opt/checkov/bin/pip install checkov==${CHECKOV_VERSION} && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
 
-# ansible (and pywinrm for managing Windows hosts over WinRM) is baked in so
-# runs don't pay a runtime pip install. The proxy/bin/ansible-playbook shim
-# swaps to a different ansible-core version at runtime if ANSIBLE_VERSION is
-# overridden, mirroring how checkov/conftest are handled.
-ENV ANSIBLE_VERSION=2.20.3
-RUN python3 -m venv /opt/ansible && \
-    /opt/ansible/bin/pip install ansible-core==${ANSIBLE_VERSION} ansible pywinrm && \
-    ln -s /opt/ansible/bin/ansible-galaxy /usr/local/bin/ansible-galaxy && \
-    ln -s /opt/ansible/bin/ansible-playbook /usr/local/bin/ansible-playbook
-
 ENV RESOURCELY_VERSION=1.0.45
 
 COPY ./bin/ /usr/local/bin
