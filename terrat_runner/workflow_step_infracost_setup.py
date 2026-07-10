@@ -157,7 +157,7 @@ def run(state, config):
                 diff = json.load(f)
 
             logging.info('INFRACOST : DIFF')
-            logging.info('%s', json.dumps(diff, indent=2))
+            logging.debug('%s', json.dumps(diff, indent=2))
 
             try:
                 dirspaces = [

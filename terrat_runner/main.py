@@ -328,7 +328,10 @@ def run(args, env):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    log_level = os.environ.get('TERRATEAM_LOG_LEVEL', 'DEBUG').upper()
+    if log_level not in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']:
+        log_level = 'DEBUG'
+    logging.basicConfig(level=log_level)
 
     print(BANNER)
     print('*** These are not the logs you are looking for ***')
