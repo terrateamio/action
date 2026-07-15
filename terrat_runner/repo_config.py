@@ -198,7 +198,8 @@ def get_cost_estimation(repo_config):
     return {
         'enabled': cost_estimation.get('enabled', True),
         'provider': cost_estimation.get('provider', 'infracost'),
-        'currency': cost_estimation.get('currency', 'USD')
+        'currency': cost_estimation.get('currency', 'USD'),
+        'config_file': cost_estimation.get('config_file')
     }
 
 

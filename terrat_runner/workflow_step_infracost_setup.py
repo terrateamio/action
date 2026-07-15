@@ -89,12 +89,24 @@ def _configure_infracost(state, config):
                 env.get(INFRACOST_CURRENCY, config['currency'])])
 
 
+def _resolve_config_file(state, config, infracost_dir, dirspaces):
+    config_file = config.get('config_file')
+    if config_file:
+        path = (config_file if os.path.isabs(config_file)
+                else os.path.join(state.working_dir, config_file))
+        logging.info('INFRACOST : CUSTOM_CONFIG_FILE : %s', path)
+        return path
+
+    infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
+    infracost.create_infracost_yml(infracost_config_yml, dirspaces)
+    return infracost_config_yml
+
+
 def _create_base_infracost(state, config, infracost_dir, infracost_json):
     current_branch = _checkout_base(state)
     try:
-        infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
-
-        infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['base_dirspaces'])
+        infracost_config_yml = _resolve_config_file(
+            state, config, infracost_dir, state.work_manifest['base_dirspaces'])
 
         _run_retry(state,
                    ['infracost',
@@ -122,7 +134,6 @@ def run(state, config):
     prev_infracost = os.path.join(infracost_dir, 'infracost-prev.json')
     curr_infracost = os.path.join(infracost_dir, 'infracost.json')
     diff_infracost = os.path.join(infracost_dir, 'infracost-diff.json')
-    infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
 
     try:
         logging.info('INFRACOST : SETUP')
@@ -130,7 +141,8 @@ def run(state, config):
 
         _create_base_infracost(state, config, infracost_dir, prev_infracost)
 
-        infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['dirspaces'])
+        infracost_config_yml = _resolve_config_file(
+            state, config, infracost_dir, state.work_manifest['dirspaces'])
 
         logging.info('INFRACOST : CONFIG')
 

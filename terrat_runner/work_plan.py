@@ -39,6 +39,7 @@ class Exec(work_exec.ExecInterface):
                     {
                         'type': 'infracost_setup',
                         'currency': cost_estimation_config['currency'],
+                        'config_file': cost_estimation_config['config_file'],
                         'ignore_errors': True
                     }
                 )
