@@ -90,13 +90,12 @@ def _configure_infracost(state, config):
                 env.get(INFRACOST_CURRENCY, config['currency'])])
 
 
-def _resolve_config_file(state, config, infracost_dir, dirspaces):
+def _resolve_config_file(state, infracost_dir, dirspaces):
     # A user-provided Infracost config file takes precedence over the one
-    # Terrateam generates.  It can be set via the INFRACOST_CONFIG_FILE
-    # environment variable (e.g. from an `env` hook) or the cost_estimation
-    # `config_file` repo config key.  The path may be absolute or relative to
-    # the working directory.
-    config_file = state.env.get(INFRACOST_CONFIG_FILE) or config.get('config_file')
+    # Terrateam generates.  It is set via the INFRACOST_CONFIG_FILE environment
+    # variable (e.g. from an `env` hook).  The path may be absolute or relative
+    # to the working directory.
+    config_file = state.env.get(INFRACOST_CONFIG_FILE)
     if config_file:
         path = (config_file if os.path.isabs(config_file)
                 else os.path.join(state.working_dir, config_file))
@@ -116,11 +115,11 @@ def _resolve_config_file(state, config, infracost_dir, dirspaces):
     return infracost_config_yml
 
 
-def _create_base_infracost(state, config, infracost_dir, infracost_json):
+def _create_base_infracost(state, infracost_dir, infracost_json):
     current_branch = _checkout_base(state)
     try:
         infracost_config_yml = _resolve_config_file(
-            state, config, infracost_dir, state.work_manifest['base_dirspaces'])
+            state, infracost_dir, state.work_manifest['base_dirspaces'])
 
         _run_retry(state,
                    ['infracost',
@@ -153,10 +152,10 @@ def run(state, config):
         logging.info('INFRACOST : SETUP')
         _configure_infracost(state, config)
 
-        _create_base_infracost(state, config, infracost_dir, prev_infracost)
+        _create_base_infracost(state, infracost_dir, prev_infracost)
 
         infracost_config_yml = _resolve_config_file(
-            state, config, infracost_dir, state.work_manifest['dirspaces'])
+            state, infracost_dir, state.work_manifest['dirspaces'])
 
         logging.info('INFRACOST : CONFIG')
 
