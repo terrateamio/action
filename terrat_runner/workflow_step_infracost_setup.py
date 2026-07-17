@@ -100,8 +100,16 @@ def _resolve_config_file(state, config, infracost_dir, dirspaces):
     if config_file:
         path = (config_file if os.path.isabs(config_file)
                 else os.path.join(state.working_dir, config_file))
-        logging.info('INFRACOST : CUSTOM_CONFIG_FILE : %s', path)
-        return path
+        if os.path.exists(path):
+            logging.info('INFRACOST : CUSTOM_CONFIG_FILE : %s', path)
+            return path
+        # The custom config file may not exist on every ref we run against.
+        # Notably, the base branch is checked out to compute the "before" cost,
+        # and a config file added in a pull request will not exist there yet.
+        # Fall back to the generated config so cost estimation still runs.
+        logging.warning(
+            'INFRACOST : CUSTOM_CONFIG_FILE_NOT_FOUND : %s : '
+            'falling back to generated config', path)
 
     infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
     infracost.create_infracost_yml(infracost_config_yml, dirspaces)
