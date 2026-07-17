@@ -189,7 +189,10 @@ def run(state, config):
                 dirspaces = [
                     {
                         'dir': _make_path_relative(state.working_dir, p['metadata']['path']),
-                        'workspace': p['metadata']['terraformWorkspace'],
+                        # A user-provided config file may not set a Terraform
+                        # workspace on each project, in which case Infracost
+                        # omits terraformWorkspace from the metadata.
+                        'workspace': p['metadata'].get('terraformWorkspace', 'default'),
                         'prev_monthly_cost': infracost.convert_cost(p['pastBreakdown']['totalMonthlyCost']),
                         'total_monthly_cost': infracost.convert_cost(p['breakdown']['totalMonthlyCost']),
                         'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
