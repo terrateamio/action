@@ -12,6 +12,7 @@ import workflow
 
 INFRACOST_API_KEY = 'INFRACOST_API_KEY'
 INFRACOST_CURRENCY = 'INFRACOST_CURRENCY'
+INFRACOST_CONFIG_FILE = 'INFRACOST_CONFIG_FILE'
 
 TRIES = 3
 INITIAL_SLEEP = 2
@@ -89,12 +90,36 @@ def _configure_infracost(state, config):
                 env.get(INFRACOST_CURRENCY, config['currency'])])
 
 
-def _create_base_infracost(state, config, infracost_dir, infracost_json):
+def _resolve_config_file(state, infracost_dir, dirspaces):
+    # A user-provided Infracost config file takes precedence over the one
+    # Terrateam generates.  It is set via the INFRACOST_CONFIG_FILE environment
+    # variable (e.g. from an `env` hook).  The path may be absolute or relative
+    # to the working directory.
+    config_file = state.env.get(INFRACOST_CONFIG_FILE)
+    if config_file:
+        path = (config_file if os.path.isabs(config_file)
+                else os.path.join(state.working_dir, config_file))
+        if os.path.exists(path):
+            logging.info('INFRACOST : CUSTOM_CONFIG_FILE : %s', path)
+            return path
+        # The custom config file may not exist on every ref we run against.
+        # Notably, the base branch is checked out to compute the "before" cost,
+        # and a config file added in a pull request will not exist there yet.
+        # Fall back to the generated config so cost estimation still runs.
+        logging.warning(
+            'INFRACOST : CUSTOM_CONFIG_FILE_NOT_FOUND : %s : '
+            'falling back to generated config', path)
+
+    infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
+    infracost.create_infracost_yml(infracost_config_yml, dirspaces)
+    return infracost_config_yml
+
+
+def _create_base_infracost(state, infracost_dir, infracost_json):
     current_branch = _checkout_base(state)
     try:
-        infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
-
-        infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['base_dirspaces'])
+        infracost_config_yml = _resolve_config_file(
+            state, infracost_dir, state.work_manifest['base_dirspaces'])
 
         _run_retry(state,
                    ['infracost',
@@ -122,15 +147,15 @@ def run(state, config):
     prev_infracost = os.path.join(infracost_dir, 'infracost-prev.json')
     curr_infracost = os.path.join(infracost_dir, 'infracost.json')
     diff_infracost = os.path.join(infracost_dir, 'infracost-diff.json')
-    infracost_config_yml = os.path.join(infracost_dir, 'config.yml')
 
     try:
         logging.info('INFRACOST : SETUP')
         _configure_infracost(state, config)
 
-        _create_base_infracost(state, config, infracost_dir, prev_infracost)
+        _create_base_infracost(state, infracost_dir, prev_infracost)
 
-        infracost.create_infracost_yml(infracost_config_yml, state.work_manifest['dirspaces'])
+        infracost_config_yml = _resolve_config_file(
+            state, infracost_dir, state.work_manifest['dirspaces'])
 
         logging.info('INFRACOST : CONFIG')
 
@@ -163,7 +188,10 @@ def run(state, config):
                 dirspaces = [
                     {
                         'dir': _make_path_relative(state.working_dir, p['metadata']['path']),
-                        'workspace': p['metadata']['terraformWorkspace'],
+                        # A user-provided config file may not set a Terraform
+                        # workspace on each project, in which case Infracost
+                        # omits terraformWorkspace from the metadata.
+                        'workspace': p['metadata'].get('terraformWorkspace', 'default'),
                         'prev_monthly_cost': infracost.convert_cost(p['pastBreakdown']['totalMonthlyCost']),
                         'total_monthly_cost': infracost.convert_cost(p['breakdown']['totalMonthlyCost']),
                         'diff_monthly_cost': infracost.convert_cost(p['diff']['totalMonthlyCost'])
