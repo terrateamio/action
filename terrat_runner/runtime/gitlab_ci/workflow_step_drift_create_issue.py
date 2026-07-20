@@ -15,6 +15,13 @@ ISSUE_HEADER = '''
 
 Create a new pull request to reconcile differences or enable automatic reconciliation using the Terrateam configuration file. See [Drift Detection](https://terrateam.io/docs/features/drift-detection) documentation for details.
 
+## Run Context
+| Key | Value |
+|-----|-------|
+| Branch | `{branch}` |
+| Commit | `{sha}` |
+| Pipeline | [{pipeline_id}]({pipeline_url}) |
+
 ## Terrateam Plan Output
 '''
 
@@ -73,13 +80,36 @@ def format_dirspaces(dirspace_plans):
                       for v in dirspace_plans])
 
 
-def format_issue_body(all_dirspace_plan_output, report_id):
+def branch_name(env):
+    return env.get('CI_COMMIT_REF_NAME') or env.get('CI_COMMIT_BRANCH') or 'unknown'
+
+
+def run_context(env):
+    pipeline_id = env.get('CI_PIPELINE_ID', 'unknown')
+    return {
+        'branch': branch_name(env),
+        'sha': env.get('CI_COMMIT_SHA', 'unknown'),
+        'pipeline_id': pipeline_id,
+        'pipeline_url': env.get('CI_PIPELINE_URL', env.get('CI_JOB_URL', ''))
+    }
+
+
+def report_id_for(env, plan_output):
+    report_key = '{branch}\n{plan_output}'.format(
+        branch=branch_name(env),
+        plan_output=plan_output)
+    return hashlib.md5(report_key.encode('utf-8')).hexdigest()
+
+
+def format_issue_body(env, all_dirspace_plan_output, report_id):
     return ('''
 {header}
 {output}
 ---
 Report ID: {report_id}
-'''.format(header=ISSUE_HEADER, output=all_dirspace_plan_output, report_id=report_id))
+'''.format(header=ISSUE_HEADER.format(**run_context(env)),
+           output=all_dirspace_plan_output,
+           report_id=report_id))
 
 
 def drift_output_too_long(env, report_id):
@@ -88,9 +118,7 @@ def drift_output_too_long(env, report_id):
 Drift output too large to display.
 ---
 Report ID: {report_id}
-''').format(header=ISSUE_HEADER,
-            repo=env['GITHUB_REPOSITORY'],
-            run_id=env['GITHUB_RUN_ID'],
+''').format(header=ISSUE_HEADER.format(**run_context(env)),
             report_id=report_id)
 
 
@@ -166,12 +194,12 @@ def dirspace_issue_title(dirspace):
 
 def create_aggregated_issue(state, dirspaces_with_changes):
     all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
-    report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
+    report_id = report_id_for(state.env, all_dirspace_plan_output)
     existing_issue = find_matching_issue(state.env, report_id)
     if existing_issue:
         logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
     else:
-        issue_body = format_issue_body(all_dirspace_plan_output, report_id)
+        issue_body = format_issue_body(state.env, all_dirspace_plan_output, report_id)
         create_issue(state, report_id, issue_body)
 
 
@@ -179,13 +207,13 @@ def create_per_dirspace_issues(state, dirspaces_with_changes):
     for dirspace in dirspaces_with_changes:
         plan_output = format_dirspace_output(
             dirspace['dir'], dirspace['workspace'], dirspace['plan'], dirspace['success'])
-        report_id = hashlib.md5(plan_output.encode('utf-8')).hexdigest()
+        report_id = report_id_for(state.env, plan_output)
         title = dirspace_issue_title(dirspace)
         existing_issue = find_matching_issue(state.env, report_id)
         if existing_issue:
             logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
         else:
-            issue_body = format_issue_body(plan_output, report_id)
+            issue_body = format_issue_body(state.env, plan_output, report_id)
             create_issue(state, report_id, issue_body, title=title)
 
 
