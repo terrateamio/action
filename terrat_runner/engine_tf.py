@@ -19,6 +19,34 @@ def format_diff(text):
     return s
 
 
+def parse_show_json(stdout):
+    """Parse the JSON document produced by `<tf> show -json`.
+
+    `terraform show -json` prints a single compact JSON object.  Wrappers such
+    as terragrunt can, depending on version and configuration, emit their own
+    log lines on stdout around it.  Parse the whole output first, then fall
+    back to the line that is the terraform show document.  Returns None if no
+    such document is found (the caller then reports no counts rather than
+    guessing)."""
+    try:
+        return json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line.startswith('{'):
+            continue
+        try:
+            doc = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(doc, dict) and ('resource_changes' in doc or 'format_version' in doc):
+            return doc
+
+    return None
+
+
 class Engine:
     def __init__(self, name, override_tf_cmd, **options):
         self.name = name
@@ -135,10 +163,10 @@ class Engine:
             })
 
         if proc.returncode == 0:
-            try:
-                return (True, json.loads(stdout))
-            except json.JSONDecodeError as exn:
-                return (False, stdout, str(exn))
+            doc = parse_show_json(stdout)
+            if doc is not None:
+                return (True, doc)
+            return (False, stdout, 'could not parse show -json output')
 
         return (False, stdout, stderr)
 
