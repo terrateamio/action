@@ -3,6 +3,7 @@ import os
 
 import cmd
 import engine
+import engine_tf
 
 
 def _run(state, cmd_list):
@@ -44,7 +45,24 @@ def diff(state, config):
 
 
 def diff_json(state, config):
-    return None
+    # `stategraph tf show --json PLAN` emits the plan as a standard
+    # `terraform show -json` document (resource_changes), so the server can
+    # compute exact change counts.  The API base and credentials come from the
+    # STATEGRAPH_* environment.
+    logging.info('DIFF_JSON : %s : engine=stategraph', state.path)
+    (proc, stdout, stderr) = cmd.run_with_output(
+        state,
+        {
+            'cmd': ['stategraph', 'tf', 'show', '--json', '${TERRATEAM_PLAN_FILE}']
+        })
+
+    if proc.returncode == 0:
+        doc = engine_tf.parse_show_json(stdout)
+        if doc is not None:
+            return (True, doc)
+        return (False, stdout, 'could not parse stategraph tf show --json output')
+
+    return (False, stdout, stderr)
 
 
 def apply(state, config):
