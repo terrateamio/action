@@ -40,6 +40,9 @@ class Runtime(object):
         state = state._replace(env=env)
         return state
 
+    def name(self):
+        return 'github'
+
     def set_secret(self, secret):
         return core.set_secret(secret)
 
