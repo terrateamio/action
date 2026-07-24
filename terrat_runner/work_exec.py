@@ -70,6 +70,7 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     TERRAFORM_ENV_NAME = 'TFENV_TERRAFORM_DEFAULT_VERSION'
     TERRAGRUNT_ENV_NAME = 'TG_DEFAULT_VERSION'
     TERRAGRUNT_TF_PATH_ENV_NAME = 'TERRAGRUNT_TFPATH'
+    TERRAGRUNT_TF_PATH_ENV_NAME_V1 = 'TG_TF_PATH'
     TERRAGRUNT_FOREWARD_STDOUT1 = 'TG_TF_FORWARD_STDOUT'
     TERRAGRUNT_FOREWARD_STDOUT2 = 'TERRAGRUNT_FORWARD_TF_STDOUT'
 
@@ -105,6 +106,7 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
             env[TERRAGRUNT_FOREWARD_STDOUT2] = 'true'
             env[TERRAGRUNT_ENV_NAME] = _get(engine, 'version', TERRAGRUNT_DEFAULT_VERSION)
             env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
+            env[TERRAGRUNT_TF_PATH_ENV_NAME_V1] = env[TF_CMD_ENV_NAME]
 
     elif engine['name'] == 'terraform':
         env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'terraform')

@@ -31,6 +31,8 @@ class Engine:
             outputs = {}
         self.__outputs = outputs
 
+    def workspace_cmd(self, state, *args):
+        return [self.tf_cmd, 'workspace'] + list(args)
 
     def init(self, state, config, create_and_select_workspace=None):
         # If there is already a .terraform dir, delete it
@@ -72,14 +74,14 @@ class Engine:
             (proc, select_stdout, select_stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': [self.tf_cmd, 'workspace', 'select', state.workspace]
+                    'cmd': self.workspace_cmd(state, 'select', state.workspace)
                 })
 
             if proc.returncode != 0:
                 (proc, new_stdout, new_stderr) = cmd.run_with_output(
                     state,
                     {
-                        'cmd': [self.tf_cmd, 'workspace', 'new', state.workspace]
+                        'cmd': self.workspace_cmd(state, 'new', state.workspace)
                     })
 
                 if proc.returncode != 0:
