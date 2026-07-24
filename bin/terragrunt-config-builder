@@ -18,8 +18,13 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 import re
+
+
+TERRAGRUNT_DEFAULT_VERSION = '0.75.3'
+PYTHON_HCL2_VERSION = os.environ.get('TERRAGRUNT_CONFIG_BUILDER_PYTHON_HCL2_VERSION', '7.3.1')
+PYTHON_HCL2_VENV = Path(os.environ.get('TERRAGRUNT_CONFIG_BUILDER_VENV', '/tmp/terragrunt-config-builder-python-hcl2'))
 
 
 def log(message: str, level: str = "INFO"):
@@ -31,6 +36,188 @@ def log(message: str, level: str = "INFO"):
         level: Log level (INFO, WARN, ERROR, DEBUG)
     """
     print(f"[{level}] {message}", file=sys.stderr)
+
+
+def ensure_hcl2():
+    """
+    Lazily install python-hcl2 into a small venv when the builder needs it.
+    """
+    def add_venv_site_packages(python: Path) -> bool:
+        if not python.exists():
+            return False
+
+        site_packages = subprocess.check_output([
+            str(python),
+            '-c',
+            'import site; print(site.getsitepackages()[0])'
+        ], text=True).strip()
+
+        if site_packages not in sys.path:
+            sys.path.insert(0, site_packages)
+
+        try:
+            import hcl2  # noqa: F401
+            import lark  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    try:
+        import hcl2  # noqa: F401
+        import lark  # noqa: F401
+        return
+    except ImportError:
+        pass
+
+    python = PYTHON_HCL2_VENV / 'bin' / 'python'
+    pip = PYTHON_HCL2_VENV / 'bin' / 'pip'
+
+    if add_venv_site_packages(python):
+        return
+
+    if not python.exists():
+        log(f"Creating python-hcl2 venv at {PYTHON_HCL2_VENV}")
+        subprocess.check_call(
+            [sys.executable, '-m', 'venv', str(PYTHON_HCL2_VENV)],
+            stdout=sys.stderr,
+            stderr=sys.stderr
+        )
+
+    log(f"Installing python-hcl2=={PYTHON_HCL2_VERSION}")
+    subprocess.check_call(
+        [
+            str(pip),
+            'install',
+            '--disable-pip-version-check',
+            '--no-cache-dir',
+            f'python-hcl2=={PYTHON_HCL2_VERSION}'
+        ],
+        stdout=sys.stderr,
+        stderr=sys.stderr
+    )
+
+    if not add_venv_site_packages(python):
+        raise ImportError(f"python-hcl2=={PYTHON_HCL2_VERSION} was installed but could not be imported")
+
+
+def get_terragrunt_engine(config: Dict) -> Optional[Dict]:
+    """
+    Find the first Terragrunt engine configured in the repo config.
+    """
+    engine = config.get('engine')
+    if isinstance(engine, dict) and engine.get('name') == 'terragrunt':
+        return engine
+
+    workflows = config.get('workflows', {})
+    if isinstance(workflows, dict):
+        for workflow in workflows.values():
+            if not isinstance(workflow, dict):
+                continue
+
+            engine = workflow.get('engine')
+            if isinstance(engine, dict) and engine.get('name') == 'terragrunt':
+                return engine
+
+    return None
+
+
+def configure_terragrunt_env(config: Dict):
+    """
+    Configure tenv/Terragrunt for dependency discovery during config building.
+    """
+    engine = get_terragrunt_engine(config)
+
+    os.environ.setdefault('TENV_AUTO_INSTALL', 'true')
+    os.environ.setdefault('TG_NON_INTERACTIVE', 'true')
+    os.environ.setdefault('TERRAGRUNT_NON_INTERACTIVE', 'true')
+
+    if not engine:
+        os.environ.setdefault('TG_DEFAULT_VERSION', TERRAGRUNT_DEFAULT_VERSION)
+        log(f"No Terragrunt engine found; using Terragrunt {TERRAGRUNT_DEFAULT_VERSION} for discovery", "WARN")
+        return
+
+    version = engine.get('version') or TERRAGRUNT_DEFAULT_VERSION
+    os.environ.setdefault('TG_DEFAULT_VERSION', version)
+
+    tf_cmd = engine.get('tf_cmd')
+    if tf_cmd:
+        os.environ.setdefault('TG_TF_PATH', tf_cmd)
+        os.environ.setdefault('TERRAGRUNT_TFPATH', tf_cmd)
+
+    log(f"Using Terragrunt {version} for dependency discovery")
+
+
+def normalize_path(path: str, root_path: str) -> str:
+    """
+    Normalize a path to repository-relative form.
+    """
+    if os.path.isabs(path):
+        path = os.path.relpath(path, root_path)
+
+    path = os.path.normpath(path)
+    if path == ".":
+        return ""
+
+    while path.startswith("./"):
+        path = path[2:]
+
+    return path
+
+
+def parse_terragrunt_find_json(stdout: str, root_path: str) -> Dict[str, List[str]]:
+    """
+    Parse `terragrunt find --dependencies --format=json` output.
+    """
+    dependency_graph = {}
+    units = json.loads(stdout)
+
+    for unit in units:
+        if unit.get("type") != "unit":
+            continue
+
+        path = normalize_path(unit["path"], root_path)
+        dependencies = [
+            normalize_path(dep, root_path)
+            for dep in unit.get("dependencies", [])
+            if dep
+        ]
+        dependency_graph[path] = dependencies
+        log(f"  {path} depends on: {dependencies}", "DEBUG")
+
+    return dependency_graph
+
+
+def parse_terragrunt_list_long(stdout: str, root_path: str) -> Dict[str, List[str]]:
+    """
+    Parse `terragrunt list -l --dependencies` table output.
+    """
+    dependency_graph = {}
+    lines = stdout.strip().split('\n')
+
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+
+        path = normalize_path(parts[1], root_path)
+
+        if len(parts) > 2:
+            deps_str = ' '.join(parts[2:])
+            dependencies = [
+                normalize_path(dep.strip(), root_path)
+                for dep in deps_str.split(',')
+                if dep.strip()
+            ]
+        else:
+            dependencies = []
+
+        dependency_graph[path] = dependencies
+        log(f"  {path} depends on: {dependencies}", "DEBUG")
+
+    return dependency_graph
 
 
 def discover_terragrunt_files(root_path: str, exclude_patterns: Optional[List[str]] = None) -> List[str]:
@@ -90,69 +277,43 @@ def get_terragrunt_dependencies(root_path: str) -> Dict[str, List[str]]:
     try:
         # Allow timeout to be configured via environment variable
         timeout_seconds = int(os.environ.get('TERRAGRUNT_LIST_TIMEOUT', '30'))
-        log(f"Running terragrunt list -l --dependencies (timeout: {timeout_seconds}s)...")
+        commands = [
+            (
+                ['terragrunt', 'find', '--dependencies', '--format=json', '--non-interactive', '--no-color'],
+                parse_terragrunt_find_json,
+                'terragrunt find --dependencies --format=json'
+            ),
+            (
+                ['terragrunt', 'list', '-l', '--dependencies', '--non-interactive', '--no-color'],
+                parse_terragrunt_list_long,
+                'terragrunt list -l --dependencies'
+            ),
+        ]
 
-        # Run terragrunt list from the root directory
-        result = subprocess.run(
-            ['terragrunt', 'list', '-l', '--dependencies'],
-            cwd=root_path,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds
-        )
+        for command, parser, description in commands:
+            log(f"Running {description} (timeout: {timeout_seconds}s)...")
 
-        if result.returncode != 0:
-            log(f"Terragrunt list failed with return code {result.returncode}", "WARN")
-            log(f"stderr: {result.stderr}", "DEBUG")
+            result = subprocess.run(
+                command,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds
+            )
+
+            if result.returncode != 0:
+                log(f"{description} failed with return code {result.returncode}", "WARN")
+                log(f"stderr: {result.stderr}", "DEBUG")
+                continue
+
+            try:
+                dependency_graph = parser(result.stdout, root_path)
+            except Exception as e:
+                log(f"Could not parse {description} output: {e}", "WARN")
+                continue
+
+            log(f"Loaded {len(dependency_graph)} units from Terragrunt")
             return dependency_graph
-
-        # Parse the table output
-        # Format:
-        # Type  Path           Dependencies
-        # unit  live/dev/db    live/dev/vpc
-        # unit  live/dev/ec2   live/dev/db, live/dev/vpc
-
-        lines = result.stdout.strip().split('\n')
-
-        # Skip header line
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-
-            # Split on whitespace, handling variable spacing
-            parts = line.split()
-            if len(parts) < 2:
-                continue
-
-            # First column is Type, second is Path
-            unit_type = parts[0]
-            path = parts[1]
-
-            # Everything after the second column is dependencies (comma-separated)
-            if len(parts) > 2:
-                # Join the rest and split by comma
-                deps_str = ' '.join(parts[2:])
-                dependencies = [d.strip() for d in deps_str.split(',')]
-            else:
-                dependencies = []
-
-            # Convert absolute paths to relative paths
-            rel_path = os.path.relpath(path, root_path) if os.path.isabs(path) else path
-            if rel_path == '.':
-                rel_path = ''
-
-            # Also convert dependency paths to relative
-            rel_dependencies = []
-            for dep in dependencies:
-                rel_dep = os.path.relpath(dep, root_path) if os.path.isabs(dep) else dep
-                if rel_dep == '.':
-                    rel_dep = ''
-                rel_dependencies.append(rel_dep)
-
-            dependency_graph[rel_path] = rel_dependencies
-            log(f"  {rel_path} depends on: {rel_dependencies}", "DEBUG")
-
-        log(f"Loaded {len(dependency_graph)} units from terragrunt list")
 
     except subprocess.TimeoutExpired:
         timeout_seconds = int(os.environ.get('TERRAGRUNT_LIST_TIMEOUT', '30'))
@@ -168,30 +329,132 @@ def get_terragrunt_dependencies(root_path: str) -> Dict[str, List[str]]:
     return dependency_graph
 
 
-def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, List[str]]:
+def iter_hcl_blocks(block_data) -> Iterable[Dict]:
+    """
+    Yield block bodies from python-hcl2 output, including named block shapes.
+    """
+    if isinstance(block_data, list):
+        for block in block_data:
+            yield from iter_hcl_blocks(block)
+    elif isinstance(block_data, dict):
+        if any(key in block_data for key in ('path', 'source', 'config_path', 'paths')):
+            yield block_data
+
+        for key, value in block_data.items():
+            if key == '__is_block__':
+                continue
+            if isinstance(value, dict):
+                yield from iter_hcl_blocks(value)
+            elif isinstance(value, list):
+                yield from iter_hcl_blocks(value)
+
+
+def hcl_string(value) -> Optional[str]:
+    """
+    Convert python-hcl2 scalar string values to plain strings.
+    """
+    if not isinstance(value, str):
+        return None
+
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+        value = value[1:-1]
+
+    return value
+
+
+def find_in_parent_folders_target(value: str) -> Optional[str]:
+    """
+    Extract the target filename from find_in_parent_folders(...).
+    """
+    match = re.fullmatch(
+        r'\$\{\s*find_in_parent_folders\(\s*(?:"([^"]+)"|\'([^\']+)\')?\s*\)\s*\}',
+        value
+    )
+
+    if not match:
+        return None
+
+    return match.group(1) or match.group(2) or 'terragrunt.hcl'
+
+
+def find_parent_config(base_dir: str, config_file: str, root_path: str) -> Optional[str]:
+    """
+    Resolve find_in_parent_folders by walking from base_dir toward root_path.
+    """
+    root = Path(root_path).resolve()
+    current = (root / base_dir).resolve()
+
+    while True:
+        parent = current.parent
+        if root not in [parent, *parent.parents]:
+            return None
+
+        candidate = parent / config_file
+        if candidate.exists():
+            return normalize_path(str(candidate), str(root))
+
+        if parent == root:
+            return None
+
+        current = parent
+
+
+def resolve_include_path(base_dir: str, path_value: str, root_path: str) -> Optional[str]:
+    """
+    Resolve Terragrunt include path expressions.
+    """
+    parent_target = find_in_parent_folders_target(path_value)
+    if parent_target:
+        resolved = find_parent_config(base_dir, parent_target, root_path)
+        if resolved:
+            return resolved
+
+        log(f"Could not resolve find_in_parent_folders({parent_target}) from {base_dir}", "WARN")
+        return None
+
+    if path_value.startswith('${'):
+        log(f"Skipping dynamic include path that cannot be resolved statically: {path_value}", "WARN")
+        return None
+
+    return resolve_relative_path(base_dir, path_value)
+
+
+def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Optional[str] = None) -> Dict[str, List[str]]:
     """
     Parse a terragrunt.hcl file and extract file patterns for when_modified tracking.
 
-    NOTE: This function does NOT parse dependency/dependencies blocks anymore.
-    Dependencies are obtained from terragrunt itself via get_terragrunt_dependencies().
+    Dependency blocks are parsed as a fallback for environments where Terragrunt
+    discovery cannot run during config building.
 
     Args:
         file_path: Absolute path to the terragrunt.hcl file
         base_dir: Base directory of the file (for resolving relative paths)
+        root_path: Repository root path
 
     Returns:
         Dictionary with keys:
             - includes: List of parent config file paths (from include blocks)
             - terraform_sources: List of local terraform module paths (from terraform.source)
+            - dependencies: List of Terragrunt dependency paths (from dependency blocks)
             - extra_deps: List of extra dependency paths (from locals.extra_atlantis_dependencies)
     """
     result = {
         "includes": [],
         "terraform_sources": [],
+        "dependencies": [],
         "extra_deps": []
     }
 
+    if root_path is None:
+        file_parent = Path(file_path).resolve().parent
+        root_path = str(file_parent)
+        if base_dir:
+            for _ in Path(base_dir).parts:
+                root_path = str(Path(root_path).parent)
+
     try:
+        ensure_hcl2()
         import hcl2
         import lark
 
@@ -204,66 +467,50 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, Li
 
         # Extract include blocks
         if 'include' in parsed:
-            include_data = parsed['include']
-            # include can be either a list of blocks or a dict of named includes
-            if isinstance(include_data, list):
-                for include_block in include_data:
-                    if 'path' in include_block:
-                        path_value = include_block['path']
-                        # Handle both string paths and function calls like find_in_parent_folders()
-                        if isinstance(path_value, str):
-                            resolved_path = resolve_relative_path(base_dir, path_value)
-                            if resolved_path:
-                                result['includes'].append(resolved_path)
-                                log(f"  Found include: {path_value} -> {resolved_path}", "DEBUG")
-                        else:
-                            # Search for parent terragrunt.hcl or *.hcl files
-                            parent_configs = find_parent_configs(base_dir)
-                            result['includes'].extend(parent_configs)
-                            log(f"  Found include with find_in_parent_folders()", "DEBUG")
-            elif isinstance(include_data, dict):
-                for include_name, include_configs in include_data.items():
-                    if isinstance(include_configs, list):
-                        for include_config in include_configs:
-                            if 'path' in include_config:
-                                path_value = include_config['path']
-                                if isinstance(path_value, str):
-                                    resolved_path = resolve_relative_path(base_dir, path_value)
-                                    if resolved_path:
-                                        result['includes'].append(resolved_path)
-                                        log(f"  Found include: {path_value} -> {resolved_path}", "DEBUG")
-                                else:
-                                    parent_configs = find_parent_configs(base_dir)
-                                    result['includes'].extend(parent_configs)
-                                    log(f"  Found include with find_in_parent_folders()", "DEBUG")
-                    elif 'path' in include_configs:
-                        path_value = include_configs['path']
-                        if isinstance(path_value, str):
-                            resolved_path = resolve_relative_path(base_dir, path_value)
-                            if resolved_path:
-                                result['includes'].append(resolved_path)
-                                log(f"  Found include: {path_value} -> {resolved_path}", "DEBUG")
-                        else:
-                            parent_configs = find_parent_configs(base_dir)
-                            result['includes'].extend(parent_configs)
-                            log(f"  Found include with find_in_parent_folders()", "DEBUG")
+            for include_config in iter_hcl_blocks(parsed['include']):
+                path_value = hcl_string(include_config.get('path'))
+                if not path_value:
+                    continue
+
+                resolved_path = resolve_include_path(base_dir, path_value, root_path)
+                if resolved_path:
+                    result['includes'].append(resolved_path)
+                    log(f"  Found include: {path_value} -> {resolved_path}", "DEBUG")
 
         # Extract terraform.source for local modules
         if 'terraform' in parsed:
-            for terraform_block in parsed['terraform']:
-                if 'source' in terraform_block:
-                    source_value = terraform_block['source']
-                    # source is usually a list with one element
-                    if isinstance(source_value, list) and len(source_value) > 0:
-                        source = source_value[0]
-                    else:
-                        source = source_value
-                    # Only evaluate local module paths that are strings
-                    if isinstance(source, str) and is_local_source(source):
-                        resolved_path = resolve_relative_path(base_dir, source)
+            for terraform_block in iter_hcl_blocks(parsed['terraform']):
+                source = hcl_string(terraform_block.get('source'))
+                if source and is_local_source(source):
+                    resolved_path = resolve_relative_path(base_dir, source)
+                    if resolved_path:
+                        result['terraform_sources'].append(resolved_path)
+                        log(f"  Found local terraform source: {source} -> {resolved_path}", "DEBUG")
+
+        # Extract dependency "name" { config_path = "../dir" } blocks.
+        if 'dependency' in parsed:
+            for dependency_block in iter_hcl_blocks(parsed['dependency']):
+                config_path = hcl_string(dependency_block.get('config_path'))
+                if config_path and not config_path.startswith('${'):
+                    resolved_path = resolve_relative_path(base_dir, config_path)
+                    if resolved_path:
+                        result['dependencies'].append(resolved_path)
+                        log(f"  Found dependency: {config_path} -> {resolved_path}", "DEBUG")
+
+        # Extract dependencies { paths = ["../dir"] } blocks.
+        if 'dependencies' in parsed:
+            for dependencies_block in iter_hcl_blocks(parsed['dependencies']):
+                paths = dependencies_block.get('paths')
+                if not isinstance(paths, list):
+                    continue
+
+                for dep_path in paths:
+                    dep_path = hcl_string(dep_path)
+                    if dep_path and not dep_path.startswith('${'):
+                        resolved_path = resolve_relative_path(base_dir, dep_path)
                         if resolved_path:
-                            result['terraform_sources'].append(resolved_path)
-                            log(f"  Found local terraform source: {source} -> {resolved_path}", "DEBUG")
+                            result['dependencies'].append(resolved_path)
+                            log(f"  Found dependency path: {dep_path} -> {resolved_path}", "DEBUG")
 
         # Extract locals.extra_terrateam_dependencies or locals.extra_atlantis_dependencies
         if 'locals' in parsed:
@@ -282,18 +529,36 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str) -> Dict[str, Li
                             # HCL2 returns lists of lists, so extract the first element if nested
                             if isinstance(dep, list) and len(dep) > 0:
                                 dep = dep[0]
-                            if isinstance(dep, str):
+                            dep = hcl_string(dep)
+                            if dep:
                                 resolved_path = resolve_relative_path(base_dir, dep)
                                 if resolved_path:
                                     result['extra_deps'].append(resolved_path)
                                     log(f"  Found extra dependency ({extra_deps_key}): {dep} -> {resolved_path}", "DEBUG")
 
-    except ImportError:
-        log(f"python-hcl2 not installed. Cannot parse {file_path}", "ERROR")
+    except (ImportError, subprocess.CalledProcessError) as e:
+        log(f"Could not install python-hcl2. Cannot parse {file_path}: {e}", "ERROR")
     except Exception as e:
         log(f"Error parsing {file_path}: {e}", "WARN")
         import traceback
         traceback.print_exc(file=sys.stderr)
+
+    return result
+
+
+def dedupe(values: List[str]) -> List[str]:
+    """
+    Preserve order while removing duplicates.
+    """
+    result = []
+    seen = set()
+
+    for value in values:
+        if value in seen:
+            continue
+
+        seen.add(value)
+        result.append(value)
 
     return result
 
@@ -430,9 +695,13 @@ def generate_terrateam_config(
         for extra in deps.get("extra_deps", []):
             file_patterns.append(extra)
 
+        direct_deps = dedupe(dependency_graph.get(dir_path, []) + deps.get("dependencies", []))
+
         # Add dependency terragrunt.hcl files
-        for dep_dir in dependency_graph.get(dir_path, []):
+        for dep_dir in direct_deps:
             file_patterns.append(f"{dep_dir}/terragrunt.hcl")
+
+        file_patterns = dedupe(file_patterns)
 
         # Build dir configuration
         dir_config = {
@@ -443,7 +712,6 @@ def generate_terrateam_config(
         }
 
         # Add depends_on if there are dependencies
-        direct_deps = dependency_graph.get(dir_path, [])
         if direct_deps:
             # Format as Terrateam tag query: "dir:path1 or dir:path2"
             depends_on_query = " or ".join([f"dir:{dep}" for dep in direct_deps])
@@ -475,6 +743,7 @@ def main():
         log("Reading configuration from stdin...")
         input_config = json.load(sys.stdin)
         log(f"Loaded input config with keys: {list(input_config.keys())}")
+        configure_terragrunt_env(input_config)
 
         # Phase 1: Discover terragrunt files
         log("Phase 1: Discovering terragrunt.hcl files...")
@@ -494,7 +763,7 @@ def main():
         all_dependencies = {}
         for dir_path in terragrunt_dirs:
             file_path = os.path.join(repo_root, dir_path, "terragrunt.hcl")
-            all_dependencies[dir_path] = parse_terragrunt_dependencies(file_path, dir_path)
+            all_dependencies[dir_path] = parse_terragrunt_dependencies(file_path, dir_path, repo_root)
 
         # Phase 4: Generate Terrateam config
         log("Phase 4: Generating Terrateam configuration...")
