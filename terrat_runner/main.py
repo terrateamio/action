@@ -296,13 +296,17 @@ def run(args, env):
         # remote operations.  This gets around the limitation in http request
         # rate limiting.
         logging.info('CONFIGURING FOR TENV SERVER SUPPORT')
-        # NOTE: tenv only accepts 'api' or 'html' for list mode ('direct' is an
-        # install mode).  Any value other than those two makes tenv fail with
-        # "unknown list mode" as soon as it has to list versions (for example
-        # resolving a version constraint).  The list urls below are the
-        # server's proxy of the Github releases API, so 'api' is correct.
-        env['TOFUENV_LIST_MODE'] = 'api'
-        env['TG_LIST_MODE'] = 'api'
+        # The server proxies github.com, which covers downloading a release
+        # asset but not listing releases, that only exists on api.github.com.
+        # So downloads go through the server (install mode defaults to 'direct'
+        # because the remote is not the default one) and listing releases,
+        # which only happens when a version has to be resolved from a
+        # constraint, goes to Github directly.
+        #
+        # tenv only accepts 'api' or 'html' for list mode, 'direct' is an
+        # install mode and makes tenv fail with "unknown list mode".
+        env['TOFUENV_LIST_MODE'] = 'html'
+        env['TG_LIST_MODE'] = 'html'
         env['TOFUENV_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/opentofu/opentofu/releases'
         env['TG_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/gruntwork-io/terragrunt/releases'
         env['TOFUENV_REMOTE'] = state.api_base_url + '/tenv/' + state.work_token
