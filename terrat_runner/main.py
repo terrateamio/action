@@ -296,11 +296,22 @@ def run(args, env):
         # remote operations.  This gets around the limitation in http request
         # rate limiting.
         logging.info('CONFIGURING FOR TENV SERVER SUPPORT')
-        # NOTE: tenv only accepts 'api' or 'html' for list mode ('direct' is an
-        # install mode).  Any value other than those two makes tenv fail with
-        # "unknown list mode" as soon as it has to list versions (for example
-        # resolving a version constraint).  The list urls below are the
-        # server's proxy of the Github releases API, so 'api' is correct.
+        # The server proxies github.com, which covers downloading a release
+        # asset but not listing releases, which only exists on api.github.com.
+        # That means version listing does not work through the server, and
+        # listing is required whenever tenv has to resolve a version that is
+        # not exact, for example a version constraint in a terragrunt.hcl.  To
+        # avoid that, when an engine version is explicitly configured we pin it
+        # with the tenv <TOOL>_VERSION variables (see [set_engine_env]), which
+        # take precedence over any version files in the repository, so tenv
+        # only ever installs exact versions.  TERRATEAM_TENV_SERVER_SUPPORT
+        # communicates to the rest of the run that we are in this mode.
+        #
+        # List mode is set to 'api' because it is the least bad option if a
+        # list is still performed: it fails loudly (the proxy serves HTML where
+        # tenv expects JSON).  'html' mode is worse: tenv scrapes a github.com
+        # 404 page and silently resolves a garbage version.
+        env['TERRATEAM_TENV_SERVER_SUPPORT'] = 'true'
         env['TOFUENV_LIST_MODE'] = 'api'
         env['TG_LIST_MODE'] = 'api'
         env['TOFUENV_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/opentofu/opentofu/releases'
