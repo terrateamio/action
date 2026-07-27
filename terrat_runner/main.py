@@ -297,16 +297,23 @@ def run(args, env):
         # rate limiting.
         logging.info('CONFIGURING FOR TENV SERVER SUPPORT')
         # The server proxies github.com, which covers downloading a release
-        # asset but not listing releases, that only exists on api.github.com.
-        # So downloads go through the server (install mode defaults to 'direct'
-        # because the remote is not the default one) and listing releases,
-        # which only happens when a version has to be resolved from a
-        # constraint, goes to Github directly.
+        # asset but not listing releases, which only exists on api.github.com.
+        # That means version listing does not work through the server, and
+        # listing is required whenever tenv has to resolve a version that is
+        # not exact, for example a version constraint in a terragrunt.hcl.  To
+        # avoid that, when an engine version is explicitly configured we pin it
+        # with the tenv <TOOL>_VERSION variables (see [set_engine_env]), which
+        # take precedence over any version files in the repository, so tenv
+        # only ever installs exact versions.  TERRATEAM_TENV_SERVER_SUPPORT
+        # communicates to the rest of the run that we are in this mode.
         #
-        # tenv only accepts 'api' or 'html' for list mode, 'direct' is an
-        # install mode and makes tenv fail with "unknown list mode".
-        env['TOFUENV_LIST_MODE'] = 'html'
-        env['TG_LIST_MODE'] = 'html'
+        # List mode is set to 'api' because it is the least bad option if a
+        # list is still performed: it fails loudly (the proxy serves HTML where
+        # tenv expects JSON).  'html' mode is worse: tenv scrapes a github.com
+        # 404 page and silently resolves a garbage version.
+        env['TERRATEAM_TENV_SERVER_SUPPORT'] = 'true'
+        env['TOFUENV_LIST_MODE'] = 'api'
+        env['TG_LIST_MODE'] = 'api'
         env['TOFUENV_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/opentofu/opentofu/releases'
         env['TG_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/gruntwork-io/terragrunt/releases'
         env['TOFUENV_REMOTE'] = state.api_base_url + '/tenv/' + state.work_token
