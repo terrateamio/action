@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import tempfile
 
 import cmd
+import hooks
 import repo_config as rc
 import requests_retry
+import work_exec
 
 
 def run(state):
@@ -12,6 +15,22 @@ def run(state):
 
     if not config_builder['enabled']:
         raise Exception('Impossible')
+
+    pre_steps = state.runtime.update_pre_hook_steps('build-config', [])
+    if pre_steps:
+        logging.debug('BUILD_CONFIG : HOOKS : PRE')
+        state = hooks.run_pre_hooks(state, pre_steps)
+
+        if not state.success:
+            logging.error('BUILD_CONFIG : PRE_STEPS : FAILED')
+            steps = state.outputs
+            for s in steps:
+                s.pop('gates', None)
+            ret = work_exec.store_results(
+                state, state.work_token, state.api_base_url, {'steps': steps})
+            if not ret:
+                raise Exception('Failed to send results')
+            return
 
     with tempfile.TemporaryDirectory() as tmpdir:
         script = config_builder['script']

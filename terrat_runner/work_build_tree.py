@@ -4,8 +4,10 @@ import os
 import tempfile
 
 import cmd
+import hooks
 import repo_config as rc
 import requests_retry
+import work_exec
 
 
 def _cleanup_path(terrateam_root, path):
@@ -52,6 +54,22 @@ def run(state):
 
     if not tree_builder['enabled']:
         raise Exception('Impossible')
+
+    pre_steps = state.runtime.update_pre_hook_steps('build-tree', [])
+    if pre_steps:
+        logging.debug('BUILD_TREE : HOOKS : PRE')
+        state = hooks.run_pre_hooks(state, pre_steps)
+
+        if not state.success:
+            logging.error('BUILD_TREE : PRE_STEPS : FAILED')
+            steps = state.outputs
+            for s in steps:
+                s.pop('gates', None)
+            ret = work_exec.store_results(
+                state, state.work_token, state.api_base_url, {'steps': steps})
+            if not ret:
+                raise Exception('Failed to send results')
+            return
 
     with tempfile.TemporaryDirectory() as tmpdir:
         script = tree_builder['script']
