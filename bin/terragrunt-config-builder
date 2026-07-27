@@ -139,6 +139,12 @@ def configure_terragrunt_env(config: Dict):
     version = engine.get('version') or TERRAGRUNT_DEFAULT_VERSION
     os.environ.setdefault('TG_DEFAULT_VERSION', version)
 
+    if os.environ.get('TERRATEAM_TENV_SERVER_SUPPORT') == 'true' and engine.get('version'):
+        # tenv requests go through the server, which cannot list versions, so
+        # pin the configured version to stop tenv resolving version
+        # constraints from terragrunt.hcl files (see terrat_runner/main.py).
+        os.environ.setdefault('TG_VERSION', engine['version'])
+
     tf_cmd = engine.get('tf_cmd')
     if tf_cmd:
         os.environ.setdefault('TG_TF_PATH', tf_cmd)
