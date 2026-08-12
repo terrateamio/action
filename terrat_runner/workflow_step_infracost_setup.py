@@ -182,7 +182,14 @@ def run(state, config):
                 diff = json.load(f)
 
             logging.info('INFRACOST : DIFF')
-            logging.info('%s', json.dumps(diff, indent=2))
+            if state.env.get('TERRATEAM_INFRACOST_COMPACT_LOG', '').lower() in ('1', 'true'):
+                logging.info('INFRACOST : DIFF : projects=%d prev=$%s curr=$%s diff=$%s',
+                             len(diff.get('projects', [])),
+                             diff.get('pastTotalMonthlyCost', '0'),
+                             diff.get('totalMonthlyCost', '0'),
+                             diff.get('diffTotalMonthlyCost', '0'))
+            else:
+                logging.info('%s', json.dumps(diff, indent=2))
 
             try:
                 dirspaces = [
