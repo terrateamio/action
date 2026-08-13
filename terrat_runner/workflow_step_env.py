@@ -6,6 +6,16 @@ import run_state
 import workflow_step_run
 
 
+# Variables bash sets in the environment of the command it runs.  They are not
+# part of what the sourced script defines, so they should neither be treated as
+# secrets nor carried into the rest of the run.
+SHELL_ENV_VARS = frozenset(['_', 'OLDPWD', 'PWD', 'SHLVL'])
+
+
+def filter_shell_vars(env):
+    return {k: v for k, v in env.items() if k not in SHELL_ENV_VARS}
+
+
 def source_cmd(fname):
     return [
         'set -e',
@@ -74,6 +84,7 @@ def run_source(state, config):
         cmd_output = result.payload['text']
 
         env = dict([line.split('=', 1) for line in cmd_output.split('\0') if line])
+        env = filter_shell_vars(env)
 
         if config.get('sensitive', False):
             for k, v in env.items():
