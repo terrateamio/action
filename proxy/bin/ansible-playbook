@@ -6,7 +6,7 @@ set -u
 # ansible-core is baked into /opt/ansible (see Dockerfile.base). Default to that
 # version; if the caller pins a different ANSIBLE_VERSION, swap the venv to it at
 # runtime. Same pattern as proxy/bin/checkov and proxy/bin/conftest.
-ANSIBLE_VERSION="${ANSIBLE_VERSION:-2.16.14}"
+ANSIBLE_VERSION="${ANSIBLE_VERSION:-2.15.7}"
 ANSIBLE_VENV=/opt/ansible
 
 if [[ ! -x "${ANSIBLE_VENV}/bin/ansible-playbook" ]]; then

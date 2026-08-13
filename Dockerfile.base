@@ -75,11 +75,12 @@ RUN python3 -m venv /opt/checkov && \
 # swaps to a different ansible-core version at runtime if ANSIBLE_VERSION is
 # overridden, mirroring how checkov/conftest are handled.
 #
-# 2.16 is the last ansible-core that supports Python 3.6 on the managed node
-# (see _PY3_MIN in ansible/module_utils/basic.py); 2.17 raises that to 3.7,
-# which breaks Oracle Linux 8 targets. Keep this at 2.16.x until those hosts
-# move to a newer Python. Keep proxy/bin/ansible-playbook's default in sync.
-ENV ANSIBLE_VERSION=2.16.14
+# Pinned to match the ansible-core already running in production. Oracle Linux
+# 8 managed nodes ship Python 3.6, and 2.17 raises the managed-node floor to
+# 3.7 (see _PY3_MIN in ansible/module_utils/basic.py), so 2.16.x is the hard
+# ceiling here -- but stay on 2.15.x for parity until those hosts move to a
+# newer Python. Keep proxy/bin/ansible-playbook's default in sync.
+ENV ANSIBLE_VERSION=2.15.7
 RUN python3 -m venv /opt/ansible && \
     /opt/ansible/bin/pip install ansible-core==${ANSIBLE_VERSION} ansible pywinrm && \
     ln -s /opt/ansible/bin/ansible-galaxy /usr/local/bin/ansible-galaxy && \
