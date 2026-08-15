@@ -210,6 +210,21 @@ class Engine:
 
         return (proc.returncode == 0, stdout, stderr)
 
+    def apply_without_plan(self, state, config):
+        logging.info(
+            'APPLY_WITHOUT_PLAN : %s : engine=%s',
+            state.path,
+            state.workflow['engine']['name'])
+
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': [self.tf_cmd, 'apply', '-auto-approve'
+                        ] + config.get('extra_args', [])
+            })
+
+        return (proc.returncode == 0, stdout, stderr)
+
     def diff(self, state, config):
         logging.info(
             'DIFF : %s : engine=%s',
