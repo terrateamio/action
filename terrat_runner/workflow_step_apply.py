@@ -14,7 +14,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
                              params={'path': dir_path, 'workspace': workspace})
 
     if res.status_code != 200:
-        return (False, 'Could not load plan from backend')
+        return (False, 'Could not load plan from backend', False)
 
     plan_data = base64.b64decode(res.json()['data'])
 
@@ -32,7 +32,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
             with open(plan_path, 'wb') as f:
                 f.write(plan_data_raw)
 
-            return (True, None)
+            return (True, None, True)
         elif plan_data['method'] == 'cmd':
             tmpl_vars = {
                 'plan_dst_path': plan_path
@@ -40,10 +40,18 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
             fetch_cmd = [string.Template(s).safe_substitute(tmpl_vars) for s in plan_data['fetch']]
             proc = cmd.run(state, {'cmd': fetch_cmd})
             if proc.returncode != 0:
-                return (False, 'Failed to fetch plan, see action logs for more details')
+                return (False, 'Failed to fetch plan, see action logs for more details', False)
             if plan_data.get('delete'):
                 cmd.run(state, {'cmd': plan_data['delete']})
-                return (True, None)
+            return (True, None, True)
+        elif plan_data['method'] == 'none':
+            if plan_data.get('unsafe_apply_without_plan', False):
+                return (True, None, False)
+            return (False,
+                    ('This workflow uses storage.plans.method: none, so no saved plan file is '
+                     'available for apply. Set storage.plans.unsafe_apply_without_plan: true '
+                     'to re-evaluate and apply without a saved plan file.'),
+                    False)
         else:
             raise Exception('Unknown method')
     except json.JSONDecodeError:
@@ -56,16 +64,16 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
         with open(plan_path, 'wb') as f:
             f.write(plan_data_raw)
 
-        return (True, None)
+        return (True, None, True)
 
 
 def run(state, config):
-    (success, output) = _load_plan(state,
-                                   state.work_token,
-                                   state.api_base_url,
-                                   state.path,
-                                   state.workspace,
-                                   state.env['TERRATEAM_PLAN_FILE'])
+    (success, output, has_plan_file) = _load_plan(state,
+                                                  state.work_token,
+                                                  state.api_base_url,
+                                                  state.path,
+                                                  state.workspace,
+                                                  state.env['TERRATEAM_PLAN_FILE'])
 
     if not success:
         return workflow.make(
@@ -77,7 +85,10 @@ def run(state, config):
             step=state.engine.name + '/apply',
             success=False)
 
-    (success, stdout, stderr) = state.engine.apply(state, config)
+    apply = state.engine.apply
+    if not has_plan_file:
+        apply = getattr(state.engine, 'apply_without_plan', state.engine.apply)
+    (success, stdout, stderr) = apply(state, config)
 
     if not success:
         return workflow.make(
