@@ -705,11 +705,89 @@ def find_parent_configs(base_dir: str) -> List[str]:
     return parent_configs
 
 
+# A module is reached once for every unit that deploys something wrapping it, so the
+# files are parsed once per directory rather than once per unit.
+module_sources_cache = {}
+
+
+def collect_module_closure(root_path: str, sources: Iterable[str]) -> Set[str]:
+    """
+    Expand module paths with the modules those modules use.
+
+    A module that wraps another is changed by an edit to either, so a unit tracking the
+    outer module has to track the inner one as well. Only local sources are followed,
+    since a module referring to a registry or git source does not make those files part
+    of the repository.
+
+    Args:
+        root_path: Root directory of the repository
+        sources: Module paths relative to the repository root
+
+    Returns:
+        Every module path reachable from sources, including sources
+    """
+    try:
+        ensure_hcl2()
+        import hcl2
+        import lark
+    except (ImportError, subprocess.CalledProcessError) as e:
+        log(f"Could not install python-hcl2. Cannot expand module sources: {e}", "ERROR")
+        return set(sources)
+
+    seen = set()
+    pending = list(sources)
+
+    while pending:
+        directory = pending.pop()
+        if directory in seen:
+            continue
+
+        seen.add(directory)
+
+        cache_key = (root_path, directory)
+        if cache_key in module_sources_cache:
+            pending.extend(module_sources_cache[cache_key])
+            continue
+
+        found = set()
+        module_sources_cache[cache_key] = found
+
+        try:
+            names = sorted(os.listdir(os.path.join(root_path, directory)))
+        except OSError:
+            continue
+
+        for name in names:
+            if not name.endswith('.tf'):
+                continue
+
+            try:
+                with open(os.path.join(root_path, directory, name)) as f:
+                    parsed = hcl2.load(f)
+            except (OSError, lark.exceptions.LarkError) as e:
+                log(f"Cannot parse {directory}/{name}: {e}", "WARN")
+                continue
+
+            for module_block in iter_hcl_blocks(parsed.get('module', [])):
+                source = hcl_string(module_block.get('source'))
+                if not source:
+                    continue
+
+                resolved = resolve_source_path(directory, source)
+                if resolved:
+                    found.add(resolved)
+
+        pending.extend(found)
+
+    return seen
+
+
 def generate_terrateam_config(
     input_config: Dict,
     terragrunt_dirs: List[str],
     all_dependencies: Dict[str, Dict],
-    dependency_graph: Dict[str, List[str]]
+    dependency_graph: Dict[str, List[str]],
+    root_path: str
 ) -> Dict:
     """
     Generate Terrateam configuration with dirs entries for each terragrunt directory.
@@ -743,8 +821,8 @@ def generate_terrateam_config(
         for include in deps.get("includes", []):
             file_patterns.append(include)
 
-        # Add local terraform module sources
-        for source in deps.get("terraform_sources", []):
+        # Add local terraform module sources, and the modules they use in turn
+        for source in sorted(collect_module_closure(root_path, deps.get("terraform_sources", []))):
             # Add glob pattern for all .tf files in the module
             file_patterns.append(f"{source}/**/*.tf")
 
@@ -828,7 +906,8 @@ def main():
             input_config,
             terragrunt_dirs,
             all_dependencies,
-            dependency_graph
+            dependency_graph,
+            repo_root
         )
 
         # Output final config to stdout
