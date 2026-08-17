@@ -18,7 +18,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 import re
 
 
@@ -426,7 +426,7 @@ def resolve_include_path(base_dir: str, path_value: str, root_path: str) -> Opti
     return resolve_relative_path(base_dir, path_value)
 
 
-def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Optional[str] = None) -> Dict[str, List[str]]:
+def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Optional[str] = None, _visited: Optional[Set[str]] = None) -> Dict[str, List[str]]:
     """
     Parse a terragrunt.hcl file and extract file patterns for when_modified tracking.
 
@@ -451,6 +451,13 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
         "dependencies": [],
         "extra_deps": []
     }
+
+    # Includes are followed, so stop if a parent chain ever comes back around.
+    _visited = set() if _visited is None else _visited
+    if file_path in _visited:
+        return result
+    _visited.add(file_path)
+    inherited_sources = []
 
     if root_path is None:
         file_parent = Path(file_path).resolve().parent
@@ -483,15 +490,30 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
                     result['includes'].append(resolved_path)
                     log(f"  Found include: {path_value} -> {resolved_path}", "DEBUG")
 
+                    parent = parse_terragrunt_dependencies(
+                        os.path.join(root_path, resolved_path),
+                        base_dir,
+                        root_path,
+                        _visited
+                    )
+                    result['includes'].extend(parent['includes'])
+                    inherited_sources.extend(parent['terraform_sources'])
+
         # Extract terraform.source for local modules
         if 'terraform' in parsed:
             for terraform_block in iter_hcl_blocks(parsed['terraform']):
                 source = hcl_string(terraform_block.get('source'))
-                if source and is_local_source(source):
-                    resolved_path = resolve_relative_path(base_dir, source)
+                if source:
+                    resolved_path = resolve_source_path(base_dir, source)
                     if resolved_path:
                         result['terraform_sources'].append(resolved_path)
                         log(f"  Found local terraform source: {source} -> {resolved_path}", "DEBUG")
+
+        # A source on the unit overrides one from a parent, the way Terragrunt merges
+        # the terraform block, so an inherited source is used only when the unit sets
+        # none of its own.
+        if not result['terraform_sources']:
+            result['terraform_sources'].extend(inherited_sources)
 
         # Extract dependency "name" { config_path = "../dir" } blocks.
         if 'dependency' in parsed:
@@ -587,6 +609,35 @@ def is_local_source(source: str) -> bool:
     # Per Terraform spec: local paths start with ./ or ../ (relative) or / (absolute)
     # Everything else is remote or unresolvable - skip it
     return source.startswith('./') or source.startswith('../') or source.startswith('/')
+
+
+def resolve_source_path(base_dir: str, source: str) -> Optional[str]:
+    """
+    Resolve a terraform.source to a repository-relative path when it is local.
+
+    is_local_source covers ./ and ../ . A source written as ${get_repo_root()}//path
+    names a path in the repository just as plainly, and is the usual way to write one in
+    a shared parent because it does not depend on how deep the unit sits.
+    resolve_include_path already resolves find_in_parent_folders for include paths on the
+    same reasoning, so it is resolved here too. Remote sources return None.
+
+    Args:
+        base_dir: Directory the source is resolved against
+        source: The terraform.source string
+
+    Returns:
+        Path relative to the repository root, or None if the source is not local
+    """
+    repo_root = '${get_repo_root()}'
+
+    if source.startswith(repo_root):
+        path = source[len(repo_root):].strip('/')
+        return resolve_relative_path('', path) if path else None
+
+    if is_local_source(source):
+        return resolve_relative_path(base_dir, source)
+
+    return None
 
 
 def resolve_relative_path(base_dir: str, relative_path: str) -> Optional[str]:
