@@ -27,7 +27,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
             logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
                           dir_path,
                           workspace,
-                          hashlib.md5(plan_data_raw).hexdigest())
+                          hashlib.md5(plan_data_raw, usedforsecurity=False).hexdigest())
 
             with open(plan_path, 'wb') as f:
                 f.write(plan_data_raw)
@@ -51,7 +51,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
         logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
                       dir_path,
                       workspace,
-                      hashlib.md5(plan_data_raw).hexdigest())
+                      hashlib.md5(plan_data_raw, usedforsecurity=False).hexdigest())
 
         with open(plan_path, 'wb') as f:
             f.write(plan_data_raw)
