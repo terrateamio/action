@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 
+import api
 import dir_exec
 import engine_cdktf
 import engine_custom
@@ -14,7 +15,6 @@ import engine_terragrunt
 import engine_tf
 import hooks
 import repo_config as rc
-import requests_retry
 import results_compat
 import run_state
 
@@ -164,7 +164,7 @@ def _extract_secrets(runtime, value):
         return []
 
 
-def _store_results(state, work_token, api_base_url, results):
+def _store_results(state, results):
     unmasked = set([ds['path'] for ds in state.work_manifest['changed_dirspaces']]
                    + [ds['workspace'] for ds in state.work_manifest['changed_dirspaces']]
                    + [step['step'] for step in results['steps']])
@@ -178,10 +178,7 @@ def _store_results(state, work_token, api_base_url, results):
     results = _mask_secrets(secrets, unmasked, results)
     results = results_compat.transform(state, results)
 
-    res = requests_retry.put(api_base_url + '/v1/work-manifests/' + work_token,
-                             json=results)
-
-    return res
+    return api.work_manifest_put(state, json=results)
 
 
 def convert_engine(engine):
@@ -252,7 +249,7 @@ def _run(state, exec_cb):
         results = {
             'steps': steps
         }
-        ret = _store_results(state, state.work_token, state.api_base_url, results)
+        ret = _store_results(state, results)
 
         if not ret:
             raise Exception('Failed to send results')
@@ -312,7 +309,7 @@ def _run(state, exec_cb):
     if gates:
         results['gates'] = gates
 
-    ret = _store_results(state, state.work_token, state.api_base_url, results)
+    ret = _store_results(state, results)
 
     if ret.status_code != 200:
         logging.info('RESPONSE : STATUS_CODE : %d', ret.status_code)

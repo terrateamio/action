@@ -1,10 +1,9 @@
-import requests_retry
+import api
 import workflow
 
 
 def run(state, config):
-    url = state.api_base_url + '/v1/work-manifests/' + state.work_token + '/access-token'
-    res = requests_retry.post(url, headers={'authorization': 'bearer ' + state.api_token})
+    res = api.work_manifest_post(state, 'access-token')
 
     if res.status_code == 200:
         access_token = res.json()['access_token']
