@@ -4,14 +4,15 @@ import json
 import logging
 import string
 
+import api
 import cmd
-import requests_retry
 import workflow
 
 
-def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
-    res = requests_retry.get(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
-                             params={'path': dir_path, 'workspace': workspace})
+def _load_plan(state, dir_path, workspace, plan_path):
+    res = api.work_manifest_get(state,
+                                'plans',
+                                params={'path': dir_path, 'workspace': workspace})
 
     if res.status_code != 200:
         return (False, 'Could not load plan from backend')
@@ -61,8 +62,6 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
 
 def run(state, config):
     (success, output) = _load_plan(state,
-                                   state.work_token,
-                                   state.api_base_url,
                                    state.path,
                                    state.workspace,
                                    state.env['TERRATEAM_PLAN_FILE'])
