@@ -158,7 +158,7 @@ def dirspace_issue_title(dirspace):
 
 def create_aggregated_issue(state, dirspaces_with_changes):
     all_dirspace_plan_output = format_dirspaces(dirspaces_with_changes)
-    report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8')).hexdigest()
+    report_id = hashlib.md5(all_dirspace_plan_output.encode('utf-8'), usedforsecurity=False).hexdigest()
     existing_issue = find_matching_issue(state.env, report_id)
     if existing_issue:
         logging.info('DRIFT_CREATE_ISSUE : ISSUE_EXISTS : %s', existing_issue['id'])
@@ -171,7 +171,7 @@ def create_per_dirspace_issues(state, dirspaces_with_changes):
     for dirspace in dirspaces_with_changes:
         plan_output = format_dirspace_output(
             dirspace['dir'], dirspace['workspace'], dirspace['plan'], dirspace['success'])
-        report_id = hashlib.md5(plan_output.encode('utf-8')).hexdigest()
+        report_id = hashlib.md5(plan_output.encode('utf-8'), usedforsecurity=False).hexdigest()
         title = dirspace_issue_title(dirspace)
         existing_issue = find_matching_issue(state.env, report_id)
         if existing_issue:
