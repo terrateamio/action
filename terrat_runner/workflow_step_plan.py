@@ -17,6 +17,46 @@ ACCESS_KEY_ID = 'access_key_id'
 SECRET_ACCESS_KEY = 'secret_access_key'
 
 
+def _resource_summary(diff_json):
+    """Compute exact resource-change counts from a ``terraform show -json``
+    document.  Returns ``None`` when the document is not in that shape (for
+    example a Pulumi or custom engine that does not emit ``resource_changes``),
+    in which case the server falls back to parsing the plan text."""
+    if not isinstance(diff_json, dict):
+        return None
+
+    resource_changes = diff_json.get('resource_changes')
+    if not isinstance(resource_changes, list):
+        return None
+
+    created = updated = deleted = replaced = imported = 0
+    for rc in resource_changes:
+        change = rc.get('change') or {}
+        actions = set(change.get('actions') or [])
+
+        if change.get('importing'):
+            imported += 1
+
+        if actions == {'create'}:
+            created += 1
+        elif actions == {'update'}:
+            updated += 1
+        elif actions == {'delete'}:
+            deleted += 1
+        elif actions == {'create', 'delete'}:
+            # A replacement is reported as create+delete in either order.
+            replaced += 1
+        # 'no-op' and 'read' do not represent a pending change.
+
+    return {
+        'created': created,
+        'updated': updated,
+        'deleted': deleted,
+        'replaced': replaced,
+        'imported': imported,
+    }
+
+
 def _store_plan_data(plan_data, work_token, api_base_url, dir_path, workspace, has_changes):
     plan_data = base64.b64encode(json.dumps(plan_data).encode('utf-8')).decode('utf-8')
 
@@ -196,21 +236,21 @@ def run(state, config):
             step=state.engine.name + '/plan',
             success=success)
 
-    # res = state.engine.diff_json(state, config)
-    # if res and res[0]:
-    #     (success, diff_json) = res
-    # elif res:
-    #     (success, stdout, stderr) = res
-    #     return workflow.Result2(
-    #         payload={
-    #             'text': '\n'.join([stderr, stdout]),
-    #             'visible_on': 'always',
-    #         },
-    #         state=state,
-    #         step=state.engine.name + '/plan',
-    #         success=success)
-    # else:
-    #     diff_json = None
+    # Best-effort exact resource-change counts from the machine-readable plan.
+    # Never fail the plan over this: engines that do not emit a
+    # terraform-style document simply yield no summary and the server falls
+    # back to parsing the plan text.
+    resource_summary = None
+    diff_json_fn = getattr(state.engine, 'diff_json', None)
+    if diff_json_fn is not None:
+        try:
+            res = state.engine.diff_json(state, config)
+            if res and res[0]:
+                resource_summary = _resource_summary(res[1])
+        except Exception:
+            logging.exception('PLAN : RESOURCE_SUMMARY_FAILED : %s : %s',
+                              state.env['TERRATEAM_DIR'],
+                              state.env['TERRATEAM_WORKSPACE'])
 
     plan_storage = rc.get_plan_storage(state.repo_config)
 
@@ -242,14 +282,17 @@ def run(state, config):
                  state.env['TERRATEAM_WORKSPACE'],
                  has_changes)
 
+    payload = {
+        'plan': diff_stdout,
+        'has_changes': has_changes,
+        'text': stdout,
+        'visible_on': 'always',
+    }
+    if resource_summary is not None:
+        payload['resource_summary'] = resource_summary
+
     return workflow.Result2(
-        payload={
-            'plan': diff_stdout,
-            # 'diff': diff_json,
-            'has_changes': has_changes,
-            'text': stdout,
-            'visible_on': 'always',
-        },
+        payload=payload,
         state=state,
         step=state.engine.name + '/plan',
         success=True)
