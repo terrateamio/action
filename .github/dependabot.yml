@@ -9,3 +9,13 @@ updates:
     directory: "/" # Location of workflow files
     schedule:
       interval: "weekly" # How often to check for updates
+
+  # Keep the Dockerfile base images current. Freshness to complement detection:
+  # container-scan.yaml finds CVEs in the published images, Dependabot moves the
+  # FROM line forward so a fix can land. Note Dockerfile.base.bullseye still
+  # targets debian:bullseye (oldoldstable) — expect that one to need a decision
+  # rather than a bump.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

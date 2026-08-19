@@ -1,0 +1,80 @@
+# Scan the published action images for known OS/library vulnerabilities.
+#
+# This image is what customers execute in their own CI, so a vulnerable layer here
+# runs on their infrastructure, not just ours.
+#
+# Scans PUBLISHED tags on a schedule rather than at build time: the point of
+# container scanning is catching advisories disclosed *after* an image was built,
+# which a build-time-only scan never sees.
+#
+# Results are also uploaded to GitHub code scanning (Security tab) — free on this
+# public repo. Note stategraph/mono cannot do this: it is private, and code-scanning
+# upload there requires paid GitHub Code Security.
+name: container scan
+
+on:
+  schedule:
+    # Mondays 06:15 UTC — offset from the mono scan so the two don't collide.
+    - cron: '15 6 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'Dockerfile*'
+      - '.github/workflows/container-scan.yaml'
+
+jobs:
+  scan:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          # The action image customers run. Its base layers (action-base, and the
+          # debian image under that) are inside this image, so Trivy covers them
+          # transitively — no separate base scan needed. There is also no
+          # `action-base:latest` tag to scan: that package is tagged by timestamp
+          # only, and Dockerfile pins an explicit one.
+          - ghcr.io/terrateamio/action:v1
+
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ignore-unfixed: a vulnerability with no upstream fix is not actionable by
+      # us, and failing on it would keep this check permanently red — which trains
+      # everyone to ignore it. Unfixed findings still reach the Security tab below.
+      - name: Trivy scan (fail on fixable HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+
+      - name: Trivy scan (full SARIF, all severities)
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          scanners: vuln
+          format: sarif
+          output: trivy.sarif
+          exit-code: '0'
+
+      - name: Upload to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-${{ matrix.image }}
