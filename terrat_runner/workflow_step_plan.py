@@ -6,9 +6,9 @@ import os
 import string
 import time
 
+import api
 import cmd
 import repo_config as rc
-import requests_retry
 
 import workflow
 
@@ -17,21 +17,22 @@ ACCESS_KEY_ID = 'access_key_id'
 SECRET_ACCESS_KEY = 'secret_access_key'
 
 
-def _store_plan_data(plan_data, work_token, api_base_url, dir_path, workspace, has_changes):
+def _store_plan_data(state, plan_data, dir_path, workspace, has_changes):
     plan_data = base64.b64encode(json.dumps(plan_data).encode('utf-8')).decode('utf-8')
 
-    res = requests_retry.post(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
-                              json={
-                                  'path': dir_path,
-                                  'workspace': workspace,
-                                  'plan_data': plan_data,
-                                  'has_changes': has_changes
-                              })
+    res = api.work_manifest_post(state,
+                                 'plans',
+                                 json={
+                                     'path': dir_path,
+                                     'workspace': workspace,
+                                     'plan_data': plan_data,
+                                     'has_changes': has_changes
+                                 })
 
     return (res.status_code == 200, res.text)
 
 
-def _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
+def _store_plan_terrateam(state, dir_path, workspace, plan_path, has_changes):
     try:
         with open(plan_path, 'rb') as f:
             plan_data_raw = f.read()
@@ -47,31 +48,19 @@ def _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_pa
                       workspace,
                       hashlib.md5(plan_data_raw).hexdigest())
 
-        return _store_plan_data(plan_data,
-                                work_token,
-                                api_base_url,
-                                dir_path,
-                                workspace,
-                                has_changes)
+        return _store_plan_data(state, plan_data, dir_path, workspace, has_changes)
     except Exception as exn:
         logging.exception('Failed')
         return (False, str(exn))
 
 
-def _store_plan_cmd(state,
-                    plan_storage,
-                    work_token,
-                    api_base_url,
-                    dir_path,
-                    workspace,
-                    plan_path,
-                    has_changes):
+def _store_plan_cmd(state, plan_storage, dir_path, workspace, plan_path, has_changes):
     tmpl_vars = {
         'date': time.strftime('%Y-%m-%d'),
         'dir': dir_path,
         'plan_path': plan_path,
         'time': time.strftime('%H%M%S'),
-        'token': work_token,
+        'token': state.work_token,
         'workspace': workspace,
     }
     plan_data = {
@@ -83,12 +72,12 @@ def _store_plan_cmd(state,
     store_cmd = [string.Template(s).safe_substitute(tmpl_vars) for s in plan_storage['store']]
     (proc, stdout, stderr) = cmd.run_with_output(state, {'cmd': store_cmd})
     if proc.returncode == 0:
-        return _store_plan_data(plan_data, work_token, api_base_url, dir_path, workspace, has_changes)
+        return _store_plan_data(state, plan_data, dir_path, workspace, has_changes)
     else:
         return (False, '\n'.join([stderr, stdout]))
 
 
-def _store_plan_s3(state, plan_storage, work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
+def _store_plan_s3(state, plan_storage, dir_path, workspace, plan_path, has_changes):
     s3_path = plan_storage.get('path', 'terrateam/plans/$dir/$workspace/$date-$time-$token')
     url = 's3://' + plan_storage['bucket'] + '/' + s3_path
 
@@ -125,23 +114,19 @@ def _store_plan_s3(state, plan_storage, work_token, api_base_url, dir_path, work
             'fetch': fetch_cmd,
             'store': store_cmd,
         },
-        work_token,
-        api_base_url,
         dir_path,
         workspace,
         plan_path,
         has_changes)
 
 
-def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspace, plan_path, has_changes):
+def _store_plan(state, plan_storage, dir_path, workspace, plan_path, has_changes):
     method = plan_storage['method']
     if method == 'terrateam':
-        return _store_plan_terrateam(work_token, api_base_url, dir_path, workspace, plan_path, has_changes)
+        return _store_plan_terrateam(state, dir_path, workspace, plan_path, has_changes)
     elif method == 'cmd':
         return _store_plan_cmd(state,
                                plan_storage,
-                               work_token,
-                               api_base_url,
                                dir_path,
                                workspace,
                                plan_path,
@@ -149,8 +134,6 @@ def _store_plan(state, plan_storage, work_token, api_base_url, dir_path, workspa
     elif method == 's3':
         return _store_plan_s3(state,
                               plan_storage,
-                              work_token,
-                              api_base_url,
                               dir_path,
                               workspace,
                               plan_path,
@@ -216,8 +199,6 @@ def run(state, config):
 
     (success, output) = _store_plan(state,
                                     plan_storage,
-                                    state.work_token,
-                                    state.api_base_url,
                                     state.env['TERRATEAM_DIR'],
                                     state.env['TERRATEAM_WORKSPACE'],
                                     state.env['TERRATEAM_PLAN_FILE'],
