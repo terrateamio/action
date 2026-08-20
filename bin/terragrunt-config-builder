@@ -13,6 +13,7 @@ Environment Variables:
     TERRATEAM_ROOT: Root directory of the repository
 """
 
+import argparse
 import json
 import os
 import sys
@@ -807,10 +808,21 @@ TF_PATH_REF_RE = re.compile(r'\$\{\s*path\.(?:module|root|cwd)\s*\}')
 
 # Functions whose first argument is a path to a local file the module reads at plan or
 # apply time. Editing that file changes what the module produces, so it has to be
-# tracked. Longer names come first so the alternation prefers them.
-TF_FILE_FUNCS = ('templatefile', 'file')
+# tracked. Longer names are matched first so, e.g., filemd5( is not consumed as file(.
+TF_FILE_FUNCS = (
+    'templatefile',
+    'file',
+    'filebase64',
+    'filebase64sha256',
+    'filebase64sha512',
+    'fileexists',
+    'filemd5',
+    'filesha1',
+    'filesha256',
+    'filesha512',
+)
 TF_FILE_FUNC_RE = re.compile(
-    r'\b(?:' + '|'.join(TF_FILE_FUNCS) + r')\s*\(\s*(?:"([^"]*)"|\'([^\']*)\')'
+    r'\b(?:' + '|'.join(sorted(TF_FILE_FUNCS, key=len, reverse=True)) + r')\s*\(\s*(?:"([^"]*)"|\'([^\']*)\')'
 )
 
 # Referenced files are discovered once per directory rather than once per unit, the
@@ -883,7 +895,8 @@ def generate_terrateam_config(
     terragrunt_dirs: List[str],
     all_dependencies: Dict[str, Dict],
     dependency_graph: Dict[str, List[str]],
-    root_path: str
+    root_path: str,
+    scan_tf_files: bool = False
 ) -> Dict:
     """
     Generate Terrateam configuration with dirs entries for each terragrunt directory.
@@ -893,6 +906,10 @@ def generate_terrateam_config(
         terragrunt_dirs: List of terragrunt directory paths
         all_dependencies: Full dependency information for each directory
         dependency_graph: Adjacency dictionary of dependencies
+        scan_tf_files: When True, scan the unit's own .tf files (and the local
+            modules they reach) for module sources and file references
+            (templatefile, file, ...). When False, only terraform.source modules
+            declared in terragrunt.hcl are followed.
 
     Returns:
         Modified configuration with generated dirs entries
@@ -923,7 +940,10 @@ def generate_terrateam_config(
         # module those files call have to trigger the unit just like a terraform.source
         # module does.
         module_sources = list(deps.get("terraform_sources", []))
-        module_sources.extend(find_local_module_sources(root_path, dir_path))
+        if scan_tf_files:
+            # Also follow local modules referenced by .tf files in the unit directory
+            # itself, not only those named by a terraform.source in terragrunt.hcl.
+            module_sources.extend(find_local_module_sources(root_path, dir_path))
 
         module_dirs = collect_module_closure(root_path, module_sources)
 
@@ -932,12 +952,13 @@ def generate_terrateam_config(
             # Add glob pattern for all .tf files in the module
             file_patterns.append(f"{source}/**/*.tf")
 
-        # Track files pulled in by templatefile()/file() calls, both in the unit's own
-        # .tf files and in every local module it reaches. Editing a template changes the
-        # unit's output, so the template file has to trigger the unit too.
-        for scan_dir in sorted({dir_path} | module_dirs):
-            for referenced in sorted(find_referenced_files(root_path, scan_dir)):
-                file_patterns.append(referenced)
+        if scan_tf_files:
+            # Track files pulled in by templatefile()/file()/... calls, both in the
+            # unit's own .tf files and in every local module it reaches. Editing a
+            # template changes the unit's output, so it has to trigger the unit too.
+            for scan_dir in sorted({dir_path} | module_dirs):
+                for referenced in sorted(find_referenced_files(root_path, scan_dir)):
+                    file_patterns.append(referenced)
 
         # Add extra dependencies
         for extra in deps.get("extra_deps", []):
@@ -972,6 +993,26 @@ def generate_terrateam_config(
     return output_config
 
 
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """
+    Parse command-line arguments for the config builder.
+    """
+    parser = argparse.ArgumentParser(
+        description="Build Terrateam config from a Terragrunt monorepo."
+    )
+    parser.add_argument(
+        '--scan-tf-files',
+        action='store_true',
+        help=(
+            "Scan each unit's own .tf files (and the local modules they reach) for "
+            "module sources and file references such as templatefile()/file(), and "
+            "track those files. Without this flag only terraform.source modules "
+            "declared in terragrunt.hcl are followed."
+        )
+    )
+    return parser.parse_args(argv)
+
+
 def main():
     """
     Main entry point for the config builder script.
@@ -979,6 +1020,8 @@ def main():
     Reads JSON config from stdin, processes terragrunt files, and outputs modified JSON to stdout.
     """
     try:
+        cli_args = parse_args()
+
         # Get repository root from environment
         repo_root = os.environ.get('TERRATEAM_ROOT')
         if not repo_root:
@@ -1020,7 +1063,8 @@ def main():
             terragrunt_dirs,
             all_dependencies,
             dependency_graph,
-            repo_root
+            repo_root,
+            scan_tf_files=cli_args.scan_tf_files
         )
 
         # Output final config to stdout
