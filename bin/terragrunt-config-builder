@@ -13,12 +13,13 @@ Environment Variables:
     TERRATEAM_ROOT: Root directory of the repository
 """
 
+import argparse
 import json
 import os
 import sys
 import subprocess
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 import re
 
 
@@ -426,7 +427,7 @@ def resolve_include_path(base_dir: str, path_value: str, root_path: str) -> Opti
     return resolve_relative_path(base_dir, path_value)
 
 
-def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Optional[str] = None) -> Dict[str, List[str]]:
+def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Optional[str] = None, _visited: Optional[Set[str]] = None) -> Dict[str, List[str]]:
     """
     Parse a terragrunt.hcl file and extract file patterns for when_modified tracking.
 
@@ -451,6 +452,13 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
         "dependencies": [],
         "extra_deps": []
     }
+
+    # Includes are followed, so stop if a parent chain ever comes back around.
+    _visited = set() if _visited is None else _visited
+    if file_path in _visited:
+        return result
+    _visited.add(file_path)
+    inherited_sources = []
 
     if root_path is None:
         file_parent = Path(file_path).resolve().parent
@@ -483,15 +491,30 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
                     result['includes'].append(resolved_path)
                     log(f"  Found include: {path_value} -> {resolved_path}", "DEBUG")
 
+                    parent = parse_terragrunt_dependencies(
+                        os.path.join(root_path, resolved_path),
+                        base_dir,
+                        root_path,
+                        _visited
+                    )
+                    result['includes'].extend(parent['includes'])
+                    inherited_sources.extend(parent['terraform_sources'])
+
         # Extract terraform.source for local modules
         if 'terraform' in parsed:
             for terraform_block in iter_hcl_blocks(parsed['terraform']):
                 source = hcl_string(terraform_block.get('source'))
-                if source and is_local_source(source):
-                    resolved_path = resolve_relative_path(base_dir, source)
+                if source:
+                    resolved_path = resolve_source_path(base_dir, source)
                     if resolved_path:
                         result['terraform_sources'].append(resolved_path)
                         log(f"  Found local terraform source: {source} -> {resolved_path}", "DEBUG")
+
+        # A source on the unit overrides one from a parent, the way Terragrunt merges
+        # the terraform block, so an inherited source is used only when the unit sets
+        # none of its own.
+        if not result['terraform_sources']:
+            result['terraform_sources'].extend(inherited_sources)
 
         # Extract dependency "name" { config_path = "../dir" } blocks.
         if 'dependency' in parsed:
@@ -589,6 +612,35 @@ def is_local_source(source: str) -> bool:
     return source.startswith('./') or source.startswith('../') or source.startswith('/')
 
 
+def resolve_source_path(base_dir: str, source: str) -> Optional[str]:
+    """
+    Resolve a terraform.source to a repository-relative path when it is local.
+
+    is_local_source covers ./ and ../ . A source written as ${get_repo_root()}//path
+    names a path in the repository just as plainly, and is the usual way to write one in
+    a shared parent because it does not depend on how deep the unit sits.
+    resolve_include_path already resolves find_in_parent_folders for include paths on the
+    same reasoning, so it is resolved here too. Remote sources return None.
+
+    Args:
+        base_dir: Directory the source is resolved against
+        source: The terraform.source string
+
+    Returns:
+        Path relative to the repository root, or None if the source is not local
+    """
+    repo_root = '${get_repo_root()}'
+
+    if source.startswith(repo_root):
+        path = source[len(repo_root):].strip('/')
+        return resolve_relative_path('', path) if path else None
+
+    if is_local_source(source):
+        return resolve_relative_path(base_dir, source)
+
+    return None
+
+
 def resolve_relative_path(base_dir: str, relative_path: str) -> Optional[str]:
     """
     Resolve a relative path to an absolute path from repository root.
@@ -654,11 +706,197 @@ def find_parent_configs(base_dir: str) -> List[str]:
     return parent_configs
 
 
+# A module is reached once for every unit that deploys something wrapping it, so the
+# files are parsed once per directory rather than once per unit.
+module_sources_cache = {}
+
+
+def find_local_module_sources(root_path: str, directory: str) -> Set[str]:
+    """
+    Parse every .tf file in a single directory and return the local module
+    sources they reference, resolved to repository-relative paths.
+
+    A directory here is any folder holding Terraform files, whether it is a
+    shared module or a Terragrunt unit that defines terraform inline in .tf
+    files next to its terragrunt.hcl. Remote module sources (registry, git,
+    etc.) are skipped because editing them does not change a file in the repo.
+
+    Args:
+        root_path: Root directory of the repository
+        directory: Directory to scan, relative to the repository root
+
+    Returns:
+        Resolved repository-relative paths of the local modules referenced
+    """
+    try:
+        ensure_hcl2()
+        import hcl2
+        import lark
+    except (ImportError, subprocess.CalledProcessError) as e:
+        log(f"Could not install python-hcl2. Cannot scan .tf files in {directory}: {e}", "ERROR")
+        return set()
+
+    found = set()
+
+    try:
+        names = sorted(os.listdir(os.path.join(root_path, directory)))
+    except OSError:
+        return found
+
+    for name in names:
+        if not name.endswith('.tf'):
+            continue
+
+        try:
+            with open(os.path.join(root_path, directory, name)) as f:
+                parsed = hcl2.load(f)
+        except (OSError, lark.exceptions.LarkError) as e:
+            log(f"Cannot parse {directory}/{name}: {e}", "WARN")
+            continue
+
+        for module_block in iter_hcl_blocks(parsed.get('module', [])):
+            source = hcl_string(module_block.get('source'))
+            if not source:
+                continue
+
+            resolved = resolve_source_path(directory, source)
+            if resolved:
+                found.add(resolved)
+
+    return found
+
+
+def collect_module_closure(root_path: str, sources: Iterable[str]) -> Set[str]:
+    """
+    Expand module paths with the modules those modules use.
+
+    A module that wraps another is changed by an edit to either, so a unit tracking the
+    outer module has to track the inner one as well. Only local sources are followed,
+    since a module referring to a registry or git source does not make those files part
+    of the repository.
+
+    Args:
+        root_path: Root directory of the repository
+        sources: Module paths relative to the repository root
+
+    Returns:
+        Every module path reachable from sources, including sources
+    """
+    seen = set()
+    pending = list(sources)
+
+    while pending:
+        directory = pending.pop()
+        if directory in seen:
+            continue
+
+        seen.add(directory)
+
+        cache_key = (root_path, directory)
+        if cache_key not in module_sources_cache:
+            module_sources_cache[cache_key] = find_local_module_sources(root_path, directory)
+
+        pending.extend(module_sources_cache[cache_key])
+
+    return seen
+
+
+# path.module / path.root / path.cwd each resolve to a directory on disk. For static
+# discovery every one is treated as the directory being scanned, which is exact for
+# path.module (the module's own directory) and a reasonable best effort for the others.
+TF_PATH_REF_RE = re.compile(r'\$\{\s*path\.(?:module|root|cwd)\s*\}')
+
+# Functions whose first argument is a path to a local file the module reads at plan or
+# apply time. Editing that file changes what the module produces, so it has to be
+# tracked. Longer names are matched first so, e.g., filemd5( is not consumed as file(.
+TF_FILE_FUNCS = (
+    'templatefile',
+    'file',
+    'filebase64',
+    'filebase64sha256',
+    'filebase64sha512',
+    'fileexists',
+    'filemd5',
+    'filesha1',
+    'filesha256',
+    'filesha512',
+)
+TF_FILE_FUNC_RE = re.compile(
+    r'\b(?:' + '|'.join(sorted(TF_FILE_FUNCS, key=len, reverse=True)) + r')\s*\(\s*(?:"([^"]*)"|\'([^\']*)\')'
+)
+
+# Referenced files are discovered once per directory rather than once per unit, the
+# same way module sources are.
+referenced_files_cache = {}
+
+
+def find_referenced_files(root_path: str, directory: str) -> Set[str]:
+    """
+    Scan the .tf files in a directory for calls to file-reading functions
+    (templatefile, file) and return the local files they reference, resolved to
+    repository-relative paths.
+
+    ${path.module}, ${path.root} and ${path.cwd} are rewritten to the directory
+    being scanned. A path that still contains an interpolation after that cannot
+    be resolved statically and is skipped.
+
+    Args:
+        root_path: Root directory of the repository
+        directory: Directory to scan, relative to the repository root
+
+    Returns:
+        Resolved repository-relative paths of the files referenced
+    """
+    cache_key = (root_path, directory)
+    if cache_key in referenced_files_cache:
+        return referenced_files_cache[cache_key]
+
+    found = set()
+    referenced_files_cache[cache_key] = found
+
+    try:
+        names = sorted(os.listdir(os.path.join(root_path, directory)))
+    except OSError:
+        return found
+
+    for name in names:
+        if not name.endswith('.tf'):
+            continue
+
+        try:
+            with open(os.path.join(root_path, directory, name)) as f:
+                content = f.read()
+        except OSError as e:
+            log(f"Cannot read {directory}/{name}: {e}", "WARN")
+            continue
+
+        for match in TF_FILE_FUNC_RE.finditer(content):
+            path_value = match.group(1) if match.group(1) is not None else match.group(2)
+            if not path_value:
+                continue
+
+            # Drop the path.* tokens, then any separator they left behind, so the
+            # remainder is relative to the directory being scanned.
+            cleaned = TF_PATH_REF_RE.sub('', path_value).lstrip('/')
+            if '${' in cleaned:
+                log(f"Skipping dynamic file reference in {directory}/{name}: {path_value}", "DEBUG")
+                continue
+
+            resolved = resolve_relative_path(directory, cleaned)
+            if resolved:
+                found.add(resolved)
+                log(f"  Found referenced file: {path_value} -> {resolved}", "DEBUG")
+
+    return found
+
+
 def generate_terrateam_config(
     input_config: Dict,
     terragrunt_dirs: List[str],
     all_dependencies: Dict[str, Dict],
-    dependency_graph: Dict[str, List[str]]
+    dependency_graph: Dict[str, List[str]],
+    root_path: str,
+    scan_tf_files: bool = False
 ) -> Dict:
     """
     Generate Terrateam configuration with dirs entries for each terragrunt directory.
@@ -668,6 +906,10 @@ def generate_terrateam_config(
         terragrunt_dirs: List of terragrunt directory paths
         all_dependencies: Full dependency information for each directory
         dependency_graph: Adjacency dictionary of dependencies
+        scan_tf_files: When True, scan the unit's own .tf files (and the local
+            modules they reach) for module sources and file references
+            (templatefile, file, ...). When False, only terraform.source modules
+            declared in terragrunt.hcl are followed.
 
     Returns:
         Modified configuration with generated dirs entries
@@ -692,10 +934,31 @@ def generate_terrateam_config(
         for include in deps.get("includes", []):
             file_patterns.append(include)
 
-        # Add local terraform module sources
-        for source in deps.get("terraform_sources", []):
+        # Seed the module closure with the sources declared in terragrunt.hcl and with
+        # the local modules referenced by the unit's own .tf files. A unit can define
+        # terraform inline in .tf files next to terragrunt.hcl, and edits to a local
+        # module those files call have to trigger the unit just like a terraform.source
+        # module does.
+        module_sources = list(deps.get("terraform_sources", []))
+        if scan_tf_files:
+            # Also follow local modules referenced by .tf files in the unit directory
+            # itself, not only those named by a terraform.source in terragrunt.hcl.
+            module_sources.extend(find_local_module_sources(root_path, dir_path))
+
+        module_dirs = collect_module_closure(root_path, module_sources)
+
+        # Add local terraform module sources, and the modules they use in turn
+        for source in sorted(module_dirs):
             # Add glob pattern for all .tf files in the module
             file_patterns.append(f"{source}/**/*.tf")
+
+        if scan_tf_files:
+            # Track files pulled in by templatefile()/file()/... calls, both in the
+            # unit's own .tf files and in every local module it reaches. Editing a
+            # template changes the unit's output, so it has to trigger the unit too.
+            for scan_dir in sorted({dir_path} | module_dirs):
+                for referenced in sorted(find_referenced_files(root_path, scan_dir)):
+                    file_patterns.append(referenced)
 
         # Add extra dependencies
         for extra in deps.get("extra_deps", []):
@@ -730,6 +993,26 @@ def generate_terrateam_config(
     return output_config
 
 
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """
+    Parse command-line arguments for the config builder.
+    """
+    parser = argparse.ArgumentParser(
+        description="Build Terrateam config from a Terragrunt monorepo."
+    )
+    parser.add_argument(
+        '--scan-tf-files',
+        action='store_true',
+        help=(
+            "Scan each unit's own .tf files (and the local modules they reach) for "
+            "module sources and file references such as templatefile()/file(), and "
+            "track those files. Without this flag only terraform.source modules "
+            "declared in terragrunt.hcl are followed."
+        )
+    )
+    return parser.parse_args(argv)
+
+
 def main():
     """
     Main entry point for the config builder script.
@@ -737,6 +1020,8 @@ def main():
     Reads JSON config from stdin, processes terragrunt files, and outputs modified JSON to stdout.
     """
     try:
+        cli_args = parse_args()
+
         # Get repository root from environment
         repo_root = os.environ.get('TERRATEAM_ROOT')
         if not repo_root:
@@ -777,7 +1062,9 @@ def main():
             input_config,
             terragrunt_dirs,
             all_dependencies,
-            dependency_graph
+            dependency_graph,
+            repo_root,
+            scan_tf_files=cli_args.scan_tf_files
         )
 
         # Output final config to stdout
