@@ -7,23 +7,21 @@ import subprocess
 import sys
 
 
-class MissingEnvVar(Exception):
-    pass
-
-
 def _strip_ansi(s):
     return re.sub(r'\033\[(\d|;)+?m', '', s)
 
 
-def replace_vars(s, env):
+def replace_vars(value, env):
+    tmpl = string.Template(value)
     try:
-        v = string.Template(s).substitute(env)
-        if s == v:
-            return v
-        else:
-            return replace_vars(v, env)
-    except KeyError as exn:
-        raise MissingEnvVar(*exn.args)
+        result = tmpl.substitute(env)
+    except (KeyError, ValueError):
+        logging.warning('REPLACE_VARS : unresolved variable in: %s', value)
+        result = tmpl.safe_substitute(env)
+    if value == result:
+        return result
+    else:
+        return replace_vars(result, env)
 
 
 def _create_env(env, additional_env):
