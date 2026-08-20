@@ -88,7 +88,8 @@ def get_engine(repo_config):
     # compatibility with existing configurations.
     if 'engine' in repo_config:
         engine = repo_config['engine'].copy()
-        if engine['name'] in ['cdktf', 'terragrunt', 'stategraph'] and 'tf_cmd' not in engine:
+        if engine['name'] in ['cdktf', 'terragrunt', 'stategraph', 'tfmigrate'] \
+                and 'tf_cmd' not in engine:
             engine['tf_cmd'] = 'terraform'
 
         return engine
@@ -141,7 +142,7 @@ def get_workflow(repo_config, idx):
         default_tf_cmd = 'terraform'
         default_tf_version = None
 
-    if engine['name'] in ['terragrunt', 'cdktf', 'stategraph']:
+    if engine['name'] in ['terragrunt', 'cdktf', 'stategraph', 'tfmigrate']:
         engine['tf_cmd'] = _get(engine, 'tf_cmd',  default_tf_cmd)
         if engine['tf_cmd'] == 'terraform':
             engine['tf_version'] = _get(engine, 'tf_version', get_default_tf_version(repo_config))
