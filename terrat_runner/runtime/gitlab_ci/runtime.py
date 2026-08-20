@@ -4,9 +4,9 @@ import os
 import subprocess
 import sys
 
+import api
 import cmd
 import repo_config as rc
-import requests_retry
 
 from . import core
 
@@ -80,8 +80,7 @@ class Runtime(object):
         else:
             logging.error('Failed to create indexer image')
 
-        requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                           json=stdout)
+        api.work_manifest_put(state, json=stdout)
 
 
     def steps(self):

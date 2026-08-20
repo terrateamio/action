@@ -2,9 +2,9 @@ import json
 import os
 import tempfile
 
+import api
 import cmd
 import repo_config as rc
-import requests_retry
 
 
 def run(state):
@@ -37,17 +37,12 @@ def run(state):
             if proc.returncode == 0:
                 try:
                     config = json.loads(stdout)
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                       json={'config': config})
+                    api.work_manifest_put(state, json={'config': config})
                 except json.JSONDecodeError as exn:
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                       json={'msg': exn.msg})
+                    api.work_manifest_put(state, json={'msg': exn.msg})
                 except Exception as exn:
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                       json={'msg': str(exn)})
+                    api.work_manifest_put(state, json={'msg': str(exn)})
             else:
-                requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                   json={'msg': '\n'.join([stderr, stdout])})
+                api.work_manifest_put(state, json={'msg': '\n'.join([stderr, stdout])})
         except Exception as exn:
-            requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                               json={'msg': str(exn)})
+            api.work_manifest_put(state, json={'msg': str(exn)})
