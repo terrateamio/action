@@ -4,14 +4,15 @@ import json
 import logging
 import string
 
+import api
 import cmd
-import requests_retry
 import workflow
 
 
-def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
-    res = requests_retry.get(api_base_url + '/v1/work-manifests/' + work_token + '/plans',
-                             params={'path': dir_path, 'workspace': workspace})
+def _load_plan(state, dir_path, workspace, plan_path):
+    res = api.work_manifest_get(state,
+                                'plans',
+                                params={'path': dir_path, 'workspace': workspace})
 
     if res.status_code != 200:
         return (False, 'Could not load plan from backend', False)
@@ -27,7 +28,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
             logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
                           dir_path,
                           workspace,
-                          hashlib.md5(plan_data_raw).hexdigest())
+                          hashlib.md5(plan_data_raw, usedforsecurity=False).hexdigest())
 
             with open(plan_path, 'wb') as f:
                 f.write(plan_data_raw)
@@ -59,7 +60,7 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
         logging.debug('APPLY : LOAD_PLAN : dir_path=%s : workspace=%s : md5=%s',
                       dir_path,
                       workspace,
-                      hashlib.md5(plan_data_raw).hexdigest())
+                      hashlib.md5(plan_data_raw, usedforsecurity=False).hexdigest())
 
         with open(plan_path, 'wb') as f:
             f.write(plan_data_raw)
@@ -69,8 +70,6 @@ def _load_plan(state, work_token, api_base_url, dir_path, workspace, plan_path):
 
 def run(state, config):
     (success, output, has_plan_file) = _load_plan(state,
-                                                  state.work_token,
-                                                  state.api_base_url,
                                                   state.path,
                                                   state.workspace,
                                                   state.env['TERRATEAM_PLAN_FILE'])

@@ -16,13 +16,11 @@ class ApplyStepTest(unittest.TestCase):
         return res
 
     def test_load_plan_rejects_none_without_unsafe_apply_opt_in(self):
-        with mock.patch('workflow_step_apply.requests_retry.get') as get:
+        with mock.patch('workflow_step_apply.api.work_manifest_get') as get:
             get.return_value = self._plan_response({'method': 'none', 'version': 1})
 
             result = workflow_step_apply._load_plan(
                 SimpleNamespace(),
-                'token',
-                'https://api.example.com',
                 'dev',
                 'default',
                 '/tmp/plan')
@@ -32,7 +30,7 @@ class ApplyStepTest(unittest.TestCase):
         self.assertEqual(result[2], False)
 
     def test_load_plan_allows_none_with_unsafe_apply_opt_in(self):
-        with mock.patch('workflow_step_apply.requests_retry.get') as get:
+        with mock.patch('workflow_step_apply.api.work_manifest_get') as get:
             get.return_value = self._plan_response({
                 'method': 'none',
                 'unsafe_apply_without_plan': True,
@@ -41,8 +39,6 @@ class ApplyStepTest(unittest.TestCase):
 
             result = workflow_step_apply._load_plan(
                 SimpleNamespace(),
-                'token',
-                'https://api.example.com',
                 'dev',
                 'default',
                 '/tmp/plan')

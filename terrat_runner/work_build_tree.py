@@ -3,9 +3,9 @@ import logging
 import os
 import tempfile
 
+import api
 import cmd
 import repo_config as rc
-import requests_retry
 
 
 def _cleanup_path(terrateam_root, path):
@@ -78,20 +78,15 @@ def run(state):
             if proc.returncode == 0:
                 try:
                     tree = _cleanup(state.env['TERRATEAM_ROOT'], json.loads(stdout))
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                       json={'files': tree})
+                    api.work_manifest_put(state, json={'files': tree})
                 except json.JSONDecodeError as exn:
                     logging.exception('Failed to decode JSON')
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                       json={'msg': exn.msg})
+                    api.work_manifest_put(state, json={'msg': exn.msg})
                 except Exception as exn:
                     logging.exception('Unknown failure')
-                    requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                       json={'msg': str(exn)})
+                    api.work_manifest_put(state, json={'msg': str(exn)})
             else:
-                requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                                   json={'msg': '\n'.join([stderr, stdout])})
+                api.work_manifest_put(state, json={'msg': '\n'.join([stderr, stdout])})
         except Exception as exn:
             logging.exception('Unknown failure')
-            requests_retry.put(state.api_base_url + '/v1/work-manifests/' + state.work_token,
-                               json={'msg': str(exn)})
+            api.work_manifest_put(state, json={'msg': str(exn)})
