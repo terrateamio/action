@@ -59,6 +59,9 @@ class Engine:
     def apply(self, state, config):
         return _run(state, config, self.engine_tf.apply)
 
+    def apply_without_plan(self, state, config):
+        return _run(state, config, self.engine_tf.apply_without_plan)
+
     def diff(self, state, config):
         return _run(state, config, self.engine_tf.diff)
 
