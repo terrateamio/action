@@ -120,6 +120,15 @@ def _store_plan_s3(state, plan_storage, dir_path, workspace, plan_path, has_chan
         has_changes)
 
 
+def _store_plan_none(state, plan_storage, dir_path, workspace, has_changes):
+    plan_data = {
+        'method': 'none',
+        'unsafe_apply_without_plan': plan_storage.get('unsafe_apply_without_plan', False),
+        'version': 1,
+    }
+    return _store_plan_data(state, plan_data, dir_path, workspace, has_changes)
+
+
 def _store_plan(state, plan_storage, dir_path, workspace, plan_path, has_changes):
     method = plan_storage['method']
     if method == 'terrateam':
@@ -138,6 +147,12 @@ def _store_plan(state, plan_storage, dir_path, workspace, plan_path, has_changes
                               workspace,
                               plan_path,
                               has_changes)
+    elif method == 'none':
+        return _store_plan_none(state,
+                                plan_storage,
+                                dir_path,
+                                workspace,
+                                has_changes)
     else:
         raise Exception('Unknown method')
 
@@ -195,7 +210,7 @@ def run(state, config):
     # else:
     #     diff_json = None
 
-    plan_storage = rc.get_plan_storage(state.repo_config)
+    plan_storage = rc.get_plan_storage(state.workflow)
 
     (success, output) = _store_plan(state,
                                     plan_storage,

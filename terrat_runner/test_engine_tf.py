@@ -1,4 +1,6 @@
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 import engine_tf
 
@@ -168,6 +170,25 @@ class FormatDiffTest(unittest.TestCase):
             '    HD',
         ]
         self.assertEqual(fmt(plan), joined(expected))
+
+
+class ApplyTest(unittest.TestCase):
+    def test_apply_without_plan_does_not_pass_plan_file(self):
+        state = SimpleNamespace(
+            path='.',
+            workflow={'engine': {'name': 'terraform'}}
+        )
+        engine = engine_tf.make(override_tf_cmd='terraform')
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+
+            result = engine.apply_without_plan(state, {'extra_args': ['-target=module.foo']})
+
+        self.assertEqual(result, (True, 'out', 'err'))
+        self.assertEqual(
+            run.call_args[0][1]['cmd'],
+            ['terraform', 'apply', '-auto-approve', '-target=module.foo'])
 
 
 if __name__ == '__main__':
