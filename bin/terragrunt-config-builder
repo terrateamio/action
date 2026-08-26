@@ -896,7 +896,8 @@ def generate_terrateam_config(
     all_dependencies: Dict[str, Dict],
     dependency_graph: Dict[str, List[str]],
     root_path: str,
-    scan_tf_files: bool = False
+    scan_tf_files: bool = False,
+    create_and_select_workspace: bool = True
 ) -> Dict:
     """
     Generate Terrateam configuration with dirs entries for each terragrunt directory.
@@ -910,6 +911,11 @@ def generate_terrateam_config(
             modules they reach) for module sources and file references
             (templatefile, file, ...). When False, only terraform.source modules
             declared in terragrunt.hcl are followed.
+        create_and_select_workspace: When False, every generated dir entry sets
+            create_and_select_workspace to false, so Terrateam does not run
+            `workspace new`/`workspace select` before the unit. Terragrunt
+            normally manages workspaces itself. When True (the default) the key
+            is left out and Terrateam keeps its own default.
 
     Returns:
         Modified configuration with generated dirs entries
@@ -980,6 +986,11 @@ def generate_terrateam_config(
             }
         }
 
+        # Only emit the key when the user opted out of workspace handling. Left
+        # out, the dir keeps whatever default Terrateam applies.
+        if not create_and_select_workspace:
+            dir_config["create_and_select_workspace"] = False
+
         # Add depends_on if there are dependencies
         if direct_deps:
             # Format as Terrateam tag query: "dir:path1 or dir:path2"
@@ -1008,6 +1019,19 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
             "module sources and file references such as templatefile()/file(), and "
             "track those files. Without this flag only terraform.source modules "
             "declared in terragrunt.hcl are followed."
+        )
+    )
+    parser.add_argument(
+        '--no-create-and-select-workspace',
+        dest='create_and_select_workspace',
+        action='store_false',
+        default=True,
+        help=(
+            "Set create_and_select_workspace to false on every generated dir "
+            "entry, so Terrateam does not create and select a workspace before "
+            "running the unit. Use this when Terragrunt manages workspaces "
+            "itself. Without this flag the key is left out and the Terrateam "
+            "default applies."
         )
     )
     return parser.parse_args(argv)
@@ -1064,7 +1088,8 @@ def main():
             all_dependencies,
             dependency_graph,
             repo_root,
-            scan_tf_files=cli_args.scan_tf_files
+            scan_tf_files=cli_args.scan_tf_files,
+            create_and_select_workspace=cli_args.create_and_select_workspace
         )
 
         # Output final config to stdout
