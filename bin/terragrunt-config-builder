@@ -18,7 +18,7 @@ import json
 import os
 import sys
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional, Set
 import re
 
@@ -575,6 +575,138 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
     return result
 
 
+# Path_glob, which Terrateam parses file_patterns with, also understands '{a,b}'
+# alternation, '[a-z]' classes, and a leading '!' for negation. None of those are
+# translated here, so a glob using them would silently match nothing.
+UNSUPPORTED_GLOB_SYNTAX = ('{', '}', '[', ']')
+
+# Terrateam escapes these before handing a file_pattern to Path_glob, so their
+# braces are literal rather than alternation. glob_to_regex escapes them too.
+LITERAL_GLOB_TOKENS = ('${DIR}', '${WORKSPACE}')
+
+
+def glob_to_regex(glob: str) -> str:
+    """
+    Translate a glob into a regex, using a subset of the Terrateam file_patterns
+    dialect: '*', '**' and '?'.
+
+    '**' spans path separators, '*' and '?' stop at one. pathlib.PurePath.match
+    cannot be used here: before Python 3.13 it reads '**' as a single component,
+    so 'provisioning/modules/**' would quietly match nothing.
+    """
+    out = []
+    i = 0
+
+    while i < len(glob):
+        char = glob[i]
+
+        if glob.startswith('**', i):
+            i += 2
+            if i < len(glob) and glob[i] == '/':
+                # '**/x' has to match a bare 'x' as well as 'a/b/x'.
+                i += 1
+                out.append('(?:.*/)?')
+            else:
+                out.append('.*')
+        elif char == '*':
+            i += 1
+            out.append('[^/]*')
+        elif char == '?':
+            i += 1
+            out.append('[^/]')
+        else:
+            i += 1
+            out.append(re.escape(char))
+
+    return '^' + ''.join(out) + r'\Z'
+
+
+def validate_exclude_globs(exclude_globs: List[str]) -> List[str]:
+    """
+    Drop unusable --exclude-file-pattern globs, reporting each one once.
+
+    matches_exclude runs per file_pattern per dir, so warning in there turns one
+    bad glob into thousands of identical lines in a real monorepo and buries the
+    warnings that matter. Report here instead, once per glob.
+
+    A glob using syntax glob_to_regex does not translate is kept, because it is
+    still a valid literal match, but it is called out: silently matching nothing
+    leaves the user with the fan-out they were trying to remove. '${DIR}' and
+    '${WORKSPACE}' are exempt, since Terrateam treats their braces as literal too.
+    """
+    kept = []
+
+    for glob in exclude_globs:
+        if not glob:
+            log("Ignoring empty --exclude-file-pattern", "WARN")
+            continue
+
+        bare = glob
+
+        for token in LITERAL_GLOB_TOKENS:
+            bare = bare.replace(token, '')
+
+        if glob.startswith('!') or any(c in bare for c in UNSUPPORTED_GLOB_SYNTAX):
+            log(
+                f"--exclude-file-pattern {glob!r} uses glob syntax this flag does not "
+                "translate; only '*', '**' and '?' are supported, so it will likely "
+                "match nothing",
+                "WARN"
+            )
+
+        kept.append(glob)
+
+    return kept
+
+
+def matches_exclude(file_pattern: str, exclude_globs: List[str]) -> bool:
+    """
+    Report whether a generated file_pattern should be dropped.
+
+    A glob holding no '/' is matched against the file name alone, so
+    'provider*.hcl' drops that file wherever it sits. Any other glob is matched
+    against the whole repo-relative path, so 'provisioning/modules/**' drops only
+    what lives under that directory.
+
+    The globs are expected to have been through validate_exclude_globs, which
+    reports the unusable ones once rather than once per file_pattern per dir.
+    """
+    name = PurePosixPath(file_pattern).name
+
+    for glob in exclude_globs:
+        target = file_pattern if '/' in glob else name
+
+        if re.match(glob_to_regex(glob), target):
+            return True
+
+    return False
+
+
+def apply_exclusions(file_patterns: List[str], exclude_globs: List[str], dir_path: str) -> List[str]:
+    """
+    Drop generated file_patterns matching any exclude glob.
+
+    A unit that no longer watches its own terragrunt.hcl can never autoplan, and
+    that failure is silent at run time, so say so loudly here instead.
+    """
+    if not exclude_globs:
+        return file_patterns
+
+    kept = [p for p in file_patterns if not matches_exclude(p, exclude_globs)]
+
+    if '${DIR}/terragrunt.hcl' in file_patterns and '${DIR}/terragrunt.hcl' not in kept:
+        log(
+            f"Exclusions removed ${{DIR}}/terragrunt.hcl from {dir_path or '.'}; "
+            "this unit will no longer autoplan when its own config changes",
+            "WARN"
+        )
+
+    if not kept:
+        log(f"Exclusions removed every file_pattern from {dir_path or '.'}", "WARN")
+
+    return kept
+
+
 def dedupe(values: List[str]) -> List[str]:
     """
     Preserve order while removing duplicates.
@@ -897,7 +1029,8 @@ def generate_terrateam_config(
     dependency_graph: Dict[str, List[str]],
     root_path: str,
     scan_tf_files: bool = False,
-    create_and_select_workspace: bool = True
+    create_and_select_workspace: bool = True,
+    exclude_file_patterns: Optional[List[str]] = None
 ) -> Dict:
     """
     Generate Terrateam configuration with dirs entries for each terragrunt directory.
@@ -916,11 +1049,16 @@ def generate_terrateam_config(
             `workspace new`/`workspace select` before the unit. Terragrunt
             normally manages workspaces itself. When True (the default) the key
             is left out and Terrateam keeps its own default.
+        exclude_file_patterns: Globs of generated file_patterns to drop. A shared
+            include such as a parent terragrunt.hcl or a provider.hcl lands in
+            every unit that includes it, so editing one line fans out across the
+            repo. Empty by default, which keeps every generated pattern.
 
     Returns:
         Modified configuration with generated dirs entries
     """
     output_config = input_config.copy()
+    exclude_file_patterns = exclude_file_patterns or []
 
     # Ensure dirs key exists
     if "dirs" not in output_config:
@@ -976,7 +1114,7 @@ def generate_terrateam_config(
         for dep_dir in direct_deps:
             file_patterns.append(f"{dep_dir}/terragrunt.hcl")
 
-        file_patterns = dedupe(file_patterns)
+        file_patterns = apply_exclusions(dedupe(file_patterns), exclude_file_patterns, dir_path)
 
         # Build dir configuration
         dir_config = {
@@ -1034,6 +1172,25 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
             "default applies."
         )
     )
+    parser.add_argument(
+        '--exclude-file-pattern',
+        dest='exclude_file_patterns',
+        action='append',
+        default=[],
+        metavar='GLOB',
+        help=(
+            "Drop any generated file_pattern matching GLOB, and repeat the flag "
+            "for more than one. Use it when a shared include such as a parent "
+            "terragrunt.hcl or a provider.hcl is pulled into every unit, so that "
+            "editing one line no longer plans the whole repo. GLOB uses a subset "
+            "of the file_patterns dialect, '*', '**' and '?', where '**' spans "
+            "directories: a glob with no '/' matches the file name anywhere, such "
+            "as 'provider*.hcl', and any other glob matches the repo-relative "
+            "path, such as 'provisioning/modules/**'. Brace alternation, character "
+            "classes and '!' negation are not translated. Without this flag "
+            "nothing is dropped."
+        )
+    )
     return parser.parse_args(argv)
 
 
@@ -1053,6 +1210,9 @@ def main():
             sys.exit(1)
 
         log(f"Repository root: {repo_root}")
+
+        # Report unusable globs once, before they reach the per-dir loop.
+        exclude_file_patterns = validate_exclude_globs(cli_args.exclude_file_patterns)
 
         # Read input config from stdin
         log("Reading configuration from stdin...")
@@ -1089,7 +1249,8 @@ def main():
             dependency_graph,
             repo_root,
             scan_tf_files=cli_args.scan_tf_files,
-            create_and_select_workspace=cli_args.create_and_select_workspace
+            create_and_select_workspace=cli_args.create_and_select_workspace,
+            exclude_file_patterns=exclude_file_patterns
         )
 
         # Output final config to stdout
