@@ -67,7 +67,7 @@ RUN echo "AWSCLI_VERSION: ${AWSCLI_VERSION}" && \
 
 ENV CHECKOV_VERSION=2.5.10
 RUN python3 -m venv /opt/checkov && \
-    /opt/checkov/bin/pip install checkov==${CHECKOV_VERSION} && \
+    /opt/checkov/bin/pip install --no-cache-dir checkov==${CHECKOV_VERSION} && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
 
 ENV RESOURCELY_VERSION=1.0.45
