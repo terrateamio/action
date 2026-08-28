@@ -116,6 +116,22 @@ class VersionFloorTest(unittest.TestCase):
     def test_legacy_spelling_is_still_honoured_on_1_1_4(self):
         self.assertEqual(self._init_cmd({'TERRAGRUNT_PROVIDER_CACHE': '1'}, 'v1.1.4'), UNLOCKED)
 
+    def test_legacy_spelling_is_not_trusted_past_what_was_verified(self):
+        # It has warned of removal since 0.73.0. A release that drops it would
+        # leave a legacy-only request unlocking init with no cache server, so
+        # newer than verified keeps the lock and the warning names the fix.
+        (calls, warn, _) = run_init({'TERRAGRUNT_PROVIDER_CACHE': '1'}, 'terragrunt version v1.2.0')
+        self.assertEqual(calls[-1], LOCKED)
+        self.assertIn('TG_PROVIDER_CACHE', ' '.join(str(a) for a in warn.call_args[0]))
+
+    def test_the_current_spelling_has_no_ceiling(self):
+        self.assertEqual(self._init_cmd({'TG_PROVIDER_CACHE': '1'}, 'v1.2.0'), UNLOCKED)
+
+    def test_a_current_spelling_present_on_a_new_version_still_beats_legacy(self):
+        self.assertEqual(
+            self._init_cmd({'TG_PROVIDER_CACHE': 'false', 'TERRAGRUNT_PROVIDER_CACHE': '1'}, 'v1.2.0'),
+            LOCKED)
+
 
 class PrecedenceTest(unittest.TestCase):
     # Verified against 0.77.9 and 1.1.4: a TG_ value that is present wins over

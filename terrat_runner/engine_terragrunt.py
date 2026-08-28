@@ -17,14 +17,20 @@ CLI_REDESIGN_VERSION = (0, 88, 0)
 # checked against the origin registry on first install. That is the operator's
 # call, so we act only when they ask for it.
 #
-# The request has two spellings, and each is read from a different version on.
+# The request has two spellings, each read over a different version range.
 # Verified by running every release from 0.50.0 through 1.1.4 with each one set
-# (terrateamio/action#668): the legacy name is still honoured on 1.1.4, only
-# with a deprecation warning. On a version that reads TG_PROVIDER_CACHE its
+# (terrateamio/action#668). On a version that reads TG_PROVIDER_CACHE its
 # value, even a false one, wins over the legacy name.
-PROVIDER_CACHE_FLOORS = (
-    ('TG_PROVIDER_CACHE', (0, 73, 0)),
-    ('TERRAGRUNT_PROVIDER_CACHE', (0, 56, 4)),
+#
+# The legacy name has warned "will be removed in a future version" since
+# 0.73.0. It is still honoured on 1.1.4, but the day it goes, a legacy-only
+# request would unlock init with no cache server behind it, so it is trusted
+# only as far as it has been verified. Beyond that the lock stays and the
+# warning says which spelling to use instead.
+PROVIDER_CACHE_SPELLINGS = (
+    # (name, first version that reads it, last version verified to read it)
+    ('TG_PROVIDER_CACHE', (0, 73, 0), None),
+    ('TERRAGRUNT_PROVIDER_CACHE', (0, 56, 4), (1, 1, 4)),
 )
 
 # Terragrunt parses these with Go's strconv.ParseBool. Anything else, such as
@@ -34,16 +40,19 @@ _TRUE = ('1', 't', 'T', 'true', 'True', 'TRUE')
 
 
 def _requested(env):
-    return any(env.get(name) in _TRUE for (name, _) in PROVIDER_CACHE_FLOORS)
+    return any(env.get(name) in _TRUE for (name, _, _) in PROVIDER_CACHE_SPELLINGS)
 
 
 def _cache_server_will_run(env, version):
     # Mirrors Terragrunt's own precedence, so this says whether *this* binary
     # will start the cache server, not whether the operator meant it to.
-    for (name, floor) in PROVIDER_CACHE_FLOORS:
+    for (name, floor, ceiling) in PROVIDER_CACHE_SPELLINGS:
         # Present but empty behaves as unset and falls through, as it does in
         # Terragrunt (tested on 0.77.9).
         if version >= floor and env.get(name, '') != '':
+            if ceiling is not None and version > ceiling:
+                return False
+
             return env[name] in _TRUE
 
     return False
@@ -157,10 +166,13 @@ class Engine(engine_tf.Engine):
             # them, so nothing short of certainty unlocks.
             logging.warning(
                 ('INIT : PROVIDER_CACHE : %s : '
-                 'requested but Terragrunt %s will not start the cache server '
-                 'with this setting, keeping the init lock'),
+                 'requested but Terragrunt %s is not known to start the cache '
+                 'server with this setting, keeping the init lock '
+                 '(TG_PROVIDER_CACHE is read from 0.73.0; TERRAGRUNT_PROVIDER_CACHE '
+                 'from 0.56.4 and verified through %s)'),
                 state.path,
-                _fmt(detected))
+                _fmt(detected),
+                _fmt(PROVIDER_CACHE_SPELLINGS[1][2]))
 
             return True
 
