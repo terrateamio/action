@@ -12,6 +12,8 @@ TRIES = 3
 INITIAL_SLEEP = 1
 BACKOFF = 1.5
 
+INIT_LOCK = '/tmp/tf-init.lock'
+
 
 # Opens a Terraform heredoc string value, e.g. `foo = <<-EOT` or `foo =
 # <<EOT`, capturing the delimiter so we can find the matching closing line.
@@ -138,23 +140,45 @@ class Engine:
     def workspace_cmd(self, state, *args):
         return [self.tf_cmd, 'workspace'] + list(args)
 
+    def install_toolchain(self, state):
+        # tenv installs the pinned Terraform/Terragrunt the first time the
+        # command is run. Concurrent installs raced and could leave a dirspace
+        # with no binary at all, so serialise the install (terrateam#393).
+        # Asking for the version is enough to trigger it, and once it is
+        # installed this costs milliseconds, so only the first dirspace waits.
+        cmd.run_with_output(
+            state,
+            {
+                'cmd': ['flock', INIT_LOCK, self.tf_cmd, '--version'],
+                'log_output': False
+            })
+
+    def lock_init(self, state):
+        # Terraform does not lock TF_PLUGIN_CACHE_DIR: it unpacks a provider
+        # straight to its final path in the shared cache, so a concurrent init
+        # can link against a half-written binary, exit 0, and fail later with a
+        # checksum mismatch. Upstream has not fixed this
+        # (hashicorp/terraform#31964), and a shared cache can be configured out
+        # of band through the CLI config file as well as the environment, so
+        # serialising is the safe default. An engine overrides this only when it
+        # can guarantee concurrent init is safe.
+        return True
+
     def init(self, state, config, create_and_select_workspace=None):
         # If there is already a .terraform dir, delete it
         terraform_path = os.path.join(state.working_dir, '.terraform')
         if os.path.exists(terraform_path):
             shutil.rmtree(terraform_path)
 
+        self.install_toolchain(state)
+
+        init_cmd = [self.tf_cmd, 'init'] + config.get('extra_args', [])
+
+        if self.lock_init(state):
+            init_cmd = ['flock', INIT_LOCK] + init_cmd
+
         (proc, stdout, stderr) = retry.run(
-            lambda: cmd.run_with_output(
-                state,
-                {
-                    'cmd': [
-                        'flock',
-                        '/tmp/tf-init.lock',
-                        self.tf_cmd,
-                        'init'
-                    ] + config.get('extra_args', [])
-                }),
+            lambda: cmd.run_with_output(state, {'cmd': init_cmd}),
             retry.finite_tries(TRIES, lambda result: result[0].returncode == 0),
             retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
