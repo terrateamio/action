@@ -209,30 +209,43 @@ class InitTest(unittest.TestCase):
 
         return [c[0][1]['cmd'] for c in run.call_args_list]
 
-    def test_the_toolchain_install_is_serialised(self):
-        # terrateam#393: concurrent tenv installs could leave a dirspace with no
-        # binary. This runs before init and is a no-op once installed.
-        calls = self._calls(engine_tf.make(override_tf_cmd='terraform'))
-        self.assertEqual(calls[0], ['flock', engine_tf.INIT_LOCK, 'terraform', '--version'])
-
-    def test_terraform_init_is_locked_by_default(self):
-        calls = self._calls(engine_tf.make(override_tf_cmd='terraform'))
-        self.assertEqual(calls[1], ['flock', engine_tf.INIT_LOCK, 'terraform', 'init'])
-
-    def test_an_engine_may_unlock_init(self):
-        engine = engine_tf.make(override_tf_cmd='terraform')
+    def _unlocked(self, tf_cmd='terraform'):
+        engine = engine_tf.make(override_tf_cmd=tf_cmd)
         engine.lock_init = lambda state: False
-        calls = self._calls(engine)
-        # The toolchain install stays serialised either way.
-        self.assertEqual(calls[0], ['flock', engine_tf.INIT_LOCK, 'terraform', '--version'])
-        self.assertEqual(calls[1], ['terraform', 'init'])
+        return engine
 
-    def test_extra_args_reach_init_only(self):
-        calls = self._calls(engine_tf.make(override_tf_cmd='terraform'),
-                            {'extra_args': ['-upgrade']})
-        self.assertEqual(calls[0], ['flock', engine_tf.INIT_LOCK, 'terraform', '--version'])
-        self.assertEqual(calls[1],
-                         ['flock', engine_tf.INIT_LOCK, 'terraform', 'init', '-upgrade'])
+    def test_the_default_path_is_byte_identical_to_before(self):
+        # A locked init already serialises the tenv install, which is the whole
+        # of terrateam#393, so nothing is added for anyone who changes nothing.
+        # This is the blast radius of the change: none.
+        self.assertEqual(
+            self._calls(engine_tf.make(override_tf_cmd='terraform')),
+            [['flock', engine_tf.INIT_LOCK, 'terraform', 'init']])
+
+    def test_the_default_path_adds_no_extra_subprocess(self):
+        self.assertEqual(len(self._calls(engine_tf.make(override_tf_cmd='terraform'))), 1)
+
+    def test_unlocking_init_adds_the_serialised_install(self):
+        # Without the lock on init, nothing else serialises the tenv install.
+        self.assertEqual(
+            self._calls(self._unlocked()),
+            [['flock', engine_tf.INIT_LOCK, 'terraform', '--version'],
+             ['terraform', 'init']])
+
+    def test_extra_args_reach_init_and_not_the_probe(self):
+        self.assertEqual(
+            self._calls(self._unlocked(), {'extra_args': ['-upgrade']}),
+            [['flock', engine_tf.INIT_LOCK, 'terraform', '--version'],
+             ['terraform', 'init', '-upgrade']])
+
+    def test_extra_args_on_the_locked_path(self):
+        self.assertEqual(
+            self._calls(engine_tf.make(override_tf_cmd='terraform'), {'extra_args': ['-upgrade']}),
+            [['flock', engine_tf.INIT_LOCK, 'terraform', 'init', '-upgrade']])
+
+    def test_tofu_probes_its_own_toolchain(self):
+        self.assertEqual(self._calls(self._unlocked('tofu'))[0],
+                         ['flock', engine_tf.INIT_LOCK, 'tofu', '--version'])
 
     def test_a_failed_toolchain_install_is_reported(self):
         # log_output is False, so a failure here is otherwise invisible and the
@@ -260,10 +273,6 @@ class InitTest(unittest.TestCase):
                 engine.install_toolchain(state)
 
         self.assertEqual(warn.call_count, 0)
-
-    def test_tofu_installs_its_own_toolchain(self):
-        calls = self._calls(engine_tf.make(override_tf_cmd='tofu'))
-        self.assertEqual(calls[0], ['flock', engine_tf.INIT_LOCK, 'tofu', '--version'])
 
 
 if __name__ == '__main__':

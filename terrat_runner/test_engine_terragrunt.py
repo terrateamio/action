@@ -87,8 +87,7 @@ class InitCommandTest(unittest.TestCase):
     def test_default_is_unchanged_from_before(self):
         self.assertEqual(
             self._calls('0.77.9', {}),
-            [['flock', engine_tf.INIT_LOCK, 'terragrunt', '--version'],
-             ['flock', engine_tf.INIT_LOCK, 'terragrunt', 'init']])
+            [['flock', engine_tf.INIT_LOCK, 'terragrunt', 'init']])
 
     def test_opting_in_unlocks_init_but_not_the_install(self):
         self.assertEqual(
@@ -96,32 +95,37 @@ class InitCommandTest(unittest.TestCase):
             [['flock', engine_tf.INIT_LOCK, 'terragrunt', '--version'],
              ['terragrunt', 'init']])
 
-    def test_an_old_version_keeps_both_locks(self):
+    def test_an_old_version_keeps_the_lock_and_adds_nothing(self):
         self.assertEqual(
             self._calls('0.50.0', {'TG_PROVIDER_CACHE': '1'}),
-            [['flock', engine_tf.INIT_LOCK, 'terragrunt', '--version'],
-             ['flock', engine_tf.INIT_LOCK, 'terragrunt', 'init']])
+            [['flock', engine_tf.INIT_LOCK, 'terragrunt', 'init']])
 
 
-class NoVersionProbeRaceTest(unittest.TestCase):
-    def test_the_version_is_probed_after_the_toolchain_install(self):
-        # _detect_installed_version shells out to `terragrunt --version`, which
-        # with TENV_AUTO_INSTALL is itself an install. It must not run before
-        # the serialised install has happened.
+class VersionProbeRaceTest(unittest.TestCase):
+    # _detect_installed_version shells out to `<tf_cmd> --version`, which under
+    # TENV_AUTO_INSTALL is itself an install. It runs before init has taken any
+    # lock, so it has to take one itself.
+    def test_version_detection_is_serialised(self):
         engine = engine_terragrunt.make()
-        order = []
+        captured = {}
 
-        with mock.patch('engine_tf.cmd.run_with_output') as run:
-            run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
-            run.side_effect = lambda s, c: (order.append(c['cmd'][-1]),
-                                            (SimpleNamespace(returncode=0), 'o', 'e'))[1]
-            with mock.patch.object(engine_terragrunt.Engine, '_detect_installed_version',
-                                   side_effect=lambda s: order.append('probe')):
-                with mock.patch('engine_tf.repo_config.get_create_and_select_workspace',
-                                return_value=False):
-                    engine.init(state({'TG_PROVIDER_CACHE': '1'}), {})
+        def fake_run(cmd, **kwargs):
+            captured['cmd'] = cmd
+            return SimpleNamespace(returncode=0, stdout='terragrunt version v0.77.9', stderr='')
 
-        self.assertEqual(order.index('--version') < order.index('probe'), True)
+        with mock.patch('engine_terragrunt.subprocess.run', side_effect=fake_run):
+            engine._detect_installed_version(state())
+
+        self.assertEqual(captured['cmd'][:2], ['flock', engine_tf.INIT_LOCK])
+        self.assertEqual(captured['cmd'][-1], '--version')
+
+    def test_an_unpinned_opted_in_engine_still_resolves(self):
+        engine = engine_terragrunt.make()
+
+        with mock.patch('engine_terragrunt.subprocess.run') as run:
+            run.return_value = SimpleNamespace(
+                returncode=0, stdout='terragrunt version v0.77.9', stderr='')
+            self.assertFalse(engine.lock_init(state({'TG_PROVIDER_CACHE': '1'})))
 
 
 if __name__ == '__main__':

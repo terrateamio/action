@@ -182,12 +182,17 @@ class Engine:
         if os.path.exists(terraform_path):
             shutil.rmtree(terraform_path)
 
-        self.install_toolchain(state)
+        lock_init = self.lock_init(state)
 
         init_cmd = [self.tf_cmd, 'init'] + config.get('extra_args', [])
 
-        if self.lock_init(state):
+        if lock_init:
+            # tenv installs inside this lock, which is what terrateam#393 was
+            # about, so nothing more is needed.
             init_cmd = ['flock', INIT_LOCK] + init_cmd
+        else:
+            # Nothing else will serialise the install, so do it on its own.
+            self.install_toolchain(state)
 
         (proc, stdout, stderr) = retry.run(
             lambda: cmd.run_with_output(state, {'cmd': init_cmd}),

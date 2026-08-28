@@ -36,13 +36,7 @@ class InitDelegationTest(unittest.TestCase):
             self._sequence(),
             [['cdktf', 'get'],
              ['cdktf', 'synth'],
-             ['flock', engine_tf.INIT_LOCK, 'terraform', '--version'],
              ['flock', engine_tf.INIT_LOCK, 'terraform', 'init']])
-
-    def test_cdktf_steps_come_before_the_toolchain_install(self):
-        seq = self._sequence()
-        self.assertLess(seq.index(['cdktf', 'synth']),
-                        seq.index(['flock', engine_tf.INIT_LOCK, 'terraform', '--version']))
 
     def test_init_is_still_locked_for_cdktf(self):
         self.assertIn(['flock', engine_tf.INIT_LOCK, 'terraform', 'init'], self._sequence())

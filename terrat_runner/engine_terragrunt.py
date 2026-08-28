@@ -53,9 +53,13 @@ class Engine(engine_tf.Engine):
         self.__resolved_version = None
 
     def _detect_installed_version(self, state):
+        # Asking tenv for the version installs the toolchain as a side effect,
+        # so this takes the same lock init would have taken. Without it, an
+        # unpinned version turns every dirspace's probe into a concurrent
+        # install, which is terrateam#393 all over again.
         try:
             proc = subprocess.run(
-                [self.tf_cmd, '--version'],
+                ['flock', engine_tf.INIT_LOCK, self.tf_cmd, '--version'],
                 cwd=state.working_dir,
                 env=state.env,
                 capture_output=True,
