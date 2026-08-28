@@ -140,40 +140,38 @@ class Engine:
     def workspace_cmd(self, state, *args):
         return [self.tf_cmd, 'workspace'] + list(args)
 
-    def install_toolchain(self, state):
-        # tenv installs the pinned Terraform/Terragrunt the first time the
-        # command is run. Concurrent installs raced and could leave a dirspace
-        # with no binary at all, so serialise the install (terrateam#393).
-        # Asking for the version is enough to trigger it, and once it is
-        # installed this costs milliseconds, so only the first dirspace waits.
+    def probe_toolchain(self, state, tf_cmd):
+        # `<tf_cmd> --version`, under the init lock. Under tenv the first call
+        # installs the binary, and concurrent installs raced badly enough to
+        # leave a dirspace with no binary at all (terrateam#393). Once installed
+        # this costs milliseconds. Quiet on success; a failure is the only place
+        # the toolchain problem is visible, because init fails afterwards for
+        # what looks like an unrelated reason.
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': ['flock', INIT_LOCK, self.tf_cmd, '--version'],
+                'cmd': ['flock', INIT_LOCK, tf_cmd, '--version'],
                 'log_output': False
             })
 
-        # Quiet on success -- this runs once per dirspace and the version is not
-        # interesting. On failure it is the only place the toolchain problem is
-        # visible, because `init` will fail afterwards for what looks like an
-        # unrelated reason.
         if proc.returncode != 0:
             logging.warning(
                 'INIT : TOOLCHAIN : %s : %s --version exited %d : %s',
                 state.path,
-                self.tf_cmd,
+                tf_cmd,
                 proc.returncode,
                 '\n'.join([stderr, stdout]).strip())
 
+        return (proc.returncode, stdout, stderr)
+
     def lock_init(self, state):
-        # Terraform does not lock TF_PLUGIN_CACHE_DIR: it unpacks a provider
-        # straight to its final path in the shared cache, so a concurrent init
-        # can link against a half-written binary, exit 0, and fail later with a
-        # checksum mismatch. Upstream has not fixed this
-        # (hashicorp/terraform#31964), and a shared cache can be configured out
-        # of band through the CLI config file as well as the environment, so
-        # serialising is the safe default. An engine overrides this only when it
-        # can guarantee concurrent init is safe.
+        # Whether init runs under the lock. The lock does two jobs at once: it
+        # serialises the tenv install of whichever binaries init reaches, and it
+        # keeps concurrent inits from corrupting a shared TF_PLUGIN_CACHE_DIR,
+        # which Terraform does not lock (hashicorp/terraform#31964). An engine
+        # that returns False takes both jobs on itself: it must have called
+        # probe_toolchain for every binary init will run, and it must know that
+        # concurrent init is safe for this configuration.
         return True
 
     def init(self, state, config, create_and_select_workspace=None):
@@ -182,17 +180,10 @@ class Engine:
         if os.path.exists(terraform_path):
             shutil.rmtree(terraform_path)
 
-        lock_init = self.lock_init(state)
-
         init_cmd = [self.tf_cmd, 'init'] + config.get('extra_args', [])
 
-        if lock_init:
-            # tenv installs inside this lock, which is what terrateam#393 was
-            # about, so nothing more is needed.
+        if self.lock_init(state):
             init_cmd = ['flock', INIT_LOCK] + init_cmd
-        else:
-            # Nothing else will serialise the install, so do it on its own.
-            self.install_toolchain(state)
 
         (proc, stdout, stderr) = retry.run(
             lambda: cmd.run_with_output(state, {'cmd': init_cmd}),
