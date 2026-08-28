@@ -287,12 +287,15 @@ class ProbeToolchainTest(unittest.TestCase):
         self.assertIn('Installing OpenTofu 1.8.1', ' '.join(str(a) for a in info.call_args[0]))
 
     def test_an_already_installed_binary_is_silent(self):
-        engine = engine_tf.make(override_tf_cmd='terraform')
-        with mock.patch('engine_tf.cmd.run_with_output') as run:
-            run.return_value = (SimpleNamespace(returncode=0), 'OpenTofu v1.8.1', '')
-            with mock.patch('engine_tf.logging.info') as info:
-                engine.probe_toolchain(_state(), 'tofu')
-        self.assertEqual(info.call_count, 0)
+        # Including when the tool itself grumbles on stderr, as Terragrunt does
+        # about TF_INPUT: that is not an install and must not look like one.
+        for stderr in ('', 'WARN   The `TF_INPUT` environment variable is deprecated'):
+            engine = engine_tf.make(override_tf_cmd='terraform')
+            with mock.patch('engine_tf.cmd.run_with_output') as run:
+                run.return_value = (SimpleNamespace(returncode=0), 'OpenTofu v1.8.1', stderr)
+                with mock.patch('engine_tf.logging.info') as info:
+                    engine.probe_toolchain(_state(), 'tofu')
+            self.assertEqual(info.call_count, 0, stderr)
 
     def test_a_failed_probe_warns_with_the_reason(self):
         # log_output is False, so this is otherwise invisible and the operator
