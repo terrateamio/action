@@ -161,6 +161,15 @@ class Engine:
                 tf_cmd,
                 proc.returncode,
                 '\n'.join([stderr, stdout]).strip())
+        elif stderr.strip():
+            # tenv is silent when the binary is already there and reports on
+            # stderr when it installs, so this names the one dirspace that
+            # paid for the install and shows the others found it in place.
+            logging.info(
+                'INIT : TOOLCHAIN : %s : %s : %s',
+                state.path,
+                tf_cmd,
+                ' | '.join(stderr.strip().splitlines()))
 
         return (proc.returncode, stdout, stderr)
 

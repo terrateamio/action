@@ -274,6 +274,26 @@ class ProbeToolchainTest(unittest.TestCase):
         self.assertEqual(warn.call_count, 0)
         self.assertEqual(result, (0, 'OpenTofu v1.6.3', ''))
 
+    def test_an_install_is_reported_at_info(self):
+        # tenv says nothing when the binary is already there, so this line
+        # appears only on the dirspace that actually installed it.
+        engine = engine_tf.make(override_tf_cmd='terraform')
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'OpenTofu v1.8.1',
+                                'Resolved version from TOFUENV_TOFU_DEFAULT_VERSION : 1.8.1\nInstalling OpenTofu 1.8.1\n')
+            with mock.patch('engine_tf.logging.info') as info:
+                engine.probe_toolchain(_state(), 'tofu')
+        self.assertEqual(info.call_count, 1)
+        self.assertIn('Installing OpenTofu 1.8.1', ' '.join(str(a) for a in info.call_args[0]))
+
+    def test_an_already_installed_binary_is_silent(self):
+        engine = engine_tf.make(override_tf_cmd='terraform')
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'OpenTofu v1.8.1', '')
+            with mock.patch('engine_tf.logging.info') as info:
+                engine.probe_toolchain(_state(), 'tofu')
+        self.assertEqual(info.call_count, 0)
+
     def test_a_failed_probe_warns_with_the_reason(self):
         # log_output is False, so this is otherwise invisible and the operator
         # only sees the init failure that follows, which looks unrelated.
