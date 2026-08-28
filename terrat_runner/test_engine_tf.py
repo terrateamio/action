@@ -234,6 +234,33 @@ class InitTest(unittest.TestCase):
         self.assertEqual(calls[1],
                          ['flock', engine_tf.INIT_LOCK, 'terraform', 'init', '-upgrade'])
 
+    def test_a_failed_toolchain_install_is_reported(self):
+        # log_output is False, so a failure here is otherwise invisible and the
+        # operator only sees a confusing init failure afterwards.
+        state = SimpleNamespace(path='dir/space', env={}, working_dir='/nonexistent',
+                                workflow={'engine': {'name': 'terraform'}}, repo_config={})
+        engine = engine_tf.make(override_tf_cmd='terraform')
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=1), 'out', 'boom')
+            with mock.patch('engine_tf.logging.warning') as warn:
+                engine.install_toolchain(state)
+
+        self.assertEqual(warn.call_count, 1)
+        self.assertIn('boom', ' '.join(str(a) for a in warn.call_args[0]))
+
+    def test_a_successful_toolchain_install_is_quiet(self):
+        state = SimpleNamespace(path='dir/space', env={}, working_dir='/nonexistent',
+                                workflow={'engine': {'name': 'terraform'}}, repo_config={})
+        engine = engine_tf.make(override_tf_cmd='terraform')
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'out', '')
+            with mock.patch('engine_tf.logging.warning') as warn:
+                engine.install_toolchain(state)
+
+        self.assertEqual(warn.call_count, 0)
+
     def test_tofu_installs_its_own_toolchain(self):
         calls = self._calls(engine_tf.make(override_tf_cmd='tofu'))
         self.assertEqual(calls[0], ['flock', engine_tf.INIT_LOCK, 'tofu', '--version'])

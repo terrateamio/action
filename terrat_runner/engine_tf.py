@@ -146,12 +146,24 @@ class Engine:
         # with no binary at all, so serialise the install (terrateam#393).
         # Asking for the version is enough to trigger it, and once it is
         # installed this costs milliseconds, so only the first dirspace waits.
-        cmd.run_with_output(
+        (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
                 'cmd': ['flock', INIT_LOCK, self.tf_cmd, '--version'],
                 'log_output': False
             })
+
+        # Quiet on success -- this runs once per dirspace and the version is not
+        # interesting. On failure it is the only place the toolchain problem is
+        # visible, because `init` will fail afterwards for what looks like an
+        # unrelated reason.
+        if proc.returncode != 0:
+            logging.warning(
+                'INIT : TOOLCHAIN : %s : %s --version exited %d : %s',
+                state.path,
+                self.tf_cmd,
+                proc.returncode,
+                '\n'.join([stderr, stdout]).strip())
 
     def lock_init(self, state):
         # Terraform does not lock TF_PLUGIN_CACHE_DIR: it unpacks a provider
