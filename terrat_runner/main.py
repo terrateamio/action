@@ -256,6 +256,12 @@ def run(args, env):
 
     result_version = wm.get('result_version', 1)
 
+    # [args.work_token] names the compute node, and the compute node can perform
+    # more than one work manifest.  Every other call is against a work manifest,
+    # so those calls use the id that this response gives.  A server that does not
+    # send an id gives a compute node id that is also the work manifest id.
+    work_token = wm.get('id') or args.work_token
+
     state = run_state.create(
         api_base_url=args.api_base_url,
         api_token=wm['token'],
@@ -264,7 +270,7 @@ def run(args, env):
         env=env,
         sha=args.sha,
         work_manifest=wm,
-        work_token=args.work_token,
+        work_token=work_token,
         working_dir=args.workspace,
         result_version=result_version
     )
