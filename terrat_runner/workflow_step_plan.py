@@ -158,13 +158,15 @@ def _store_plan(state, plan_storage, dir_path, workspace, plan_path, has_changes
 
 
 def run(state, config):
+    visible_on = config.get('visible_on', 'always')
+
     (success, has_changes, stdout, stderr) = state.engine.plan(state, config)
 
     if not success:
         return workflow.Result2(
             payload={
                 'text': '\n'.join([stderr, stdout]),
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/plan',
@@ -188,7 +190,7 @@ def run(state, config):
         return workflow.Result2(
             payload={
                 'text': '\n'.join([diff_stderr, diff_stdout]),
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/plan',
@@ -227,7 +229,7 @@ def run(state, config):
         return workflow.Result2(
             payload={
                 'text': 'Could not store plan file, with the following error:\n\n' + output,
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/plan',
@@ -244,7 +246,7 @@ def run(state, config):
             # 'diff': diff_json,
             'has_changes': has_changes,
             'text': stdout,
-            'visible_on': 'always',
+            'visible_on': visible_on,
         },
         state=state,
         step=state.engine.name + '/plan',
