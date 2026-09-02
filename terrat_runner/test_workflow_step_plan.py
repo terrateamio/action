@@ -57,6 +57,23 @@ class PlanStepTest(unittest.TestCase):
             'default',
             True)
 
+    def _visible_on_of_failed_run(self, config):
+        # A plan that fails returns its payload straight away, which is the shortest path through
+        # run() that still builds one.
+        engine = SimpleNamespace(
+            name='tf',
+            plan=lambda _state, _config: (False, False, 'stdout', 'stderr'),
+        )
+        state = SimpleNamespace(engine=engine)
+
+        return workflow_step_plan.run(state, config).payload['visible_on']
+
+    def test_run_defaults_visible_on_to_always(self):
+        self.assertEqual(self._visible_on_of_failed_run({}), 'always')
+
+    def test_run_takes_visible_on_from_the_step_config(self):
+        self.assertEqual(self._visible_on_of_failed_run({'visible_on': 'success'}), 'success')
+
 
 if __name__ == '__main__':
     unittest.main()
