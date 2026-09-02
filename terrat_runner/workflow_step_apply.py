@@ -69,6 +69,8 @@ def _load_plan(state, dir_path, workspace, plan_path):
 
 
 def run(state, config):
+    visible_on = config.get('visible_on', 'always')
+
     (success, output, has_plan_file) = _load_plan(state,
                                                   state.path,
                                                   state.workspace,
@@ -78,7 +80,7 @@ def run(state, config):
         return workflow.make(
             payload={
                 'text': output,
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/apply',
@@ -93,7 +95,7 @@ def run(state, config):
         return workflow.make(
             payload={
                 'text': '\n'.join([stderr, stdout]),
-                'visible_on': 'always'
+                'visible_on': visible_on
             },
             state=state,
             step=state.engine.name + '/apply',
@@ -115,7 +117,7 @@ def run(state, config):
                 payload={
                     'text': stdout,
                     'outputs': outputs,
-                    'visible_on': 'always',
+                    'visible_on': visible_on,
                 },
                 state=state,
                 step=state.engine.name + '/apply',
@@ -124,7 +126,7 @@ def run(state, config):
             return workflow.Result2(
                 payload={
                     'text': stdout,
-                    'visible_on': 'always',
+                    'visible_on': visible_on,
                 },
                 state=state,
                 step=state.engine.name + '/apply',
@@ -134,7 +136,7 @@ def run(state, config):
             payload={
                 'text': '\n'.join([outputs_stderr, outputs_stdout]),
                 'error': str(exn),
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/apply',

@@ -80,6 +80,32 @@ class ApplyStepTest(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.payload['text'], 'apply without plan')
 
+    def _visible_on_of_run(self, config):
+        engine = SimpleNamespace(
+            apply=lambda _state, _config: (True, 'applied', ''),
+            name='tf',
+            outputs=lambda _state, _config: None,
+        )
+        state = SimpleNamespace(
+            api_base_url='https://api.example.com',
+            engine=engine,
+            env={'TERRATEAM_PLAN_FILE': '/tmp/plan'},
+            path='.',
+            work_token='token',
+            workspace='default',
+        )
+
+        with mock.patch('workflow_step_apply._load_plan') as load_plan:
+            load_plan.return_value = (True, None, True)
+
+            return workflow_step_apply.run(state, config).payload['visible_on']
+
+    def test_run_defaults_visible_on_to_always(self):
+        self.assertEqual(self._visible_on_of_run({}), 'always')
+
+    def test_run_takes_visible_on_from_the_step_config(self):
+        self.assertEqual(self._visible_on_of_run({'visible_on': 'failure'}), 'failure')
+
 
 if __name__ == '__main__':
     unittest.main()
