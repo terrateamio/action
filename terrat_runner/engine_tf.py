@@ -12,6 +12,8 @@ TRIES = 3
 INITIAL_SLEEP = 1
 BACKOFF = 1.5
 
+INIT_LOCK = '/tmp/tf-init.lock'
+
 
 # Opens a Terraform heredoc string value, e.g. `foo = <<-EOT` or `foo =
 # <<EOT`, capturing the delimiter so we can find the matching closing line.
@@ -138,23 +140,63 @@ class Engine:
     def workspace_cmd(self, state, *args):
         return [self.tf_cmd, 'workspace'] + list(args)
 
+    def probe_toolchain(self, state, tf_cmd):
+        # `<tf_cmd> --version`, under the init lock. Under tenv the first call
+        # installs the binary, and concurrent installs raced badly enough to
+        # leave a dirspace with no binary at all (terrateam#393). Once installed
+        # this costs milliseconds. Quiet on success; a failure is the only place
+        # the toolchain problem is visible, because init fails afterwards for
+        # what looks like an unrelated reason.
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': ['flock', INIT_LOCK, tf_cmd, '--version'],
+                'log_output': False
+            })
+
+        if proc.returncode != 0:
+            logging.warning(
+                'INIT : TOOLCHAIN : %s : %s --version exited %d : %s',
+                state.path,
+                tf_cmd,
+                proc.returncode,
+                '\n'.join([stderr, stdout]).strip())
+        elif 'Installing' in stderr:
+            # tenv is silent when the binary is already there and says
+            # "Installing <tool> <version>" on stderr when it is not, so this
+            # names the one dirspace that paid for the install. The others
+            # only ever emit unrelated warnings from the tool itself.
+            logging.info(
+                'INIT : TOOLCHAIN : %s : %s : %s',
+                state.path,
+                tf_cmd,
+                ' | '.join(stderr.strip().splitlines()))
+
+        return (proc.returncode, stdout, stderr)
+
+    def lock_init(self, state):
+        # Whether init runs under the lock. The lock does two jobs at once: it
+        # serialises the tenv install of whichever binaries init reaches, and it
+        # keeps concurrent inits from corrupting a shared TF_PLUGIN_CACHE_DIR,
+        # which Terraform does not lock (hashicorp/terraform#31964). An engine
+        # that returns False takes both jobs on itself: it must have called
+        # probe_toolchain for every binary init will run, and it must know that
+        # concurrent init is safe for this configuration.
+        return True
+
     def init(self, state, config, create_and_select_workspace=None):
         # If there is already a .terraform dir, delete it
         terraform_path = os.path.join(state.working_dir, '.terraform')
         if os.path.exists(terraform_path):
             shutil.rmtree(terraform_path)
 
+        init_cmd = [self.tf_cmd, 'init'] + config.get('extra_args', [])
+
+        if self.lock_init(state):
+            init_cmd = ['flock', INIT_LOCK] + init_cmd
+
         (proc, stdout, stderr) = retry.run(
-            lambda: cmd.run_with_output(
-                state,
-                {
-                    'cmd': [
-                        'flock',
-                        '/tmp/tf-init.lock',
-                        self.tf_cmd,
-                        'init'
-                    ] + config.get('extra_args', [])
-                }),
+            lambda: cmd.run_with_output(state, {'cmd': init_cmd}),
             retry.finite_tries(TRIES, lambda result: result[0].returncode == 0),
             retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
 
