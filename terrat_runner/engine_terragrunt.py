@@ -177,9 +177,22 @@ class Engine(engine_tf.Engine):
             unit = os.path.relpath(dirpath, out_dir)
             plan_path = os.path.join(dirpath, 'tfplan.tfplan')
 
+            # --out-dir only copies the plan file, not the unit's
+            # terragrunt.hcl -- that only exists where `terragrunt stack
+            # generate` originally wrote it, under working_dir itself, not
+            # under out_dir. Plain `terragrunt show` run with cwd=working_dir
+            # (cmd.run_with_output always uses state.working_dir, it has no
+            # per-call cwd override) fails with "does not contain a
+            # terragrunt.hcl file" because that's the stack root, which only
+            # has terragrunt.stack.hcl. --working-dir points terragrunt at
+            # the real generated unit directory instead, without needing to
+            # touch cwd at all. Confirmed against a real Terragrunt 1.1.4
+            # install; the flag must come before the `show` subcommand.
+            unit_config_dir = os.path.join(state.working_dir, unit)
+
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
-                {'cmd': [self.tf_cmd, 'show'] + extra_args + [plan_path]})
+                {'cmd': [self.tf_cmd, '--working-dir', unit_config_dir, 'show'] + extra_args + [plan_path]})
 
             overall_ok = overall_ok and proc.returncode == 0
             results.append((unit, proc.returncode == 0, stdout, stderr))

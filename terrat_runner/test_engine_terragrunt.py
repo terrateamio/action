@@ -171,6 +171,30 @@ class StackShowTest(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(payload, {'vpc': {'format_version': '1.0'}})
 
+    def test_show_cmd_uses_working_dir_flag_pointing_at_generated_unit(self):
+        # --out-dir only copies the plan file, not the unit's terragrunt.hcl
+        # (that stays where `stack generate` originally wrote it, under
+        # working_dir/<unit>, not under out_dir/<unit>). Plain `terragrunt
+        # show` run with cwd=working_dir (the stack root, which only has
+        # terragrunt.stack.hcl) fails outright, so the command must pass
+        # --working-dir pointing at the real generated unit directory.
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            out_dir = os.path.join(d, '.terrateam-stack-plans')
+            self._make_unit_plan(out_dir, 'vpc')
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run:
+                run.return_value = (SimpleNamespace(returncode=0), 'no changes', 'err')
+                engine.diff(state, {})
+
+            plan_path = os.path.join(out_dir, 'vpc', 'tfplan.tfplan')
+            self.assertEqual(
+                run.call_args[0][1]['cmd'],
+                ['terragrunt', '--working-dir', os.path.join(d, 'vpc'), 'show', plan_path])
+
     def test_diff_untars_when_units_dir_missing(self):
         # Simulates a fresh job (e.g. a re-run) where the plan directory was
         # never populated by plan() in this process and must come back from
