@@ -5,6 +5,7 @@ import re
 import shutil
 
 import cmd
+import plugin_cache
 import repo_config
 import retry
 
@@ -153,7 +154,13 @@ class Engine:
                         '/tmp/tf-init.lock',
                         self.tf_cmd,
                         'init'
-                    ] + config.get('extra_args', [])
+                    ] + config.get('extra_args', []),
+                    # Set immediately before the init, and only for the init:
+                    # the plugin cache is consulted when providers are
+                    # installed and nowhere else.  The flock above is what
+                    # keeps two dirspaces from installing into the cache at
+                    # the same moment.
+                    'env': plugin_cache.init_env(state.env)
                 }),
             retry.finite_tries(TRIES, lambda result: result[0].returncode == 0),
             retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
