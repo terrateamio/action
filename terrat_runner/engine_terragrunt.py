@@ -102,6 +102,29 @@ class Engine(engine_tf.Engine):
         # (terrateam/cmd/s3 plan storage) need no changes at all.
         return os.path.join(state.working_dir, '.terrateam-stack-plans')
 
+    def _stack_plan_has_changes(self, state):
+        # Some Terragrunt versions return zero from `stack run plan` even
+        # when -detailed-exitcode is forwarded and the generated unit plans
+        # contain changes. Inspect those saved plans as a safe fallback: a
+        # false negative here would make Terrateam silently skip apply.
+        (ok, results) = self._stack_show(state, ['-json'])
+        if not ok:
+            stderr = '\n'.join(
+                err for (_unit, unit_ok, _out, err) in results if not unit_ok)
+            return (False, False, stderr or 'Unable to inspect Terragrunt stack plans')
+
+        try:
+            for (_unit, _unit_ok, stdout, _stderr) in results:
+                plan = json.loads(stdout)
+                changes = plan.get('resource_changes', []) + list(plan.get('output_changes', {}).values())
+                for change in changes:
+                    if change.get('change', {}).get('actions', []) != ['no-op']:
+                        return (True, True, '')
+        except (AttributeError, json.JSONDecodeError) as exn:
+            return (False, False, 'Unable to parse Terragrunt stack plan JSON: {}'.format(exn))
+
+        return (True, False, '')
+
     def plan(self, state, config):
         if not self._is_stack(state):
             return super().plan(state, config)
@@ -125,13 +148,21 @@ class Engine(engine_tf.Engine):
                 ] + config.get('extra_args', [])
             })
 
-        # -detailed-exitcode must be forwarded via `--`, or `stack run` never
-        # returns 2 for "has changes" -- confirmed against a real Terragrunt
-        # 1.1.4 install; without `--` the process always exits 0/1.
-        if proc.returncode in [0, 2]:
-            _tar_dir(out_dir, state.env['TERRATEAM_PLAN_FILE'])
+        # -detailed-exitcode must be forwarded via `--`. Some Terragrunt
+        # versions nevertheless return zero for stack plans with changes, so
+        # use the generated unit plan JSON as a fallback before recording
+        # has_changes=false.
+        if proc.returncode not in [0, 2]:
+            return (False, False, stdout, stderr)
 
-        return (proc.returncode in [0, 2], proc.returncode == 2, stdout, stderr)
+        has_changes = proc.returncode == 2
+        if not has_changes:
+            (ok, has_changes, inspect_stderr) = self._stack_plan_has_changes(state)
+            if not ok:
+                return (False, False, stdout, '\n'.join(v for v in [stderr, inspect_stderr] if v))
+
+        _tar_dir(out_dir, state.env['TERRATEAM_PLAN_FILE'])
+        return (True, has_changes, stdout, stderr)
 
     def apply(self, state, config):
         if not self._is_stack(state):

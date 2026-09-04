@@ -93,6 +93,66 @@ class PlanTest(unittest.TestCase):
             self.assertEqual(result, (False, False, 'out', 'err'))
             tar_dir.assert_not_called()
 
+    def test_stack_plan_inspects_unit_plans_when_exit_code_is_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
+                 mock.patch('engine_terragrunt._tar_dir') as tar_dir, \
+                 mock.patch.object(engine, '_stack_plan_has_changes', return_value=(True, True, '')) as inspect:
+                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+                result = engine.plan(state, {})
+
+            self.assertEqual(result, (True, True, 'out', 'err'))
+            inspect.assert_called_once_with(state)
+            tar_dir.assert_called_once()
+
+    def test_stack_plan_fails_safely_when_zero_exit_code_cannot_be_inspected(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
+                 mock.patch('engine_terragrunt._tar_dir') as tar_dir, \
+                 mock.patch.object(engine, '_stack_plan_has_changes', return_value=(False, False, 'show failed')):
+                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+                result = engine.plan(state, {})
+
+            self.assertEqual(result, (False, False, 'out', 'err\nshow failed'))
+            tar_dir.assert_not_called()
+
+
+class StackPlanChangesTest(unittest.TestCase):
+    def test_resource_change_is_detected(self):
+        engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+        payload = json.dumps({
+            'resource_changes': [{'change': {'actions': ['create']}}],
+        })
+
+        with mock.patch.object(engine, '_stack_show', return_value=(True, [('unit', True, payload, '')])):
+            self.assertEqual(engine._stack_plan_has_changes(_state('/tmp')), (True, True, ''))
+
+    def test_output_change_is_detected(self):
+        engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+        payload = json.dumps({
+            'output_changes': {'endpoint': {'actions': ['update']}},
+        })
+
+        with mock.patch.object(engine, '_stack_show', return_value=(True, [('unit', True, payload, '')])):
+            self.assertEqual(engine._stack_plan_has_changes(_state('/tmp')), (True, True, ''))
+
+    def test_noop_plans_are_not_changes(self):
+        engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+        payload = json.dumps({
+            'resource_changes': [{'change': {'actions': ['no-op']}}],
+        })
+
+        with mock.patch.object(engine, '_stack_show', return_value=(True, [('unit', True, payload, '')])):
+            self.assertEqual(engine._stack_plan_has_changes(_state('/tmp')), (True, False, ''))
+
 
 class ApplyTest(unittest.TestCase):
     def test_non_stack_dir_delegates_to_base_engine(self):
