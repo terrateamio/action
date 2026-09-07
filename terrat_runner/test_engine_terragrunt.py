@@ -168,7 +168,7 @@ class ApplyTest(unittest.TestCase):
                 run.call_args[0][1]['cmd'],
                 ['terragrunt', 'apply', '${TERRATEAM_PLAN_FILE}'])
 
-    def test_stack_dir_untars_then_uses_stack_run_apply(self):
+    def test_stack_dir_regenerates_units_then_uses_stack_run_apply(self):
         with tempfile.TemporaryDirectory() as d:
             open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
             engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
@@ -176,13 +176,19 @@ class ApplyTest(unittest.TestCase):
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
                  mock.patch('engine_terragrunt._untar_dir') as untar_dir:
-                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+                run.side_effect = [
+                    (SimpleNamespace(returncode=0), 'generate out', 'generate err'),
+                    (SimpleNamespace(returncode=0), 'out', 'err'),
+                ]
                 result = engine.apply(state, {})
 
             out_dir = os.path.join(d, '.terrateam-stack-plans')
             untar_dir.assert_called_once_with('/tmp/plan', out_dir)
             self.assertEqual(
-                run.call_args[0][1]['cmd'],
+                run.call_args_list[0][0][1]['cmd'],
+                ['terragrunt', 'stack', 'generate', '--non-interactive'])
+            self.assertEqual(
+                run.call_args_list[1][0][1]['cmd'],
                 ['terragrunt', 'stack', 'run', 'apply',
                  '--out-dir', out_dir,
                  '--non-interactive',

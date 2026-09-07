@@ -176,6 +176,21 @@ class Engine(engine_tf.Engine):
         out_dir = self._stack_units_dir(state)
         _untar_dir(state.env['TERRATEAM_PLAN_FILE'], out_dir)
 
+        # Stack units are generated at plan time but apply runs in a fresh
+        # checkout. Regenerate them so `stack run apply` can locate each
+        # unit's terragrunt.hcl while using the saved plan files below.
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': [
+                    self.tf_cmd, 'stack', 'generate',
+                    '--non-interactive',
+                ]
+            })
+
+        if proc.returncode != 0:
+            return (False, stdout, stderr)
+
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
