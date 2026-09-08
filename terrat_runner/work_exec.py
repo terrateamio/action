@@ -14,6 +14,7 @@ import engine_stategraph
 import engine_terragrunt
 import engine_tf
 import hooks
+import provider_cache
 import repo_config as rc
 import results_compat
 import run_state
@@ -243,6 +244,8 @@ def _run(state, exec_cb):
     env['TERRATEAM_TMPDIR'] = state.tmpdir
     state = state._replace(env=env)
 
+    state = provider_cache.setup(state)
+
     pre_hooks = exec_cb.pre_hooks(state)
 
     logging.debug('EXEC : HOOKS : PRE')
@@ -279,6 +282,8 @@ def _run(state, exec_cb):
         state = state._replace(success=state.success and s.success)
         state = run_state.combine_secrets(state, s)
         steps.extend(r['outputs'])
+
+    provider_cache.store(state)
 
     logging.debug('EXEC : HOOKS : POST')
 

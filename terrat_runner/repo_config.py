@@ -229,3 +229,7 @@ def get_config_builder(config):
 
 def get_tree_builder(config):
     return _get(config, 'tree_builder', {'enabled': False})
+
+
+def get_provider_cache(config):
+    return _get(config, 'provider_cache', {'enabled': False})
