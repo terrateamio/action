@@ -191,6 +191,24 @@ class Engine(engine_tf.Engine):
 
         return (True, False, '')
 
+    def init(self, state, config, create_and_select_workspace=None):
+        if not self._is_stack(state):
+            return super().init(state, config, create_and_select_workspace)
+
+        # engine_tf.Engine.init() runs plain `terragrunt init` (plus workspace
+        # select/new) with cwd=state.working_dir, i.e. the Stack root -- same
+        # "does not contain a terragrunt.hcl file" failure as outputs()/show,
+        # for the same reason. `terragrunt stack run plan`/`apply` initialize
+        # each generated unit themselves, so this step is redundant for a
+        # Stack, not just unsafe to run as-is. This only matters for repo
+        # configs that don't override the default `plan`/`apply` workflows --
+        # those default to `[{type: init}, {type: plan/apply}]`.
+        logging.info(
+            'INIT : %s : engine=%s : stack=true : skipped (stack run plan/apply initialize each unit themselves)',
+            state.path,
+            state.workflow['engine']['name'])
+        return (True, '', '')
+
     def plan(self, state, config):
         if not self._is_stack(state):
             return super().plan(state, config)
@@ -264,6 +282,33 @@ class Engine(engine_tf.Engine):
         # `stack run` regenerates the units with the root Stack's values and
         # preserves their dependency order. Terraform refuses a saved plan if
         # its recorded inputs or state are stale.
+        return (proc.returncode == 0, stdout, stderr)
+
+    def apply_without_plan(self, state, config):
+        if not self._is_stack(state):
+            return super().apply_without_plan(state, config)
+
+        logging.info(
+            'APPLY_WITHOUT_PLAN : %s : engine=%s : stack=true',
+            state.path,
+            state.workflow['engine']['name'])
+
+        # There is no saved plan artifact to restore here (that's the whole
+        # point of apply_without_plan) -- `stack run apply` generates the
+        # units and applies live in one step, same as plain `terraform apply
+        # -auto-approve` does for a non-stack directory.
+        out_dir = self._stack_units_dir(state)
+
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': [
+                    self.tf_cmd, 'stack', 'run', 'apply',
+                    '--out-dir', out_dir,
+                    '--non-interactive',
+                ] + config.get('extra_args', [])
+            })
+
         return (proc.returncode == 0, stdout, stderr)
 
     def _stack_show(self, state, extra_args):
@@ -344,6 +389,25 @@ class Engine(engine_tf.Engine):
         except json.JSONDecodeError as exn:
             stdout = '\n'.join(out for (_unit, _unit_ok, out, _err) in results)
             return (False, stdout, str(exn))
+
+    def outputs(self, state, config):
+        if not self._is_stack(state):
+            return super().outputs(state, config)
+
+        # engine_tf.Engine.outputs() runs plain `terragrunt output -json` with
+        # cwd=state.working_dir, i.e. the Stack root -- which only ever has
+        # terragrunt.stack.hcl, never terragrunt.hcl, so it always fails with
+        # "does not contain a terragrunt.hcl file". A Stack has no single
+        # root-level output set (each unit has its own); skipping collection
+        # entirely -- the same `None` the base class itself returns when
+        # outputs collection is disabled via config -- is already handled
+        # correctly by workflow_step_apply.py. Aggregating per-unit outputs is
+        # a separate, bigger feature (namespacing, rendering) left for later.
+        logging.info(
+            'OUTPUTS : %s : engine=%s : stack=true : skipped (no single root-level output set for a stack)',
+            state.path,
+            state.workflow['engine']['name'])
+        return None
 
 
 def make(**options):

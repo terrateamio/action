@@ -1,3 +1,5 @@
+import hashlib
+import io
 import json
 import os
 import tarfile
@@ -40,6 +42,38 @@ class IsStackTest(unittest.TestCase):
             # dirspace for the lifetime of a job.
             open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
             self.assertFalse(engine._is_stack(state))
+
+
+class InitTest(unittest.TestCase):
+    def test_non_stack_dir_delegates_to_base_engine(self):
+        with tempfile.TemporaryDirectory() as d:
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run:
+                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+                result = engine.init(state, {}, create_and_select_workspace=False)
+
+            self.assertEqual(
+                run.call_args[0][1]['cmd'],
+                ['flock', '/tmp/tf-init.lock', 'terragrunt', 'init'])
+            self.assertEqual(result, (True, 'out', 'err'))
+
+    def test_stack_dir_skips_init(self):
+        # terragrunt init in the Stack root fails the same way outputs()/show
+        # do (no terragrunt.hcl there); `stack run plan`/`apply` initialize
+        # each generated unit themselves, so this step is a no-op for a
+        # Stack, not just unsafe to run as written.
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run:
+                result = engine.init(state, {})
+
+            self.assertEqual(result, (True, '', ''))
+            run.assert_not_called()
 
 
 class PlanTest(unittest.TestCase):
@@ -153,6 +187,64 @@ class StackArtifactTest(unittest.TestCase):
             self.assertEqual(engine._load_stack_artifact_manifest(state)['engine'], 'terragrunt-stack')
 
 
+class RestoreStackArtifactTest(unittest.TestCase):
+    def _make_artifact(self, plan_file, stack_config, manifest_config_for_hash=None):
+        manifest_bytes = json.dumps({
+            'format_version': engine_terragrunt.STACK_ARTIFACT_VERSION,
+            'engine': 'terragrunt-stack',
+            'stack_root': '.',
+            'stack_config_sha256': hashlib.sha256(manifest_config_for_hash or stack_config).hexdigest(),
+        }).encode('utf-8')
+        with tarfile.open(plan_file, 'w') as tar:
+            info = tarfile.TarInfo(engine_terragrunt.STACK_ARTIFACT_MANIFEST)
+            info.size = len(manifest_bytes)
+            tar.addfile(info, io.BytesIO(manifest_bytes))
+            info = tarfile.TarInfo('stack/terragrunt.stack.hcl')
+            info.size = len(stack_config)
+            tar.addfile(info, io.BytesIO(stack_config))
+            plans_dir_info = tarfile.TarInfo('.terrateam-stack-plans')
+            plans_dir_info.type = tarfile.DIRTYPE
+            tar.addfile(plans_dir_info)
+
+    def test_rejects_when_checksum_does_not_match_manifest(self):
+        # Simulates a corrupted or hand-edited artifact: the manifest's
+        # recorded hash doesn't match what's actually stored in the tar.
+        with tempfile.TemporaryDirectory() as d:
+            plan_file = os.path.join(d, 'plan.tar')
+            state = _state(d)
+            state.env['TERRATEAM_PLAN_FILE'] = plan_file
+            self._make_artifact(
+                plan_file,
+                stack_config=b'unit "app" {}',
+                manifest_config_for_hash=b'unit "other" {}')
+
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            manifest = engine._load_stack_artifact_manifest(state)
+
+            with self.assertRaisesRegex(ValueError, 'checksum does not match'):
+                engine._restore_stack_artifact(state, manifest)
+
+    def test_rejects_when_root_config_changed_after_plan(self):
+        # Simulates a later commit landing on the apply checkout's branch
+        # between plan and apply that edits the Stack root config -- applying
+        # the old saved plan against a changed root config could apply
+        # against the wrong values/units.
+        with tempfile.TemporaryDirectory() as d:
+            plan_file = os.path.join(d, 'plan.tar')
+            state = _state(d)
+            state.env['TERRATEAM_PLAN_FILE'] = plan_file
+            self._make_artifact(plan_file, stack_config=b'unit "app" {}')
+
+            with open(os.path.join(d, 'terragrunt.stack.hcl'), 'wb') as f:
+                f.write(b'unit "app" {}\nunit "extra" {}')
+
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            manifest = engine._load_stack_artifact_manifest(state)
+
+            with self.assertRaisesRegex(ValueError, 'changed after plan'):
+                engine._restore_stack_artifact(state, manifest)
+
+
 class StackPlanChangesTest(unittest.TestCase):
     def test_resource_change_is_detected(self):
         engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
@@ -211,6 +303,44 @@ class ApplyTest(unittest.TestCase):
 
             out_dir = os.path.join(d, '.terrateam-stack-plans')
             restore_stack_artifact.assert_called_once_with(state, {'stack_root': '.'})
+            self.assertEqual(
+                run.call_args[0][1]['cmd'],
+                ['terragrunt', 'stack', 'run', 'apply',
+                 '--out-dir', out_dir,
+                 '--non-interactive'])
+            self.assertEqual(result, (True, 'out', 'err'))
+
+
+class ApplyWithoutPlanTest(unittest.TestCase):
+    def test_non_stack_dir_delegates_to_base_engine(self):
+        with tempfile.TemporaryDirectory() as d:
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run:
+                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+                engine.apply_without_plan(state, {})
+
+            self.assertEqual(
+                run.call_args[0][1]['cmd'],
+                ['terragrunt', 'apply', '-auto-approve'])
+
+    def test_stack_dir_uses_stack_run_apply_without_restoring_artifact(self):
+        # There's no saved plan artifact for apply_without_plan by definition
+        # -- `stack run apply` generates the units and applies live in one
+        # step, the Stack equivalent of plain `terraform apply -auto-approve`.
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
+                 mock.patch.object(engine, '_restore_stack_artifact') as restore_stack_artifact:
+                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+                result = engine.apply_without_plan(state, {})
+
+            out_dir = os.path.join(d, '.terrateam-stack-plans')
+            restore_stack_artifact.assert_not_called()
             self.assertEqual(
                 run.call_args[0][1]['cmd'],
                 ['terragrunt', 'stack', 'run', 'apply',
@@ -304,6 +434,33 @@ class StackShowTest(unittest.TestCase):
                 engine.diff(state, {})
 
             restore_stack_artifact.assert_called_once_with(state, {})
+
+
+class OutputsTest(unittest.TestCase):
+    def test_non_stack_dir_delegates_to_base_engine(self):
+        with tempfile.TemporaryDirectory() as d:
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run:
+                run.return_value = (SimpleNamespace(returncode=0), '{}', 'err')
+                engine.outputs(state, {})
+
+            self.assertEqual(
+                run.call_args[0][1]['cmd'],
+                ['terragrunt', 'output', '-json'])
+
+    def test_stack_dir_skips_collection(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            state = _state(d)
+
+            with mock.patch('engine_terragrunt.cmd.run_with_output') as run:
+                result = engine.outputs(state, {})
+
+            self.assertIsNone(result)
+            run.assert_not_called()
 
 
 if __name__ == '__main__':
