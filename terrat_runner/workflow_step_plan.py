@@ -240,14 +240,25 @@ def run(state, config):
                  state.env['TERRATEAM_WORKSPACE'],
                  has_changes)
 
+    payload = {
+        'plan': diff_stdout,
+        # 'diff': diff_json,
+        'has_changes': has_changes,
+        'text': stdout,
+        'visible_on': visible_on,
+    }
+
+    # resource_summary is part of the engine interface, so it is called like
+    # the other callbacks.  An engine that cannot count per-resource changes
+    # returns None, which drops the counts from the payload.  No changes means
+    # no counts worth an extra subprocess.
+    if has_changes:
+        resource_summary = state.engine.resource_summary(state, config)
+        if resource_summary is not None:
+            payload['resource_summary'] = resource_summary
+
     return workflow.Result2(
-        payload={
-            'plan': diff_stdout,
-            # 'diff': diff_json,
-            'has_changes': has_changes,
-            'text': stdout,
-            'visible_on': visible_on,
-        },
+        payload=payload,
         state=state,
         step=state.engine.name + '/plan',
         success=True)

@@ -11,6 +11,7 @@ class Engine:
                  apply_args,
                  diff_args,
                  diff_json_args,
+                 resource_summary_args,
                  plan_args,
                  unsafe_apply_args,
                  outputs_args):
@@ -19,6 +20,7 @@ class Engine:
         self.apply_args = apply_args
         self.diff_args = diff_args
         self.diff_json_args = diff_json_args
+        self.resource_summary_args = resource_summary_args
         self.plan_args = plan_args
         self.unsafe_apply_args = unsafe_apply_args
         self.outputs_args = outputs_args
@@ -96,6 +98,49 @@ class Engine:
                 return (False, stdout.strip(), stderr.strip())
         else:
             return None
+
+    def resource_summary(self, state, config):
+        # Run the custom summary program.  The program prints JSON with the
+        # same shape as the tf resource_summary result: one object with the
+        # keys 'created', 'updated', 'deleted', and 'replaced', each an
+        # integer count.  If the program is not set, or it fails, or its
+        # output is not a JSON object, return None so the plan step drops the
+        # summary.
+        if not self.resource_summary_args:
+            return None
+
+        logging.info(
+            'RESOURCE_SUMMARY : %s : engine=%s',
+            state.path,
+            state.workflow['engine']['name'])
+
+        (proc, stdout, stderr) = cmd.run_with_output(
+            state,
+            {
+                'cmd': self.resource_summary_args
+            })
+
+        if proc.returncode != 0:
+            return None
+
+        try:
+            summary = json.loads(stdout)
+        except json.JSONDecodeError as exn:
+            logging.warning(
+                'RESOURCE_SUMMARY : %s : engine=%s : bad JSON output: %s',
+                state.path,
+                state.workflow['engine']['name'],
+                str(exn))
+            return None
+
+        if not isinstance(summary, dict):
+            logging.warning(
+                'RESOURCE_SUMMARY : %s : engine=%s : output is not a JSON object',
+                state.path,
+                state.workflow['engine']['name'])
+            return None
+
+        return summary
 
     def plan(self, state, config):
         logging.info(
