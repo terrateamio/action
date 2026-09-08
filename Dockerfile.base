@@ -1,7 +1,8 @@
-ARG BASE_IMAGE=debian:trixie-20260202-slim
+ARG BASE_IMAGE=debian:trixie-20260824-slim
 FROM ${BASE_IMAGE}
 
 RUN apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	apt-utils \
 	bash \
@@ -26,27 +27,28 @@ RUN apt-get update \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
 
-ARG TENV_LATEST_VERSION=v4.10.1
+ARG TENV_LATEST_VERSION=v4.15.1
 RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     ARCH=$(dpkg --print-architecture) && \
     curl -O -L "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     rm -f "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb"
 
-ARG TOFU_VERSIONS=1.6.3,1.9.1
-ARG TERRAFORM_VERSIONS=1.5.7
+ARG TOFU_VERSIONS=1.12.6
+ARG TERRAFORM_VERSIONS=
 # Install tofu and terraform versions dynamically based on TOFU_VERSIONS and TERRAFORM_VERSIONS. versions should be comma separated.
-RUN for version in $(echo "${TOFU_VERSIONS}" | tr ',' ' '); do tenv tofu install ${version}; sleep 5; done && \
-    for version in $(echo "${TERRAFORM_VERSIONS}" | tr ',' ' '); do tenv terraform install ${version}; sleep 5; done
+RUN set -e; \
+    for version in $(echo "${TOFU_VERSIONS}" | tr ',' ' '); do tenv tofu install "${version}"; sleep 5; done; \
+    for version in $(echo "${TERRAFORM_VERSIONS}" | tr ',' ' '); do tenv terraform install "${version}"; sleep 5; done
 
-ENV INFRACOST_VERSION=v0.10.42
+ENV INFRACOST_VERSION=v0.10.45
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     curl -fsSL -o /tmp/infracost-linux-${ARCH}.tar.gz "https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-${ARCH}.tar.gz" && \
     tar -C /tmp -xzf /tmp/infracost-linux-${ARCH}.tar.gz && \
     mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
     rm -f /tmp/infracost-linux-${ARCH}.tar.gz
 
-ENV CONFTEST_VERSION=0.58.0
+ENV CONFTEST_VERSION=0.69.0
 RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mkdir /tmp/conftest && \
     curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
@@ -65,7 +67,7 @@ RUN echo "AWSCLI_VERSION: ${AWSCLI_VERSION}" && \
     /tmp/awscli/aws/install > /dev/null && \
     rm -rf /tmp/awscli
 
-ENV CHECKOV_VERSION=2.5.10
+ENV CHECKOV_VERSION=3.3.16
 RUN python3 -m venv /opt/checkov && \
     /opt/checkov/bin/pip install --no-cache-dir checkov==${CHECKOV_VERSION} && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
