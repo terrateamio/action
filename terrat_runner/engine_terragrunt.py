@@ -1,3 +1,5 @@
+import hashlib
+import io
 import json
 import logging
 import os
@@ -10,6 +12,8 @@ import engine_tf
 
 
 CLI_REDESIGN_VERSION = (0, 88, 0)
+STACK_ARTIFACT_MANIFEST = '.terrateam-stack-artifact.json'
+STACK_ARTIFACT_VERSION = 1
 
 
 def _parse_version(version):
@@ -21,17 +25,6 @@ def _parse_version(version):
         return None
 
     return tuple(int(part) for part in match.groups())
-
-
-def _tar_dir(src_dir, dest_file):
-    with tarfile.open(dest_file, 'w') as tar:
-        tar.add(src_dir, arcname='.')
-
-
-def _untar_dir(src_file, dest_dir):
-    os.makedirs(dest_dir, exist_ok=True)
-    with tarfile.open(src_file, 'r') as tar:
-        tar.extractall(dest_dir)
 
 
 class Engine(engine_tf.Engine):
@@ -102,6 +95,79 @@ class Engine(engine_tf.Engine):
         # (terrateam/cmd/s3 plan storage) need no changes at all.
         return os.path.join(state.working_dir, '.terrateam-stack-plans')
 
+    def _stack_config_path(self, state):
+        return os.path.join(state.working_dir, 'terragrunt.stack.hcl')
+
+    def _stack_artifact_manifest(self, state, stack_config):
+        return {
+            'format_version': STACK_ARTIFACT_VERSION,
+            'engine': 'terragrunt-stack',
+            'stack_root': state.path,
+            'stack_config_sha256': hashlib.sha256(stack_config).hexdigest(),
+        }
+
+    def _tar_stack_artifact(self, state):
+        # A Stack plan is a collection of Terraform plans plus the root Stack
+        # configuration that evaluates `values` during `stack run apply`.
+        # Runtime directories (.terraform and .terragrunt-cache) are neither
+        # portable nor needed: Terragrunt recreates them in the apply worker.
+        with open(self._stack_config_path(state), 'rb') as f:
+            stack_config = f.read()
+
+        manifest = json.dumps(self._stack_artifact_manifest(state, stack_config)).encode('utf-8')
+        with tarfile.open(state.env['TERRATEAM_PLAN_FILE'], 'w') as tar:
+            tar.add(self._stack_units_dir(state), arcname='.terrateam-stack-plans')
+            info = tarfile.TarInfo(STACK_ARTIFACT_MANIFEST)
+            info.size = len(manifest)
+            tar.addfile(info, io.BytesIO(manifest))
+            info = tarfile.TarInfo('stack/terragrunt.stack.hcl')
+            info.size = len(stack_config)
+            tar.addfile(info, io.BytesIO(stack_config))
+
+    def _load_stack_artifact_manifest(self, state):
+        try:
+            with tarfile.open(state.env['TERRATEAM_PLAN_FILE'], 'r') as tar:
+                member = tar.getmember(STACK_ARTIFACT_MANIFEST)
+                content = tar.extractfile(member).read()
+                manifest = json.loads(content)
+        except (KeyError, OSError, tarfile.TarError, json.JSONDecodeError, AttributeError):
+            return None
+
+        if (not isinstance(manifest, dict)
+                or manifest.get('format_version') != STACK_ARTIFACT_VERSION
+                or manifest.get('engine') != 'terragrunt-stack'
+                or not isinstance(manifest.get('stack_root'), str)
+                or not isinstance(manifest.get('stack_config_sha256'), str)):
+            return None
+
+        return manifest
+
+    def _restore_stack_artifact(self, state, manifest):
+        with tarfile.open(state.env['TERRATEAM_PLAN_FILE'], 'r') as tar:
+            plan_members = [member for member in tar.getmembers()
+                            if member.name == '.terrateam-stack-plans'
+                            or member.name.startswith('.terrateam-stack-plans/')]
+            workspace = os.path.abspath(state.working_dir)
+            for member in plan_members:
+                target = os.path.abspath(os.path.join(workspace, member.name))
+                if os.path.commonpath([workspace, target]) != workspace:
+                    raise ValueError('Stack plan artifact contains an unsafe path')
+            tar.extractall(state.working_dir, members=plan_members)
+            stack_config = tar.extractfile('stack/terragrunt.stack.hcl').read()
+
+        if hashlib.sha256(stack_config).hexdigest() != manifest['stack_config_sha256']:
+            raise ValueError('Stack artifact configuration checksum does not match its manifest')
+
+        config_path = self._stack_config_path(state)
+        if os.path.exists(config_path):
+            with open(config_path, 'rb') as f:
+                current_config = f.read()
+            if current_config != stack_config:
+                raise ValueError('Stack root configuration changed after plan; run a new plan before apply')
+        else:
+            with open(config_path, 'wb') as f:
+                f.write(stack_config)
+
     def _stack_plan_has_changes(self, state):
         # Some Terragrunt versions return zero from `stack run plan` even
         # when -detailed-exitcode is forwarded and the generated unit plans
@@ -161,35 +227,29 @@ class Engine(engine_tf.Engine):
             if not ok:
                 return (False, False, stdout, '\n'.join(v for v in [stderr, inspect_stderr] if v))
 
-        _tar_dir(out_dir, state.env['TERRATEAM_PLAN_FILE'])
+        self._tar_stack_artifact(state)
         return (True, has_changes, stdout, stderr)
 
     def apply(self, state, config):
-        if not self._is_stack(state):
+        manifest = self._load_stack_artifact_manifest(state)
+        if manifest is None:
+            if self._is_stack(state):
+                return (False, '', 'Terragrunt Stack plan artifact is missing or invalid; run a new plan before apply')
             return super().apply(state, config)
+
+        if manifest['stack_root'] != state.path:
+            return (False, '', 'Stack plan belongs to a different directory; run a new plan before apply')
 
         logging.info(
             'APPLY : %s : engine=%s : stack=true',
             state.path,
             state.workflow['engine']['name'])
 
+        try:
+            self._restore_stack_artifact(state, manifest)
+        except (OSError, tarfile.TarError, ValueError) as exn:
+            return (False, '', 'Unable to restore Terragrunt Stack plan artifact: {}'.format(exn))
         out_dir = self._stack_units_dir(state)
-        _untar_dir(state.env['TERRATEAM_PLAN_FILE'], out_dir)
-
-        # Stack units are generated at plan time but apply runs in a fresh
-        # checkout. Regenerate them so `stack run apply` can locate each
-        # unit's terragrunt.hcl while using the saved plan files below.
-        (proc, stdout, stderr) = cmd.run_with_output(
-            state,
-            {
-                'cmd': [
-                    self.tf_cmd, 'stack', 'generate',
-                    '--non-interactive',
-                ]
-            })
-
-        if proc.returncode != 0:
-            return (False, stdout, stderr)
 
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
@@ -198,21 +258,21 @@ class Engine(engine_tf.Engine):
                     self.tf_cmd, 'stack', 'run', 'apply',
                     '--out-dir', out_dir,
                     '--non-interactive',
-                    '--',
                 ] + config.get('extra_args', [])
             })
 
-        # Terraform itself refuses to apply a saved plan if any input variable
-        # no longer matches what was recorded at plan time ("Can't change
-        # variable when applying a saved plan") -- confirmed by deliberately
-        # changing a unit's input between plan and apply in local testing.
-        # That guarantee is enforced by Terraform, not by this engine.
+        # `stack run` regenerates the units with the root Stack's values and
+        # preserves their dependency order. Terraform refuses a saved plan if
+        # its recorded inputs or state are stale.
         return (proc.returncode == 0, stdout, stderr)
 
     def _stack_show(self, state, extra_args):
         out_dir = self._stack_units_dir(state)
         if not os.path.isdir(out_dir):
-            _untar_dir(state.env['TERRATEAM_PLAN_FILE'], out_dir)
+            manifest = self._load_stack_artifact_manifest(state)
+            if manifest is None:
+                return (False, [])
+            self._restore_stack_artifact(state, manifest)
 
         results = []
         overall_ok = True

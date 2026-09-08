@@ -1,5 +1,6 @@
 import json
 import os
+import tarfile
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -62,7 +63,7 @@ class PlanTest(unittest.TestCase):
             state = _state(d)
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
-                 mock.patch('engine_terragrunt._tar_dir') as tar_dir:
+                 mock.patch.object(engine, '_tar_stack_artifact') as tar_stack_artifact:
                 run.return_value = (SimpleNamespace(returncode=2), 'out', 'err')
                 result = engine.plan(state, {'extra_args': ['-var=foo=bar']})
 
@@ -77,7 +78,7 @@ class PlanTest(unittest.TestCase):
                  '-var=foo=bar'])
             # exit code 2 == has changes, and must still be treated as success.
             self.assertEqual(result, (True, True, 'out', 'err'))
-            tar_dir.assert_called_once_with(out_dir, '/tmp/plan')
+            tar_stack_artifact.assert_called_once_with(state)
 
     def test_stack_plan_failure_does_not_tar(self):
         with tempfile.TemporaryDirectory() as d:
@@ -86,12 +87,12 @@ class PlanTest(unittest.TestCase):
             state = _state(d)
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
-                 mock.patch('engine_terragrunt._tar_dir') as tar_dir:
+                 mock.patch.object(engine, '_tar_stack_artifact') as tar_stack_artifact:
                 run.return_value = (SimpleNamespace(returncode=1), 'out', 'err')
                 result = engine.plan(state, {})
 
             self.assertEqual(result, (False, False, 'out', 'err'))
-            tar_dir.assert_not_called()
+            tar_stack_artifact.assert_not_called()
 
     def test_stack_plan_inspects_unit_plans_when_exit_code_is_zero(self):
         with tempfile.TemporaryDirectory() as d:
@@ -100,14 +101,14 @@ class PlanTest(unittest.TestCase):
             state = _state(d)
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
-                 mock.patch('engine_terragrunt._tar_dir') as tar_dir, \
+                 mock.patch.object(engine, '_tar_stack_artifact') as tar_stack_artifact, \
                  mock.patch.object(engine, '_stack_plan_has_changes', return_value=(True, True, '')) as inspect:
                 run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
                 result = engine.plan(state, {})
 
             self.assertEqual(result, (True, True, 'out', 'err'))
             inspect.assert_called_once_with(state)
-            tar_dir.assert_called_once()
+            tar_stack_artifact.assert_called_once_with(state)
 
     def test_stack_plan_fails_safely_when_zero_exit_code_cannot_be_inspected(self):
         with tempfile.TemporaryDirectory() as d:
@@ -116,13 +117,40 @@ class PlanTest(unittest.TestCase):
             state = _state(d)
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
-                 mock.patch('engine_terragrunt._tar_dir') as tar_dir, \
+                 mock.patch.object(engine, '_tar_stack_artifact') as tar_stack_artifact, \
                  mock.patch.object(engine, '_stack_plan_has_changes', return_value=(False, False, 'show failed')):
                 run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
                 result = engine.plan(state, {})
 
             self.assertEqual(result, (False, False, 'out', 'err\nshow failed'))
-            tar_dir.assert_not_called()
+            tar_stack_artifact.assert_not_called()
+
+
+class StackArtifactTest(unittest.TestCase):
+    def test_artifact_contains_manifest_root_config_and_plans_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            plan_file = os.path.join(d, 'plan.tar')
+            state = _state(d)
+            state.env['TERRATEAM_PLAN_FILE'] = plan_file
+            with open(os.path.join(d, 'terragrunt.stack.hcl'), 'w') as f:
+                f.write('unit "app" {}')
+            plan_dir = os.path.join(d, '.terrateam-stack-plans', 'app')
+            os.makedirs(plan_dir)
+            open(os.path.join(plan_dir, 'tfplan.tfplan'), 'w').close()
+            runtime_dir = os.path.join(d, '.terragrunt-stack', 'app', '.terraform')
+            os.makedirs(runtime_dir)
+            open(os.path.join(runtime_dir, 'provider'), 'w').close()
+
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            engine._tar_stack_artifact(state)
+
+            with tarfile.open(plan_file) as tar:
+                names = tar.getnames()
+            self.assertIn('.terrateam-stack-artifact.json', names)
+            self.assertIn('stack/terragrunt.stack.hcl', names)
+            self.assertIn('.terrateam-stack-plans/app/tfplan.tfplan', names)
+            self.assertFalse(any('.terraform' in name for name in names))
+            self.assertEqual(engine._load_stack_artifact_manifest(state)['engine'], 'terragrunt-stack')
 
 
 class StackPlanChangesTest(unittest.TestCase):
@@ -168,31 +196,26 @@ class ApplyTest(unittest.TestCase):
                 run.call_args[0][1]['cmd'],
                 ['terragrunt', 'apply', '${TERRATEAM_PLAN_FILE}'])
 
-    def test_stack_dir_regenerates_units_then_uses_stack_run_apply(self):
+    def test_stack_dir_restores_artifact_then_runs_stack_apply(self):
         with tempfile.TemporaryDirectory() as d:
-            open(os.path.join(d, 'terragrunt.stack.hcl'), 'w').close()
             engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
             state = _state(d)
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
-                 mock.patch('engine_terragrunt._untar_dir') as untar_dir:
-                run.side_effect = [
-                    (SimpleNamespace(returncode=0), 'generate out', 'generate err'),
-                    (SimpleNamespace(returncode=0), 'out', 'err'),
-                ]
+                 mock.patch.object(engine, '_load_stack_artifact_manifest', return_value={
+                     'stack_root': '.',
+                 }), \
+                 mock.patch.object(engine, '_restore_stack_artifact') as restore_stack_artifact:
+                run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
                 result = engine.apply(state, {})
 
             out_dir = os.path.join(d, '.terrateam-stack-plans')
-            untar_dir.assert_called_once_with('/tmp/plan', out_dir)
+            restore_stack_artifact.assert_called_once_with(state, {'stack_root': '.'})
             self.assertEqual(
-                run.call_args_list[0][0][1]['cmd'],
-                ['terragrunt', 'stack', 'generate', '--non-interactive'])
-            self.assertEqual(
-                run.call_args_list[1][0][1]['cmd'],
+                run.call_args[0][1]['cmd'],
                 ['terragrunt', 'stack', 'run', 'apply',
                  '--out-dir', out_dir,
-                 '--non-interactive',
-                 '--'])
+                 '--non-interactive'])
             self.assertEqual(result, (True, 'out', 'err'))
 
 
@@ -271,15 +294,16 @@ class StackShowTest(unittest.TestCase):
             state = _state(d)
             out_dir = os.path.join(d, '.terrateam-stack-plans')
 
-            def fake_untar(_src, dest):
-                self._make_unit_plan(dest, 'vpc')
+            def fake_restore(_state, _manifest):
+                self._make_unit_plan(out_dir, 'vpc')
 
             with mock.patch('engine_terragrunt.cmd.run_with_output') as run, \
-                 mock.patch('engine_terragrunt._untar_dir', side_effect=fake_untar) as untar_dir:
+                 mock.patch.object(engine, '_load_stack_artifact_manifest', return_value={}), \
+                 mock.patch.object(engine, '_restore_stack_artifact', side_effect=fake_restore) as restore_stack_artifact:
                 run.return_value = (SimpleNamespace(returncode=0), 'no changes', 'err')
                 engine.diff(state, {})
 
-            untar_dir.assert_called_once_with('/tmp/plan', out_dir)
+            restore_stack_artifact.assert_called_once_with(state, {})
 
 
 if __name__ == '__main__':
