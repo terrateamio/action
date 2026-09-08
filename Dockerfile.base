@@ -39,12 +39,13 @@ ARG TERRAFORM_VERSIONS=
 # Install tofu and terraform versions dynamically based on TOFU_VERSIONS and TERRAFORM_VERSIONS. versions should be comma separated.
 RUN set -e; \
     retry() { \
-        n=0; \
-        until [ "${n}" -ge 3 ]; do \
-            "$@" && return 0; \
-            n=$((n + 1)); \
-            echo "retry ${n}/3: $*" >&2; \
+        n=1; \
+        while true; do \
+            if "$@"; then return 0; fi; \
+            if [ "${n}" -ge 3 ]; then break; fi; \
+            echo "attempt ${n}/3 failed, retrying in $((n * 10))s: $*" >&2; \
             sleep $((n * 10)); \
+            n=$((n + 1)); \
         done; \
         echo "failed after 3 attempts: $*" >&2; \
         return 1; \
