@@ -46,7 +46,7 @@ class Runtime(object):
 
     def work_index(self, state):
         indexer_conf = rc.get_indexer(state.repo_config)
-        build_tag = indexer_conf.get('build_tag', 'ghcr.io/terrateamio/terrat-code-indexer:latest')
+        build_tag = indexer_conf.get('build_tag', 'ghcr.io/terrateamio/code-indexer:latest')
         cmd.run(state, {'cmd': ['apt-get', 'update']})
         cmd.run(state, {'cmd': ['apt-get', 'install', '-y', 'docker.io', 'musl']})
         cmd.run(state, {'cmd': ['docker', 'pull', build_tag]})
