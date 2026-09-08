@@ -152,7 +152,11 @@ class Engine(engine_tf.Engine):
                 target = os.path.abspath(os.path.join(workspace, member.name))
                 if os.path.commonpath([workspace, target]) != workspace:
                     raise ValueError('Stack plan artifact contains an unsafe path')
-            tar.extractall(state.working_dir, members=plan_members)
+            # filter='data' additionally rejects symlink/hardlink members whose
+            # link target escapes the extraction directory (CVE-2007-4559-class),
+            # and device/fifo members -- the commonpath check above only covers
+            # a member's own name, not what a symlink member points at.
+            tar.extractall(state.working_dir, members=plan_members, filter='data')
             stack_config = tar.extractfile('stack/terragrunt.stack.hcl').read()
 
         if hashlib.sha256(stack_config).hexdigest() != manifest['stack_config_sha256']:

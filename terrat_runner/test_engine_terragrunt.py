@@ -244,6 +244,32 @@ class RestoreStackArtifactTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'changed after plan'):
                 engine._restore_stack_artifact(state, manifest)
 
+    def test_rejects_symlink_member_escaping_workspace(self):
+        # A member's own name can look safe (no "..", stays under
+        # .terrateam-stack-plans/) while still being a symlink whose link
+        # target escapes the workspace -- a later apply() run reuses this
+        # same directory as Terragrunt's --out-dir, so a symlink planted here
+        # would redirect Terragrunt's real writes outside the checkout
+        # (CVE-2007-4559-class). The name-only commonpath check does not
+        # catch this; extractall's filter='data' does.
+        with tempfile.TemporaryDirectory() as d:
+            plan_file = os.path.join(d, 'plan.tar')
+            state = _state(d)
+            state.env['TERRATEAM_PLAN_FILE'] = plan_file
+            self._make_artifact(plan_file, stack_config=b'unit "app" {}')
+
+            with tarfile.open(plan_file, 'a') as tar:
+                link_info = tarfile.TarInfo('.terrateam-stack-plans/evil')
+                link_info.type = tarfile.SYMTYPE
+                link_info.linkname = '/etc'
+                tar.addfile(link_info)
+
+            engine = engine_terragrunt.make(override_tf_cmd='terragrunt')
+            manifest = engine._load_stack_artifact_manifest(state)
+
+            with self.assertRaises(tarfile.TarError):
+                engine._restore_stack_artifact(state, manifest)
+
 
 class StackPlanChangesTest(unittest.TestCase):
     def test_resource_change_is_detected(self):
