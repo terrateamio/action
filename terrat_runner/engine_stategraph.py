@@ -47,6 +47,10 @@ def diff_json(state, config):
     return None
 
 
+def resource_summary(state, config):
+    return None
+
+
 def apply(state, config):
     logging.info('APPLY : %s : engine=stategraph', state.path)
     return _run(state,
@@ -71,5 +75,6 @@ def make(**engine_config):
         plan=plan,
         diff=diff,
         diff_json=diff_json,
+        resource_summary=resource_summary,
         unsafe_apply=unsafe_apply,
         outputs=outputs)

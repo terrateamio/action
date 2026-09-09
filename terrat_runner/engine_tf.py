@@ -123,6 +123,34 @@ def format_diff(text):
     return '\n'.join(out)
 
 
+def _resource_summary_from_plan_json(plan_json):
+    """Count per-resource changes from a `terraform show -json` plan.
+
+    A replacement (['create', 'delete'] or ['delete', 'create']) counts in the
+    'replaced' bucket only -- the four buckets are disjoint, unlike tofu's
+    aggregate 'Plan: N to add, ...' line where a replacement counts in both
+    add and destroy.  A plan with no resource changes (for example an
+    output-only change) yields all zeros, which is a real result, not an
+    absence of one.
+    """
+    summary = {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0}
+    if not isinstance(plan_json, dict):
+        return None
+    for resource_change in plan_json.get('resource_changes') or []:
+        actions = (resource_change.get('change') or {}).get('actions') or []
+        if actions == ['create']:
+            summary['created'] += 1
+        elif actions == ['update']:
+            summary['updated'] += 1
+        elif actions == ['delete']:
+            summary['deleted'] += 1
+        elif sorted(actions) == ['create', 'delete']:
+            summary['replaced'] += 1
+        # 'no-op', 'read', and anything unrecognized are not changes and are
+        # ignored rather than guessed.
+    return summary
+
+
 class Engine:
     def __init__(self, name, override_tf_cmd, **options):
         self.name = name
@@ -262,6 +290,25 @@ class Engine:
                 return (False, stdout, str(exn))
 
         return (False, stdout, stderr)
+
+
+    def resource_summary(self, state, config):
+        logging.info(
+            'RESOURCE_SUMMARY : %s : engine=%s',
+            state.path,
+            state.workflow['engine']['name'])
+
+        res = self.diff_json(state, config)
+        if not res:
+            return None
+
+        # diff_json returns (True, plan_json) on success and a 3-tuple
+        # (False, stdout, stderr) on failure.
+        (success, plan_json) = res if len(res) == 2 else (False, None)
+        if not success:
+            return None
+
+        return _resource_summary_from_plan_json(plan_json)
 
 
     def plan(self, state, config):
