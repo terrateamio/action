@@ -32,9 +32,18 @@ class Auth_error(Exception):
     pass
 
 
+class Template_error(Exception):
+    pass
+
+
 def _subst(state, s):
     if isinstance(s, str):
-        return string.Template(s).substitute(state.env)
+        try:
+            return string.Template(s).substitute(state.env)
+        except KeyError as exn:
+            raise Template_error(s, 'unknown variable {}'.format(exn.args[0]))
+        except ValueError as exn:
+            raise Template_error(s, str(exn))
     else:
         return s
 
@@ -469,16 +478,35 @@ def run_azure(state, config):
 
 def run(state, config):
     provider = config.get('provider', 'aws')
-    if provider == 'aws':
-        return run_aws(state, config)
-    elif provider == 'azure':
-        return run_azure(state, config)
-    elif provider == 'gcp':
-        return run_gcp(state, config)
-    else:
+    try:
+        if provider == 'aws':
+            return run_aws(state, config)
+        elif provider == 'azure':
+            return run_azure(state, config)
+        elif provider == 'gcp':
+            return run_gcp(state, config)
+        else:
+            return workflow.make(
+                payload={
+                    'text': 'Unknown provider: {}'.format(config.get('provider')),
+                    'visible_on': 'error'
+                },
+                state=state,
+                step='auth/oidc',
+                success=False)
+    except Template_error as exn:
+        (value, reason) = exn.args
+        logging.error('OIDC : %s : TEMPLATE_ERROR : %s : %s', provider, value, reason)
         return workflow.make(
             payload={
-                'text': 'Unknown provider: {}'.format(config.get('provider')),
+                'text': ('Could not replace variables in the OIDC step value {value!r}: {reason}.\n'
+                         '\n'
+                         'Variables in OIDC step values are replaced from the environment.  '
+                         'TERRATEAM_DIR, TERRATEAM_WORKSPACE, TERRATEAM_STACK, and stack '
+                         'variables are only defined when the OIDC step is in a workflow\'s '
+                         'plan or apply steps, they are not defined in hooks.').format(
+                             value=value,
+                             reason=reason),
                 'visible_on': 'error'
             },
             state=state,
