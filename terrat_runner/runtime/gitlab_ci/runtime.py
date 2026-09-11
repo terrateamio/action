@@ -17,6 +17,9 @@ class Runtime(object):
     def initialize(self, state):
         return state
 
+    def name(self):
+        return 'gitlab'
+
     def set_secret(self, secret):
         pass
 
