@@ -1,3 +1,4 @@
+import pickle
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -189,6 +190,129 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(
             run.call_args[0][1]['cmd'],
             ['terraform', 'apply', '-auto-approve', '-target=module.foo'])
+
+
+class Unlocked(engine_tf.Engine):
+    # The way a real engine opts out: by overriding the hook, not by poking an
+    # attribute. Keeps the engine picklable, which the run state requires.
+    def lock_init(self, state):
+        return False
+
+
+def _state():
+    return SimpleNamespace(
+        path='dir/space',
+        env={},
+        working_dir='/nonexistent',
+        workflow={'engine': {'name': 'terraform'}},
+        repo_config={}
+    )
+
+
+class InitTest(unittest.TestCase):
+    def _calls(self, engine, config=None):
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'out', 'err')
+            with mock.patch('engine_tf.repo_config.get_create_and_select_workspace',
+                            return_value=False):
+                engine.init(_state(), config or {})
+
+        return [c[0][1]['cmd'] for c in run.call_args_list]
+
+    def test_the_default_path_is_byte_identical_to_before(self):
+        # A locked init already serialises the tenv install, which is the whole
+        # of terrateam#393, so nothing is added for anyone who changes nothing.
+        # This is the blast radius of the change: none.
+        self.assertEqual(
+            self._calls(engine_tf.make(override_tf_cmd='terraform')),
+            [['flock', engine_tf.INIT_LOCK, 'terraform', 'init']])
+
+    def test_tofu_is_the_same(self):
+        self.assertEqual(
+            self._calls(engine_tf.make(override_tf_cmd='tofu')),
+            [['flock', engine_tf.INIT_LOCK, 'tofu', 'init']])
+
+    def test_an_engine_that_unlocks_gets_a_bare_init(self):
+        # And nothing else: the contract puts the toolchain install on the
+        # engine that chose to unlock, not on this base class.
+        self.assertEqual(
+            self._calls(Unlocked('tf', 'terraform')),
+            [['terraform', 'init']])
+
+    def test_extra_args_on_the_locked_path(self):
+        self.assertEqual(
+            self._calls(engine_tf.make(override_tf_cmd='terraform'), {'extra_args': ['-upgrade']}),
+            [['flock', engine_tf.INIT_LOCK, 'terraform', 'init', '-upgrade']])
+
+    def test_extra_args_on_the_unlocked_path(self):
+        self.assertEqual(
+            self._calls(Unlocked('tf', 'terraform'), {'extra_args': ['-upgrade']}),
+            [['terraform', 'init', '-upgrade']])
+
+
+class ProbeToolchainTest(unittest.TestCase):
+    def _probe(self, tf_cmd, returncode, stdout='', stderr=''):
+        engine = engine_tf.make(override_tf_cmd='terraform')
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=returncode), stdout, stderr)
+            with mock.patch('engine_tf.logging.warning') as warn:
+                result = engine.probe_toolchain(_state(), tf_cmd)
+
+        return (run.call_args[0][1], warn, result)
+
+    def test_the_probe_takes_the_init_lock(self):
+        (config, _, _) = self._probe('tofu', 0)
+        self.assertEqual(config['cmd'], ['flock', engine_tf.INIT_LOCK, 'tofu', '--version'])
+
+    def test_the_probe_is_quiet_in_the_job_log(self):
+        (config, _, _) = self._probe('tofu', 0)
+        self.assertFalse(config['log_output'])
+
+    def test_a_successful_probe_does_not_warn(self):
+        (_, warn, result) = self._probe('tofu', 0, 'OpenTofu v1.6.3')
+        self.assertEqual(warn.call_count, 0)
+        self.assertEqual(result, (0, 'OpenTofu v1.6.3', ''))
+
+    def test_an_install_is_reported_at_info(self):
+        # tenv says nothing when the binary is already there, so this line
+        # appears only on the dirspace that actually installed it.
+        engine = engine_tf.make(override_tf_cmd='terraform')
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'OpenTofu v1.8.1',
+                                'Resolved version from TOFUENV_TOFU_DEFAULT_VERSION : 1.8.1\nInstalling OpenTofu 1.8.1\n')
+            with mock.patch('engine_tf.logging.info') as info:
+                engine.probe_toolchain(_state(), 'tofu')
+        self.assertEqual(info.call_count, 1)
+        self.assertIn('Installing OpenTofu 1.8.1', ' '.join(str(a) for a in info.call_args[0]))
+
+    def test_an_already_installed_binary_is_silent(self):
+        # Including when the tool itself grumbles on stderr, as Terragrunt does
+        # about TF_INPUT: that is not an install and must not look like one.
+        for stderr in ('', 'WARN   The `TF_INPUT` environment variable is deprecated'):
+            engine = engine_tf.make(override_tf_cmd='terraform')
+            with mock.patch('engine_tf.cmd.run_with_output') as run:
+                run.return_value = (SimpleNamespace(returncode=0), 'OpenTofu v1.8.1', stderr)
+                with mock.patch('engine_tf.logging.info') as info:
+                    engine.probe_toolchain(_state(), 'tofu')
+            self.assertEqual(info.call_count, 0, stderr)
+
+    def test_a_failed_probe_warns_with_the_reason(self):
+        # log_output is False, so this is otherwise invisible and the operator
+        # only sees the init failure that follows, which looks unrelated.
+        (_, warn, result) = self._probe('tofu', 42, '', 'no such version')
+        self.assertEqual(warn.call_count, 1)
+        self.assertIn('no such version', ' '.join(str(a) for a in warn.call_args[0]))
+        self.assertEqual(result[0], 42)
+
+
+class PickleTest(unittest.TestCase):
+    # The run state, engine included, is pickled into a multiprocessing.Pool
+    # for every dirspace, so an engine that cannot be pickled breaks the run
+    # before init is reached.
+    def test_engines_are_picklable(self):
+        for engine in (engine_tf.make(override_tf_cmd='terraform'), Unlocked('tf', 'terraform')):
+            self.assertEqual(pickle.loads(pickle.dumps(engine)).tf_cmd, 'terraform')
 
 
 if __name__ == '__main__':
