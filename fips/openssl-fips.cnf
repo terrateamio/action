@@ -1,0 +1,52 @@
+# System OpenSSL configuration for the FIPS base image.
+#
+# These two keys belong to the default section, so nothing that opens a section may
+# come before them.
+config_diagnostics = 1
+openssl_conf = openssl_init
+
+# fipsmodule.cnf holds [fips_sect] and the MAC that openssl fipsinstall computed over
+# the copy of fips.so in this image. Moving either file invalidates the other.
+.include /usr/local/ssl/fipsmodule.cnf
+
+[openssl_init]
+providers = provider_sect
+alg_section = evp_properties
+ssl_conf = ssl_sect
+
+[ssl_sect]
+system_default = system_default_sect
+
+# The 3.1.2 FIPS provider has no SHAKE, so ML-KEM key generation fails. Without this
+# list libssl still offers X25519MLKEM768 first and every handshake dies there.
+[system_default_sect]
+Groups = P-256:P-384:P-521
+MinProtocol = TLSv1.2
+
+[provider_sect]
+fips = fips_sect
+base = base_sect
+default = default_sect
+
+[base_sect]
+activate = 1
+
+# Every implicit fetch carries fips=yes, so the default provider answers only an
+# explicit "-fips" query. Python asks that way for hashlib(usedforsecurity=False).
+[default_sect]
+activate = 1
+
+[evp_properties]
+default_properties = fips=yes
+
+[req]
+default_bits = 3072
+default_md = sha256
+distinguished_name = req_distinguished_name
+
+[req_distinguished_name]
+countryName = Country Name (2 letter code)
+stateOrProvinceName = State or Province Name
+localityName = Locality Name
+organizationName = Organization Name
+commonName = Common Name

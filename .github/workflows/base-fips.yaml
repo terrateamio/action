@@ -1,0 +1,87 @@
+name: build-base-fips
+# This workflow is triggered manually (workflow_dispatch) and intentionally does
+# NOT publish an action-base-fips:latest tag, for the same reason as base.yaml:
+# a moving tag breaks users who pinned a specific action commit SHA, because
+# GitHub Actions rebuilds the Docker image from the Dockerfile at that commit.
+#
+# The base image is tagged with a Unix timestamp (e.g. action-base-fips:1234567890)
+# and Dockerfile.fips is updated to reference that specific tag.
+#
+# Each architecture builds on a runner of its own architecture. The image compiles
+# OpenSSL twice, which is why this does not go through QEMU like base.yaml.
+on:
+  workflow_dispatch:
+env:
+  IMAGE: ghcr.io/terrateamio/action-base-fips
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      -
+        name: Generate tag
+        id: tag
+        run: echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+  build:
+    needs: tag
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v7
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Build and push base
+        uses: docker/build-push-action@v7
+        with:
+          push: true
+          file: Dockerfile.base.fips
+          tags: ${{ env.IMAGE }}:${{ needs.tag.outputs.tag }}-${{ matrix.arch }}
+          platforms: linux/${{ matrix.arch }}
+          cache-from: type=gha,scope=base-fips-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=base-fips-${{ matrix.arch }}
+  manifest:
+    needs:
+      - tag
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Create the multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${TAG}" \
+            "${IMAGE}:${TAG}-amd64" \
+            "${IMAGE}:${TAG}-arm64"
+        env:
+          TAG: ${{ needs.tag.outputs.tag }}
+      -
+        name: Show the manifest
+        run: docker buildx imagetools inspect "${IMAGE}:${TAG}"
+        env:
+          TAG: ${{ needs.tag.outputs.tag }}
