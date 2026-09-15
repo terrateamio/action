@@ -104,7 +104,8 @@ def get_workflow(repo_config, idx):
     cfg = {
         'apply': workflow.get('apply', _default_apply_workflow()),
         'plan': workflow.get('plan', _default_plan_workflow()),
-        'integrations': _get_integrations(repo_config, _get(workflow, 'integrations', {}))
+        'integrations': _get_integrations(repo_config, _get(workflow, 'integrations', {})),
+        'storage': _get(workflow, 'storage', _get(repo_config, 'storage', {}))
     }
 
     default_engine = get_engine(repo_config)
@@ -165,7 +166,8 @@ def get_default_workflow(repo_config):
         'apply': _default_apply_workflow(),
         'plan': _default_plan_workflow(),
         'engine': get_engine(repo_config),
-        'integrations': _get_integrations(repo_config, {})
+        'integrations': _get_integrations(repo_config, {}),
+        'storage': _get(repo_config, 'storage', {})
     }
 
 

@@ -143,7 +143,7 @@ WORK_MANIFEST_DISPATCH = {
     'plan': lambda state: tf_operation(state, work_plan.Exec()),
     'apply': lambda state: tf_operation(state, work_apply.Exec()),
     'unsafe-apply': lambda state: tf_operation(state, work_unsafe_apply.Exec()),
-    'index': lambda state: state.runtime.work_index(state),
+    'index': lambda state: ensure_merged(state, lambda s: s.runtime.work_index(s)),
     'build-config': lambda state: ensure_merged(state, work_build_config.run),
     'build-tree': lambda state: ensure_merged(state, work_build_tree.run),
 }
@@ -256,6 +256,12 @@ def run(args, env):
 
     result_version = wm.get('result_version', 1)
 
+    # [args.work_token] names the compute node, and the compute node can perform
+    # more than one work manifest.  Every other call is against a work manifest,
+    # so those calls use the id that this response gives.  A server that does not
+    # send an id gives a compute node id that is also the work manifest id.
+    work_token = wm.get('id') or args.work_token
+
     state = run_state.create(
         api_base_url=args.api_base_url,
         api_token=wm['token'],
@@ -264,7 +270,7 @@ def run(args, env):
         env=env,
         sha=args.sha,
         work_manifest=wm,
-        work_token=args.work_token,
+        work_token=work_token,
         working_dir=args.workspace,
         result_version=result_version
     )
@@ -277,6 +283,7 @@ def run(args, env):
     # Setup Terraform environment variables for automation
     env['TF_IN_AUTOMATION'] = 'true'
     env['TF_INPUT'] = 'false'
+    env['TG_NON_INTERACTIVE'] = 'true'
     env['TERRAGRUNT_NON_INTERACTIVE'] = 'true'
 
     # Setup Terrateam environment variables
@@ -295,8 +302,24 @@ def run(args, env):
         # remote operations.  This gets around the limitation in http request
         # rate limiting.
         logging.info('CONFIGURING FOR TENV SERVER SUPPORT')
-        env['TOFUENV_LIST_MODE'] = 'direct'
-        env['TG_LIST_MODE'] = 'direct'
+        # The server proxies github.com, which covers downloading a release
+        # asset but not listing releases, which only exists on api.github.com.
+        # That means version listing does not work through the server, and
+        # listing is required whenever tenv has to resolve a version that is
+        # not exact, for example a version constraint in a terragrunt.hcl.  To
+        # avoid that, when an engine version is explicitly configured we pin it
+        # with the tenv <TOOL>_VERSION variables (see [set_engine_env]), which
+        # take precedence over any version files in the repository, so tenv
+        # only ever installs exact versions.  TERRATEAM_TENV_SERVER_SUPPORT
+        # communicates to the rest of the run that we are in this mode.
+        #
+        # List mode is set to 'api' because it is the least bad option if a
+        # list is still performed: it fails loudly (the proxy serves HTML where
+        # tenv expects JSON).  'html' mode is worse: tenv scrapes a github.com
+        # 404 page and silently resolves a garbage version.
+        env['TERRATEAM_TENV_SERVER_SUPPORT'] = 'true'
+        env['TOFUENV_LIST_MODE'] = 'api'
+        env['TG_LIST_MODE'] = 'api'
         env['TOFUENV_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/opentofu/opentofu/releases'
         env['TG_LIST_URL'] = state.api_base_url + '/tenv/' + state.work_token + '/gruntwork-io/terragrunt/releases'
         env['TOFUENV_REMOTE'] = state.api_base_url + '/tenv/' + state.work_token

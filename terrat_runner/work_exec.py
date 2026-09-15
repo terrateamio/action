@@ -69,7 +69,9 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
     TOFU_ENV_NAME = 'TOFUENV_TOFU_DEFAULT_VERSION'
     TERRAFORM_ENV_NAME = 'TFENV_TERRAFORM_DEFAULT_VERSION'
     TERRAGRUNT_ENV_NAME = 'TG_DEFAULT_VERSION'
+    TERRAGRUNT_VERSION_PIN_ENV_NAME = 'TG_VERSION'
     TERRAGRUNT_TF_PATH_ENV_NAME = 'TERRAGRUNT_TFPATH'
+    TERRAGRUNT_TF_PATH_ENV_NAME_V1 = 'TG_TF_PATH'
     TERRAGRUNT_FOREWARD_STDOUT1 = 'TG_TF_FORWARD_STDOUT'
     TERRAGRUNT_FOREWARD_STDOUT2 = 'TERRAGRUNT_FORWARD_TF_STDOUT'
 
@@ -105,6 +107,16 @@ def set_engine_env(env, repo_config, engine, repo_root, working_dir):
             env[TERRAGRUNT_FOREWARD_STDOUT2] = 'true'
             env[TERRAGRUNT_ENV_NAME] = _get(engine, 'version', TERRAGRUNT_DEFAULT_VERSION)
             env[TERRAGRUNT_TF_PATH_ENV_NAME] = env[TF_CMD_ENV_NAME]
+            env[TERRAGRUNT_TF_PATH_ENV_NAME_V1] = env[TF_CMD_ENV_NAME]
+            if env.get('TERRATEAM_TENV_SERVER_SUPPORT') == 'true' and engine.get('version'):
+                # When tenv requests go through the server, version listing is
+                # not available (see [main.run]), so a version constraint in a
+                # terragrunt.hcl makes tenv fail trying to list versions.
+                # TG_VERSION takes precedence over version files in the
+                # repository, so pinning the explicitly configured engine
+                # version guarantees tenv resolves an exact version without a
+                # list.
+                env[TERRAGRUNT_VERSION_PIN_ENV_NAME] = engine['version']
 
     elif engine['name'] == 'terraform':
         env[TF_CMD_ENV_NAME] = _get(engine, 'override_tf_cmd', 'terraform')
@@ -189,6 +201,7 @@ def convert_engine(engine):
             apply_args=engine.get('apply'),
             diff_args=engine.get('diff'),
             diff_json_args=engine.get('diff_json'),
+            resource_summary_args=engine.get('resource_summary'),
             plan_args=engine.get('plan'),
             unsafe_apply_args=engine.get('unsafe_apply'),
             outputs_args=engine.get('outputs'))

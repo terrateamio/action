@@ -12,7 +12,7 @@ if [ ! -f /usr/local/bin/stategraph ]; then
     flock /tmp/stategraph-install \
           curl -fsSL \
           -o /tmp/stategraph-"${VERSION}"-linux-"${ARCH}".tar.gz \
-          "https://github.com/stategraph/releases/releases/download/${VERSION}/stategraph-linux-${ARCH}.tar.gz"
+          "https://github.com/stategraph/releases/releases/download/${VERSION}/stategraph-${VERSION}-linux-${ARCH}.tar.gz"
 
     flock /tmp/stategraph-install tar -xzf /tmp/stategraph-"${VERSION}"-linux-"${ARCH}".tar.gz -C /tmp
     flock /tmp/stategraph-install install -m 0755 /tmp/stategraph /usr/local/bin/stategraph
