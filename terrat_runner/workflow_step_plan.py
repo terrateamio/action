@@ -46,7 +46,7 @@ def _store_plan_terrateam(state, dir_path, workspace, plan_path, has_changes):
         logging.debug('PLAN : STORE_PLAN : dir_path=%s : workspace=%s : md5=%s',
                       dir_path,
                       workspace,
-                      hashlib.md5(plan_data_raw).hexdigest())
+                      hashlib.md5(plan_data_raw, usedforsecurity=False).hexdigest())
 
         return _store_plan_data(state, plan_data, dir_path, workspace, has_changes)
     except Exception as exn:
@@ -120,6 +120,15 @@ def _store_plan_s3(state, plan_storage, dir_path, workspace, plan_path, has_chan
         has_changes)
 
 
+def _store_plan_none(state, plan_storage, dir_path, workspace, has_changes):
+    plan_data = {
+        'method': 'none',
+        'unsafe_apply_without_plan': plan_storage.get('unsafe_apply_without_plan', False),
+        'version': 1,
+    }
+    return _store_plan_data(state, plan_data, dir_path, workspace, has_changes)
+
+
 def _store_plan(state, plan_storage, dir_path, workspace, plan_path, has_changes):
     method = plan_storage['method']
     if method == 'terrateam':
@@ -138,18 +147,26 @@ def _store_plan(state, plan_storage, dir_path, workspace, plan_path, has_changes
                               workspace,
                               plan_path,
                               has_changes)
+    elif method == 'none':
+        return _store_plan_none(state,
+                                plan_storage,
+                                dir_path,
+                                workspace,
+                                has_changes)
     else:
         raise Exception('Unknown method')
 
 
 def run(state, config):
+    visible_on = config.get('visible_on', 'always')
+
     (success, has_changes, stdout, stderr) = state.engine.plan(state, config)
 
     if not success:
         return workflow.Result2(
             payload={
                 'text': '\n'.join([stderr, stdout]),
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/plan',
@@ -173,7 +190,7 @@ def run(state, config):
         return workflow.Result2(
             payload={
                 'text': '\n'.join([diff_stderr, diff_stdout]),
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/plan',
@@ -195,7 +212,7 @@ def run(state, config):
     # else:
     #     diff_json = None
 
-    plan_storage = rc.get_plan_storage(state.repo_config)
+    plan_storage = rc.get_plan_storage(state.workflow)
 
     (success, output) = _store_plan(state,
                                     plan_storage,
@@ -212,7 +229,7 @@ def run(state, config):
         return workflow.Result2(
             payload={
                 'text': 'Could not store plan file, with the following error:\n\n' + output,
-                'visible_on': 'always',
+                'visible_on': visible_on,
             },
             state=state,
             step=state.engine.name + '/plan',
@@ -223,14 +240,25 @@ def run(state, config):
                  state.env['TERRATEAM_WORKSPACE'],
                  has_changes)
 
+    payload = {
+        'plan': diff_stdout,
+        # 'diff': diff_json,
+        'has_changes': has_changes,
+        'text': stdout,
+        'visible_on': visible_on,
+    }
+
+    # resource_summary is part of the engine interface, so it is called like
+    # the other callbacks.  An engine that cannot count per-resource changes
+    # returns None, which drops the counts from the payload.  No changes means
+    # no counts worth an extra subprocess.
+    if has_changes:
+        resource_summary = state.engine.resource_summary(state, config)
+        if resource_summary is not None:
+            payload['resource_summary'] = resource_summary
+
     return workflow.Result2(
-        payload={
-            'plan': diff_stdout,
-            # 'diff': diff_json,
-            'has_changes': has_changes,
-            'text': stdout,
-            'visible_on': 'always',
-        },
+        payload=payload,
         state=state,
         step=state.engine.name + '/plan',
         success=True)

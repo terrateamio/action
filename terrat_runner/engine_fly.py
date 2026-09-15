@@ -59,6 +59,9 @@ class Engine:
     def diff_json(self, state, config):
         return None
 
+    def resource_summary(self, state, config):
+        return None
+
     def plan(self, state, config):
         logging.info(
             'PLAN : %s : engine=%s',

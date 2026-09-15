@@ -9,3 +9,13 @@ updates:
     directory: "/" # Location of workflow files
     schedule:
       interval: "weekly" # How often to check for updates
+
+  # Keep the Dockerfile base images current. This must live here, not in
+  # stategraph/mono: mono scans the published action image, but the Dockerfiles it
+  # is built from are owned by this repo, so the FROM bumps have to happen here.
+  # Note Dockerfile.base.bullseye still targets debian:bullseye (oldoldstable) --
+  # expect that one to need a decision rather than a bump.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

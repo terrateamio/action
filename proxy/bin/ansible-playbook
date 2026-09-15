@@ -11,12 +11,12 @@ ANSIBLE_VENV=/opt/ansible
 
 if [[ ! -x "${ANSIBLE_VENV}/bin/ansible-playbook" ]]; then
     flock /tmp/ansible-playbook-install \
-        bash -c "python3 -m venv '${ANSIBLE_VENV}' && '${ANSIBLE_VENV}/bin/pip' install 'ansible-core==${ANSIBLE_VERSION}' ansible pywinrm" 1>&2
+        bash -c "python3 -m venv '${ANSIBLE_VENV}' && '${ANSIBLE_VENV}/bin/pip' install 'ansible-core==${ANSIBLE_VERSION}' ansible pywinrm legacycrypt bcrypt" 1>&2
 else
     INSTALLED_VERSION=$("${ANSIBLE_VENV}/bin/ansible-playbook" --version 2>/dev/null | grep -oP 'core \K[0-9.]+' | head -n1 || echo "")
     if [[ "${INSTALLED_VERSION}" != "${ANSIBLE_VERSION}" ]]; then
         flock /tmp/ansible-playbook-install \
-            "${ANSIBLE_VENV}/bin/pip" install --upgrade "ansible-core==${ANSIBLE_VERSION}" ansible pywinrm 1>&2
+            "${ANSIBLE_VENV}/bin/pip" install --upgrade "ansible-core==${ANSIBLE_VERSION}" ansible pywinrm legacycrypt bcrypt 1>&2
     fi
 fi
 

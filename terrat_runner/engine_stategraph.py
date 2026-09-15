@@ -29,10 +29,13 @@ def plan(state, config):
     logging.info('PLAN : %s : engine=stategraph', state.path)
     plan_cmd = ['stategraph', 'tf', 'plan',
                 '--out', '${TERRATEAM_PLAN_FILE}',
+                '--detailed-exitcode',
                 '--workspace', state.workspace]
     plan_cmd += config.get('extra_args', [])
-    (success, stdout, stderr) = _run(state, plan_cmd)
-    has_changes = success and 'No changes detected.' not in stdout
+    (proc, stdout, stderr) = cmd.run_with_output(state, {'cmd': plan_cmd})
+    # --detailed-exitcode: 0 = no changes, 2 = changes, anything else = error.
+    success = proc.returncode in [0, 2]
+    has_changes = proc.returncode == 2
     return (success, has_changes, stdout, stderr)
 
 
@@ -41,6 +44,10 @@ def diff(state, config):
 
 
 def diff_json(state, config):
+    return None
+
+
+def resource_summary(state, config):
     return None
 
 
@@ -68,5 +75,6 @@ def make(**engine_config):
         plan=plan,
         diff=diff,
         diff_json=diff_json,
+        resource_summary=resource_summary,
         unsafe_apply=unsafe_apply,
         outputs=outputs)
