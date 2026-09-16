@@ -1,0 +1,186 @@
+# OpenSSL 3.1.2 supplies the FIPS provider source. The module that loads it is a
+# separate, current OpenSSL release, as README-FIPS.md prescribes.
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:3754b6da0e1ccdab0fe46abfdd7bbbba994b593c28149f6659fa6597f2261aeb AS openssl-build
+
+ARG OPENSSL_FIPS_VERSION=3.1.2
+ARG OPENSSL_FIPS_SHA256=a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539
+ARG OPENSSL_MODULE_VERSION=3.5.8
+ARG OPENSSL_MODULE_SHA256=a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2
+ARG SSL_PREFIX=/usr/local/ssl
+
+RUN apk add --no-cache build-base ca-certificates-bundle curl linux-headers perl
+
+WORKDIR /usr/src
+
+RUN url=https://github.com/openssl/openssl/releases/download && \
+    curl -fsSL -O "${url}/openssl-${OPENSSL_FIPS_VERSION}/openssl-${OPENSSL_FIPS_VERSION}.tar.gz" && \
+    curl -fsSL -O "${url}/openssl-${OPENSSL_MODULE_VERSION}/openssl-${OPENSSL_MODULE_VERSION}.tar.gz" && \
+    echo "${OPENSSL_FIPS_SHA256}  openssl-${OPENSSL_FIPS_VERSION}.tar.gz" | sha256sum -c - && \
+    echo "${OPENSSL_MODULE_SHA256}  openssl-${OPENSSL_MODULE_VERSION}.tar.gz" | sha256sum -c - && \
+    tar -xzf "openssl-${OPENSSL_FIPS_VERSION}.tar.gz" && \
+    tar -xzf "openssl-${OPENSSL_MODULE_VERSION}.tar.gz" && \
+    rm -f openssl-*.tar.gz
+
+# Both builds take the same options. libdir is pinned so the path is the same on
+# every architecture.
+ENV OPENSSL_CONFIGURE_OPTS="enable-fips no-weak-ssl-ciphers enable-ec_nistp_64_gcc_128 no-ssl3 no-rc5 no-mdc2 no-idea shared"
+
+RUN cd "openssl-${OPENSSL_FIPS_VERSION}" && \
+    ./Configure ${OPENSSL_CONFIGURE_OPTS} \
+        --prefix="${SSL_PREFIX}" --openssldir="${SSL_PREFIX}" --libdir=lib && \
+    make depend && \
+    make -j"$(nproc)"
+
+RUN cd "openssl-${OPENSSL_MODULE_VERSION}" && \
+    ./Configure ${OPENSSL_CONFIGURE_OPTS} \
+        --prefix="${SSL_PREFIX}" --openssldir="${SSL_PREFIX}" --libdir=lib && \
+    make depend && \
+    make -j"$(nproc)" && \
+    make install_sw && \
+    cp "../openssl-${OPENSSL_FIPS_VERSION}/providers/fips.so" providers/fips.so && \
+    make install_fips
+
+COPY fips/openssl-fips.cnf ${SSL_PREFIX}/openssl.cnf
+
+RUN echo "${SSL_PREFIX}/lib" > /etc/ld.so.conf.d/00-openssl-fips.conf && \
+    rm -f /usr/lib/libcrypto.so.3 /usr/lib/libssl.so.3 && \
+    ldconfig && \
+    ln -sf "${SSL_PREFIX}/bin/openssl" /usr/bin/openssl
+
+COPY fips/Makefile fips/openssl-fips-test.c /usr/src/fips/
+RUN make -C /usr/src/fips SSL_PREFIX="${SSL_PREFIX}" install
+
+# The image is built against the module it ships, so the check runs here too.
+RUN openssl version -a && openssl-fips-test
+
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:3754b6da0e1ccdab0fe46abfdd7bbbba994b593c28149f6659fa6597f2261aeb AS base
+
+ARG SSL_PREFIX=/usr/local/ssl
+
+ENV OPENSSL_CONF=${SSL_PREFIX}/openssl.cnf \
+    OPENSSL_MODULES=${SSL_PREFIX}/lib/ossl-modules \
+    OPENSSL_FIPS=1
+
+# Go 1.24 and later carry the Go Cryptographic Module and switch to it on this setting.
+ENV GODEBUG=fips140=on
+
+RUN apk add --no-cache \
+	aws-cli-v2 \
+	bash \
+	ca-certificates \
+	ca-certificates-bundle \
+	curl \
+	flock \
+	git \
+	git-lfs \
+	gnupg \
+	groff \
+	jq \
+	less \
+	libcap \
+	openssh-client \
+	openssh-keyscan \
+	py3-pip \
+	py3-pycryptodome \
+	py3-pyyaml \
+	py3-requests \
+	py3-toml \
+	python3 \
+	unzip
+
+# Every consumer in the image resolves libcrypto and libssl to the FIPS build: the
+# ld.so.conf.d entry outranks /usr/lib, and the Wolfi pair is gone.
+COPY --from=openssl-build ${SSL_PREFIX}/ ${SSL_PREFIX}/
+COPY --from=openssl-build /usr/bin/openssl-fips-test /usr/bin/openssl-fips-test
+RUN mkdir -p /usr/local/bin && \
+    echo "${SSL_PREFIX}/lib" > /etc/ld.so.conf.d/00-openssl-fips.conf && \
+    rm -f /usr/lib/libcrypto.so.3 /usr/lib/libssl.so.3 && \
+    ldconfig && \
+    ln -sf "${SSL_PREFIX}/bin/openssl" /usr/bin/openssl && \
+    rm -rf "${SSL_PREFIX}/certs" && \
+    ln -sfn /etc/ssl/certs "${SSL_PREFIX}/certs" && \
+    ln -sf /etc/ssl/certs/ca-certificates.crt "${SSL_PREFIX}/cert.pem"
+
+# fipsinstall records the MAC of this image's copy of fips.so.
+RUN openssl fipsinstall -out "${SSL_PREFIX}/fipsmodule.cnf" \
+        -module "${SSL_PREFIX}/lib/ossl-modules/fips.so" && \
+    openssl-fips-test
+
+ARG TENV_LATEST_VERSION=v4.15.1
+RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
+    ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
+    curl -fsSL -O "https://github.com/tofuutils/tenv/releases/download/${TENV_LATEST_VERSION}/tenv_${TENV_LATEST_VERSION}_${ARCH}.apk" && \
+    apk add --no-cache --allow-untrusted "tenv_${TENV_LATEST_VERSION}_${ARCH}.apk" && \
+    rm -f "tenv_${TENV_LATEST_VERSION}_${ARCH}.apk"
+
+ARG TOFU_VERSIONS=1.12.6
+ARG TERRAFORM_VERSIONS=
+# Install tofu and terraform versions dynamically based on TOFU_VERSIONS and TERRAFORM_VERSIONS. versions should be comma separated.
+RUN set -e; \
+    retry() { \
+        n=1; \
+        while true; do \
+            if "$@"; then return 0; fi; \
+            if [ "${n}" -ge 3 ]; then break; fi; \
+            echo "attempt ${n}/3 failed, retrying in $((n * 10))s: $*" >&2; \
+            sleep $((n * 10)); \
+            n=$((n + 1)); \
+        done; \
+        echo "failed after 3 attempts: $*" >&2; \
+        return 1; \
+    }; \
+    for version in $(echo "${TOFU_VERSIONS}" | tr ',' ' '); do retry tenv tofu install "${version}"; sleep 5; done; \
+    for version in $(echo "${TERRAFORM_VERSIONS}" | tr ',' ' '); do retry tenv terraform install "${version}"; sleep 5; done
+
+ENV INFRACOST_VERSION=v0.10.45
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
+    curl -fsSL -o /tmp/infracost-linux-${ARCH}.tar.gz "https://github.com/infracost/infracost/releases/download/${INFRACOST_VERSION}/infracost-linux-${ARCH}.tar.gz" && \
+    tar -C /tmp -xzf /tmp/infracost-linux-${ARCH}.tar.gz && \
+    mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
+    rm -f /tmp/infracost-linux-${ARCH}.tar.gz
+
+ENV CONFTEST_VERSION=0.70.0
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
+    mkdir /tmp/conftest && \
+    curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
+    tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz && \
+    mv /tmp/conftest/conftest /usr/local/bin/conftest && \
+    rm -rf /tmp/conftest
+
+ENV OPA_VERSION=1.7.1
+
+ENV CHECKOV_VERSION=3.3.16
+RUN python3 -m venv /opt/checkov && \
+    /opt/checkov/bin/pip install --no-cache-dir checkov==${CHECKOV_VERSION} && \
+    ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
+
+ENV RESOURCELY_VERSION=1.0.45
+
+COPY ./bin/ /usr/local/bin
+COPY proxy/bin /usr/local/proxy/bin
+COPY conftest-wrapper /usr/local/bin/conftest-wrapper
+COPY checkov-wrapper /usr/local/bin/checkov-wrapper
+COPY cdktf-setup.sh /cdktf-setup.sh
+COPY gcloud-cli-setup.sh /gcloud-cli-setup.sh
+COPY azure-cli-setup.sh /azure-cli-setup.sh
+COPY kubectl-cli-setup.sh /kubectl-cli-setup.sh
+
+RUN mkdir /usr/local/share/keys
+
+RUN curl --output /usr/local/share/keys/hashicorp-pgp-key.txt https://www.hashicorp.com/.well-known/pgp-key.txt
+ENV TFENV_HASHICORP_PGP_KEY=/usr/local/share/keys/hashicorp-pgp-key.txt
+
+RUN curl --output /usr/local/share/keys/opentofu.asc https://get.opentofu.org/opentofu.asc
+ENV TOFUENV_OPENTOFU_PGP_KEY=/usr/local/share/keys/opentofu.asc
+
+# HashiCorp's signatures for old releases of Terraform have expired so we can only do hash checks
+ENV TENV_VALIDATION=sha
+
+ARG ADDITIONAL_PKGS_TO_INSTALL
+# Install additional OS packages dynamically based on ADDITIONAL_PKGS_TO_INSTALL. versions should be comma separated.
+RUN if [ -n "${ADDITIONAL_PKGS_TO_INSTALL}" ]; then \
+    apk add --no-cache $(echo "${ADDITIONAL_PKGS_TO_INSTALL}" | tr ',' ' '); \
+    fi
+
+COPY fips/fips-selftest.sh /usr/local/bin/fips-selftest
+RUN fips-selftest
