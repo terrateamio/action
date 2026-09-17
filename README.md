@@ -69,14 +69,27 @@ action runs:
 - the Python payload in `terrat_runner/` and the scripts in `bin/`;
 - the base image, which `Dockerfile` and `Dockerfile.fips` reference by digest
   rather than by a movable tag;
-- the prebuilt image that the FIPS action runs. `fips/action.yml` is rewritten
-  at release time to name that release's image by digest, and the release tag
-  points at the commit that carries it.
+- the prebuilt image that the FIPS action runs. `fips/action.yml` names that
+  image by digest, never by a movable tag.
 
-The release commit lives on the tag, not on `main`. On `main`, `fips/action.yml`
-keeps a movable `action-fips:v1` reference, so pinning an arbitrary `main` commit
-gives you the newest release of the v1 line rather than a frozen image. Pin a
-release tag, or the commit that tag points at, to freeze it.
+`fips/action.yml` is pinned on every commit, including on `main`, so any ref you
+pin gives you a reproducible FIPS action. The two differ only in how fresh the
+image is:
+
+| Ref you pin | FIPS image you get |
+|---|---|
+| A release tag, or the commit it points at | That release's image. |
+| A `main` commit | The image of the newest release at the time of that commit. |
+
+A release writes the new digest into its own commit, then opens a pull request
+that lands the same line on `main`. Between the release and that merge, `main`
+names the previous release's image. A CI check called `fips-pin` enforces that
+the line is pinned at all, and comments on a pull request when a newer image
+exists. The comment does not fail the check.
+
+This matters for Dependabot. A SHA pin that carries no release tag is advanced
+to the head of `main`, never to a release commit, so `main` is where most
+SHA-pinned consumers end up.
 
 ### Prebuilt images
 
@@ -95,10 +108,21 @@ every merge. A prerelease publishes `:v1.5.0-rc.1` only, and never moves `:v1`.
 ### Cutting a release
 
 Run the `release` workflow from the Actions tab. It always operates on the head
-of `main`, whatever ref you dispatch it from. It builds and pushes the images,
-writes the new FIPS image pin into `fips/action.yml`, commits that on top of the
-`main` head it built, and pushes the tag. The tag carries the commit, so the
-workflow never writes to `main` and needs no exception from the branch ruleset.
+of `main`, whatever ref you dispatch it from. It does five things:
+
+1. computes the version from the git tags and refuses to reuse one;
+2. builds and pushes both images, tagged `vX.Y.Z` and `vX`;
+3. writes the new FIPS image digest into `fips/action.yml` and commits that on
+   top of the `main` head it built;
+4. pushes the tag, which carries that commit. The workflow never writes to
+   `main` directly, so it needs no exception from the branch ruleset;
+5. opens a pull request that lands the same commit on `main`. Merge it.
+
+Step 5 is skipped for a prerelease, so that `main` never names an rc image.
+
+A pull request opened with `GITHUB_TOKEN` does not start other workflows, so
+`ci` and `fips-pin` do not run on it. Close and reopen it if a required check
+blocks the merge.
 
 ## Configuration
 

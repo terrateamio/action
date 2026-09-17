@@ -18,6 +18,12 @@ name: release
 # pushed to `main`: a repository ruleset requires a pull request for `main`, so
 # a direct push is rejected. The tag carries the commit instead, so the release
 # needs no write access to any branch.
+#
+# A stable release then opens a pull request that lands the same pin on `main`.
+# Dependabot moves a SHA pin that carries no tag to the HEAD OF MAIN, never to a
+# release commit, so most SHA-pinned consumers live on `main` commits. `main`
+# therefore has to name an immutable image too. It trails the newest release
+# until that pull request merges, which is the point of the fips-pin check.
 on:
   workflow_dispatch:
     inputs:
@@ -43,6 +49,7 @@ on:
 permissions:
   contents: write
   packages: write
+  pull-requests: write
 concurrency:
   group: release-main
   cancel-in-progress: false
@@ -158,6 +165,7 @@ jobs:
         # release tag, or the commit it points at, freezes the FIPS image. A
         # prerelease needs no special case, because main is never written to.
         name: Tag the release
+        id: tag
         if: ${{ !inputs.dry_run }}
         env:
           VERSION: ${{ steps.version.outputs.semver_tag }}
@@ -165,11 +173,15 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # `committed` tells the pull request step below whether there is
+          # anything to propose. A re-run over an unchanged pin has nothing.
           if git diff --quiet -- fips/action.yml; then
             echo 'fips/action.yml already carries this pin'
+            echo 'committed=false' >> "$GITHUB_OUTPUT"
           else
             git add fips/action.yml
             git commit -m "Release ${VERSION}"
+            echo 'committed=true' >> "$GITHUB_OUTPUT"
           fi
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "refs/tags/${VERSION}"
@@ -196,3 +208,32 @@ jobs:
             ARGS+=(--latest)
           fi
           gh release create "${VERSION}" "${ARGS[@]}"
+      -
+        # The branch is the release commit itself, so the pull request carries
+        # exactly the line the tag carries. A prerelease is skipped, because
+        # main must never name an rc image.
+        #
+        # Known wrinkle: a pull request opened with GITHUB_TOKEN does not start
+        # other workflows, so ci and fips-pin do not run on it. Close and reopen
+        # it if a required check blocks the merge.
+        name: Open the pull request that pins main
+        if: ${{ !inputs.dry_run && steps.version.outputs.is_prerelease != 'true' && steps.tag.outputs.committed == 'true' }}
+        env:
+          VERSION: ${{ steps.version.outputs.semver_tag }}
+          DIGEST: ${{ steps.build_fips.outputs.digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="pin-fips-${VERSION}"
+          git push origin "HEAD:refs/heads/${BRANCH}"
+          gh pr create \
+            --base main \
+            --head "${BRANCH}" \
+            --title "Pin the fips action to ${VERSION}" \
+            --body "Release ${VERSION} published \`ghcr.io/terrateamio/action-fips:${VERSION}@${DIGEST}\`.
+
+          This lands the same reference on \`main\`. Until it merges, a consumer
+          who pins a \`main\` commit runs the previous release's FIPS image.
+
+          The tag \`${VERSION}\` already carries this commit. Merging changes
+          nothing that consumers of the tag can see."

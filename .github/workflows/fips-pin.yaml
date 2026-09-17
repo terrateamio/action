@@ -1,0 +1,119 @@
+name: fips-pin
+# Guards the image reference in fips/action.yml.
+#
+# The FIPS action runs a PREBUILT image rather than building from the tree, so
+# that one line decides whether pinning this repository by tag or by commit SHA
+# freezes what the FIPS action runs. The release workflow writes it. This check
+# makes sure nothing puts a movable tag back.
+#
+# Two severities, on purpose:
+#   error  - the reference does not name a digest.
+#   notice - a newer image exists on the same major line. main is EXPECTED to
+#            trail the newest release between releases, so this never fails. It
+#            is a convenience, and on a pull request it becomes a comment.
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: fips-pin-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v7
+      -
+        # Fails only when the reference is not pinned by digest.
+        name: Check the fips pin
+        id: pin
+        run: ./scripts/check_fips_pin
+      -
+        name: Report
+        if: ${{ always() && steps.pin.outcome == 'success' }}
+        env:
+          PINNED_REF: ${{ steps.pin.outputs.pinned_ref }}
+          MAJOR_TAG: ${{ steps.pin.outputs.major_tag }}
+          LATEST_DIGEST: ${{ steps.pin.outputs.latest_digest }}
+          STALE: ${{ steps.pin.outputs.stale }}
+        run: |
+          set -euo pipefail
+          {
+            echo '### FIPS image pin'
+            echo
+            echo '```'
+            echo "${PINNED_REF}"
+            echo '```'
+            if [ "${STALE}" = 'true' ]; then
+              echo "A newer image exists for \`${MAJOR_TAG}\`: \`${LATEST_DIGEST}\`"
+            else
+              echo "Up to date with \`${MAJOR_TAG}\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${STALE}" = 'true' ]; then
+            echo "::notice title=A newer FIPS image exists::${MAJOR_TAG} now resolves to ${LATEST_DIGEST}"
+          fi
+      -
+        # A fork pull request gets a read-only token, so this cannot be allowed
+        # to fail the check. The comment is informational either way.
+        name: Comment on the pull request
+        if: ${{ github.event_name == 'pull_request' && steps.pin.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          PINNED_REF: ${{ steps.pin.outputs.pinned_ref }}
+          MAJOR_TAG: ${{ steps.pin.outputs.major_tag }}
+          LATEST_DIGEST: ${{ steps.pin.outputs.latest_digest }}
+          STALE: ${{ steps.pin.outputs.stale }}
+        run: |
+          set -euo pipefail
+          MARKER='<!-- fips-pin-check -->'
+          # One comment, edited in place, so a long-lived branch does not collect
+          # a new one on every push.
+          ID=$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+               --jq "map(select(.body | contains(\"${MARKER}\"))) | .[0].id // empty")
+          if [ "${STALE}" != 'true' ]; then
+            if [ -n "${ID}" ]; then
+              gh api --method DELETE "repos/${REPO}/issues/comments/${ID}"
+              echo 'Removed the stale-pin comment.'
+            else
+              echo 'Pin is current, nothing to say.'
+            fi
+            exit 0
+          fi
+          BODY=$(cat <<COMMENT
+          ${MARKER}
+          **A newer FIPS image is available.** This does not block the pull request.
+
+          \`fips/action.yml\` pins:
+
+          \`\`\`
+          ${PINNED_REF}
+          \`\`\`
+
+          \`${MAJOR_TAG}\` now resolves to:
+
+          \`\`\`
+          ${LATEST_DIGEST}
+          \`\`\`
+
+          \`main\` is expected to trail the newest release until the release
+          workflow opens its pin pull request. Change this line by hand only if
+          you mean to move the FIPS action off that schedule.
+          COMMENT
+          )
+          if [ -n "${ID}" ]; then
+            gh api --method PATCH "repos/${REPO}/issues/comments/${ID}" -f body="${BODY}" > /dev/null
+            echo 'Updated the existing comment.'
+          else
+            gh api --method POST "repos/${REPO}/issues/${PR}/comments" -f body="${BODY}" > /dev/null
+            echo 'Posted a comment.'
+          fi
