@@ -1,0 +1,196 @@
+name: release
+# Cutting a release is a deliberate act, so this workflow is dispatch only. It
+# always operates on the head of `main`, whatever ref it is dispatched from, so
+# that a release is always "what main is right now".
+#
+# Why tags at all: consumers pin `uses: terrateamio/action@<ref>`. Dependabot
+# compares that ref against this repository's TAGS. Before these tags existed
+# there was nothing to compare against and no consumer was ever told to upgrade.
+# A consumer pinned to a commit SHA is the case that was completely inert: the
+# update checker gives up immediately when the repository has no tags.
+#
+# `v1` is a legacy BRANCH and is being deprecated. Do not create a tag named v1
+# while the branch exists: a branch and a tag of the same name make `@v1`
+# resolve ambiguously. The moving tag this workflow publishes is an IMAGE tag,
+# not a git tag.
+#
+# A stable release pushes one commit to `main`, because the FIPS action carries
+# an image reference that has to be frozen per release. The dispatching account
+# therefore needs to be able to push to `main`.
+on:
+  workflow_dispatch:
+    inputs:
+      release_kind:
+        description: 'Semver bump (specific uses the semver_tag field below)'
+        required: true
+        type: choice
+        default: specific
+        options:
+          - specific
+          - major
+          - minor
+          - patch
+      semver_tag:
+        description: 'Exact tag (e.g. v1.4.0 or v1.4.0-rc.1). Only used when release_kind is "specific"'
+        required: false
+        type: string
+      dry_run:
+        description: 'Build everything, publish nothing.'
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: write
+  packages: write
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        # Always main, never the dispatched ref. This also means
+        # scripts/next_semver is read from main, so the script has to be merged
+        # there before it is used. fetch-depth 0 brings the tags down with the
+        # history, which is what next_semver reads.
+        name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      -
+        # Computes the version, refuses to reuse a tag, and reports the previous
+        # stable tag. All three answers come from the same tag list.
+        name: Compute the version
+        id: version
+        env:
+          RELEASE_KIND: ${{ inputs.release_kind }}
+          SEMVER_TAG: ${{ inputs.semver_tag }}
+        run: ./scripts/next_semver
+      -
+        # Composed here rather than inline in `tags:`, so that the prerelease
+        # case drops the moving-tag line outright instead of leaving a blank one.
+        # The moving tag follows the version being released, so a v2.0.0 release
+        # moves :v2 and leaves :v1 pointing at the last v1 release.
+        name: Compose the image tags
+        id: tags
+        env:
+          VERSION: ${{ steps.version.outputs.semver_tag }}
+          MAJOR_TAG: ${{ steps.version.outputs.major_tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
+        run: |
+          set -euo pipefail
+          emit () {
+            local name="$1" image="$2"
+            {
+              echo "${name}<<TAGS_EOF"
+              echo "${image}:${VERSION}"
+              # A prerelease must not move the tag that consumers follow.
+              if [ "${IS_PRERELEASE}" != 'true' ]; then
+                echo "${image}:${MAJOR_TAG}"
+              fi
+              echo TAGS_EOF
+            } >> "$GITHUB_OUTPUT"
+          }
+          emit action ghcr.io/terrateamio/action
+          emit action_fips ghcr.io/terrateamio/action-fips
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Build and push action
+        uses: docker/build-push-action@v7
+        with:
+          push: ${{ !inputs.dry_run }}
+          file: Dockerfile
+          tags: ${{ steps.tags.outputs.action }}
+          platforms: linux/amd64,linux/arm64
+      -
+        name: Build and push fips action
+        id: build_fips
+        uses: docker/build-push-action@v7
+        with:
+          push: ${{ !inputs.dry_run }}
+          file: Dockerfile.fips
+          tags: ${{ steps.tags.outputs.action_fips }}
+          platforms: linux/amd64,linux/arm64
+      -
+        # fips/action.yml runs a PREBUILT image, so a ref pin only freezes the
+        # FIPS action if the reference in the file is immutable. The tag pushed
+        # below points at this commit, which is what makes `@v1.4.0` and a SHA
+        # pin mean the same thing for FIPS as they do for the main action.
+        name: Pin the fips action to this release
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.version.outputs.semver_tag }}
+          DIGEST: ${{ steps.build_fips.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test -n "${DIGEST}"
+          REF="docker://ghcr.io/terrateamio/action-fips:${VERSION}@${DIGEST}"
+          sed -i -E "s|^(  image: ')docker://ghcr\.io/terrateamio/action-fips:[^']*(')\$|\1${REF}\2|" fips/action.yml
+          # A sed that matched nothing is silent, so check the result.
+          grep -qF "image: '${REF}'" fips/action.yml
+      -
+        # After the images, so that a failed build leaves no tag behind and the
+        # release can be retried with the same number.
+        #
+        # The push is atomic: if main moved while this ran, neither the branch
+        # nor the tag lands, and a retry rebuilds from the new head and produces
+        # a consistent result. A prerelease pushes ONLY the tag, so that main
+        # never carries a reference to an rc image.
+        name: Push the release commit and tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.version.outputs.semver_tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- fips/action.yml; then
+            echo 'fips/action.yml already carries this pin'
+          else
+            git add fips/action.yml
+            git commit -m "Release ${VERSION}"
+          fi
+          git tag -a "${VERSION}" -m "Release ${VERSION}"
+          if [ "${IS_PRERELEASE}" = 'true' ]; then
+            git push origin "refs/tags/${VERSION}"
+          else
+            git push --atomic origin "HEAD:main" "refs/tags/${VERSION}"
+          fi
+      -
+        name: Create the GitHub Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.version.outputs.semver_tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
+          PREV: ${{ steps.version.outputs.prev_stable_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # PREV is the previous STABLE tag, so a release that follows a
+          # prerelease still describes everything since the last thing users
+          # actually got. It is empty for the first release.
+          ARGS=(--verify-tag --title "${VERSION}" --generate-notes)
+          if [ -n "${PREV}" ]; then
+            ARGS+=(--notes-start-tag "${PREV}")
+          fi
+          if [ "${IS_PRERELEASE}" = 'true' ]; then
+            ARGS+=(--prerelease)
+          else
+            ARGS+=(--latest)
+          fi
+          gh release create "${VERSION}" "${ARGS[@]}"
