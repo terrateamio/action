@@ -1,0 +1,13 @@
+# Categories for the notes that `gh release create --generate-notes` produces.
+#
+# Categorisation works on pull request LABELS, not on the ADD/FIX/REMOVE commit
+# subject convention, so this stays small: `dependencies` is applied by
+# Dependabot itself, and everything else falls through the catch-all.
+changelog:
+  categories:
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Changes
+      labels:
+        - '*'

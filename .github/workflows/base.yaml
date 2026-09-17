@@ -11,6 +11,9 @@ name: build-base
 # Fix: the base image is now tagged with a Unix timestamp (e.g. action-base:1234567890)
 # and the Dockerfile is updated to reference that specific tag. This ensures that
 # pinning to an action commit SHA truly isolates users from future base image changes.
+#
+# The Dockerfile pins the tag AND the digest, because a registry tag can still be
+# re-pushed. The last step of this workflow prints the line to paste.
 on:
   workflow_dispatch:
 jobs:
@@ -39,6 +42,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       -
         name: Build and push base
+        id: build
         uses: docker/build-push-action@v7
         with:
           push: true
@@ -49,3 +53,16 @@ jobs:
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      -
+        name: Print the Dockerfile pin
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test -n "${DIGEST}"
+          {
+            echo '```'
+            echo "ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:${TAG}@${DIGEST}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# Compute the tag for a release from the requested bump kind.
+#
+# Git tags are the ONLY source of truth. The caller checks out with full history,
+# so the tag list is complete. This used to read the GitHub Releases API, which
+# gave the repository two sources of truth: a release that failed after its tag
+# was pushed left the API one version behind, and the next bump then computed a
+# number that already existed as a tag.
+#
+# The base version is the highest STABLE tag, so an outstanding v1.5.0-rc.1 does
+# not affect a bump computed against a released v1.4.0.
+#
+# Environment variables:
+#   RELEASE_KIND - specific | major | minor | patch
+#   SEMVER_TAG   - (specific only) the exact tag to release; ignored otherwise
+#
+# Outputs (GITHUB_OUTPUT):
+#   semver_tag       - the tag to release, e.g. v1.4.1
+#   major_tag        - the moving major tag, e.g. v1
+#   is_prerelease    - true when semver_tag has a prerelease suffix
+#   prev_stable_tag  - the highest stable tag before this one, or empty
+
+: "${RELEASE_KIND:?RELEASE_KIND is required}"
+
+STABLE_RE='^v[0-9]+\.[0-9]+\.[0-9]+$'
+
+# `head -1` closes the pipe, so grep dies of SIGPIPE and pipefail reports it.
+# The `|| true` covers that and an empty tag list. It is not hiding an error
+# from the network, because nothing here goes over the network.
+LATEST=$(git tag --list --sort=-v:refname | grep -E "${STABLE_RE}" | head -1 || true)
+
+if [[ "${RELEASE_KIND}" == "specific" ]]; then
+  if [[ -z "${SEMVER_TAG:-}" ]]; then
+    echo "Error: release kind 'specific' requires a semver_tag input" >&2
+    exit 1
+  fi
+  NEXT_TAG="${SEMVER_TAG}"
+else
+  case "${RELEASE_KIND}" in
+    major | minor | patch) ;;
+    *)
+      echo "Error: Invalid release kind '${RELEASE_KIND}'. Expected: specific, major, minor, or patch" >&2
+      exit 1
+      ;;
+  esac
+
+  if [[ -z "${LATEST}" ]]; then
+    echo "Error: no stable release tag to bump from. Use release kind 'specific' for the first release." >&2
+    exit 1
+  fi
+
+  # LATEST matched STABLE_RE, so the split below cannot see a suffix.
+  IFS=. read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+
+  case "${RELEASE_KIND}" in
+    major) NEXT_TAG="v$((MAJOR + 1)).0.0" ;;
+    minor) NEXT_TAG="v${MAJOR}.$((MINOR + 1)).0" ;;
+    patch) NEXT_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+  esac
+
+  echo "Latest stable release tag: ${LATEST}" >&2
+fi
+
+if [[ ! "${NEXT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+  echo "Error: Invalid tag '${NEXT_TAG}'. Expected vA.B.C or vA.B.C-rc.1" >&2
+  exit 1
+fi
+
+# A major bump is a new release channel that consumers pinned to the previous
+# major tag do not follow, so it must never happen by a typo in semver_tag.
+if [[ "${RELEASE_KIND}" != "major" && -n "${LATEST}" && "${NEXT_TAG%%.*}" != "${LATEST%%.*}" ]]; then
+  echo "Error: ${NEXT_TAG} changes the major version of ${LATEST}. Use release kind 'major'." >&2
+  exit 1
+fi
+
+# Checked here rather than in a separate workflow step, so that the guard and
+# the computation read one tag list and cannot disagree.
+if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" > /dev/null; then
+  echo "Error: tag ${NEXT_TAG} already exists" >&2
+  exit 1
+fi
+
+IS_PRERELEASE=false
+[[ "${NEXT_TAG}" == *-* ]] && IS_PRERELEASE=true
+
+echo "${NEXT_TAG}"
+
+# Unset when running the script by hand outside Actions.
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  {
+    echo "semver_tag=${NEXT_TAG}"
+    echo "major_tag=${NEXT_TAG%%.*}"
+    echo "is_prerelease=${IS_PRERELEASE}"
+    echo "prev_stable_tag=${LATEST}"
+  } >> "${GITHUB_OUTPUT}"
+fi
