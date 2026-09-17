@@ -5,7 +5,9 @@ name: build-base-fips
 # GitHub Actions rebuilds the Docker image from the Dockerfile at that commit.
 #
 # The base image is tagged with a Unix timestamp (e.g. action-base-fips:1234567890)
-# and Dockerfile.fips is updated to reference that specific tag.
+# and Dockerfile.fips is updated to reference that specific tag. It pins the tag
+# AND the digest, because a registry tag can still be re-pushed. The last step of
+# the manifest job prints the line to paste.
 #
 # Each architecture builds on a runner of its own architecture. The image compiles
 # OpenSSL twice, which is why this does not go through QEMU like base.yaml.
@@ -85,3 +87,18 @@ jobs:
         run: docker buildx imagetools inspect "${IMAGE}:${TAG}"
         env:
           TAG: ${{ needs.tag.outputs.tag }}
+      -
+        # The published digest is the one the manifest job just composed, not
+        # either per-arch build's, so it has to be read back off the registry.
+        name: Print the Dockerfile pin
+        env:
+          TAG: ${{ needs.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          DIGEST=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}:${TAG}")
+          test -n "${DIGEST}"
+          {
+            echo '```'
+            echo "ARG BASE_IMAGE=${IMAGE}:${TAG}@${DIGEST}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
