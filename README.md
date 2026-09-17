@@ -68,28 +68,31 @@ action runs:
 
 - the Python payload in `terrat_runner/` and the scripts in `bin/`;
 - the base image, which `Dockerfile` and `Dockerfile.fips` reference by digest
-  rather than by a movable tag;
-- the prebuilt image that the FIPS action runs. `fips/action.yml` names that
-  image by digest, never by a movable tag.
+  rather than by a movable tag.
 
-`fips/action.yml` is pinned on every commit, including on `main`, so any ref you
-pin gives you a reproducible FIPS action. The two differ only in how fresh the
-image is:
+A release writes nothing into the tree, so a tag names an ordinary `main`
+commit and the two are interchangeable.
 
-| Ref you pin | FIPS image you get |
-|---|---|
-| A release tag, or the commit it points at | That release's image. |
-| A `main` commit | The image of the newest release at the time of that commit. |
+**The FIPS action is the exception.** `fips/action.yml` runs a prebuilt image:
 
-A release writes the new digest into its own commit, then opens a pull request
-that lands the same line on `main`. Between the release and that merge, `main`
-names the previous release's image. A CI check called `fips-pin` enforces that
-the line is pinned at all, and comments on a pull request when a newer image
-exists. The comment does not fail the check.
+```yaml
+  image: 'docker://ghcr.io/terrateamio/action-fips:v1'
+```
 
-This matters for Dependabot. A SHA pin that carries no release tag is advanced
-to the head of `main`, never to a release commit, so `main` is where most
-SHA-pinned consumers end up.
+That tag moves with every release, so `terrateamio/action/fips@<any ref>` runs
+the newest release regardless of what you pinned. To freeze it, pin the image
+digest on your side. Every release publishes the digest, and you can read it
+back at any time:
+
+```console
+$ docker buildx imagetools inspect --format '{{.Manifest.Digest}}' \
+    ghcr.io/terrateamio/action-fips:v1.1.0
+```
+
+The FIPS **base** image is a different matter and is pinned here, by digest, in
+`Dockerfile.fips`. A CI check called `fips-pin` enforces that, refuses a line
+whose tag and digest disagree, and comments on a pull request when a newer base
+build exists. The comment does not fail the check.
 
 ### Prebuilt images
 
@@ -108,21 +111,18 @@ every merge. A prerelease publishes `:v1.5.0-rc.1` only, and never moves `:v1`.
 ### Cutting a release
 
 Run the `release` workflow from the Actions tab. It always operates on the head
-of `main`, whatever ref you dispatch it from. It does five things:
+of `main`, whatever ref you dispatch it from. It does four things:
 
 1. computes the version from the git tags and refuses to reuse one;
 2. builds and pushes both images, tagged `vX.Y.Z` and `vX`;
-3. writes the new FIPS image digest into `fips/action.yml` and commits that on
-   top of the `main` head it built;
-4. pushes the tag, which carries that commit. The workflow never writes to
-   `main` directly, so it needs no exception from the branch ruleset;
-5. opens a pull request that lands the same commit on `main`. Merge it.
+3. tags the `main` commit it built. The tree is untouched, so the tag is that
+   commit and nothing else. Only the tag is pushed, so the workflow needs no
+   write access to `main`;
+4. creates the GitHub Release.
 
-Step 5 is skipped for a prerelease, so that `main` never names an rc image.
-
-A pull request opened with `GITHUB_TOKEN` does not start other workflows, so
-`ci` and `fips-pin` do not run on it. Close and reopen it if a required check
-blocks the merge.
+The FIPS base image is updated separately, by the `base-fips` workflow. Run it
+when the base has to change, paste the line it prints into `Dockerfile.fips`,
+and open a pull request. The `fips-pin` check validates that line.
 
 ## Configuration
 
