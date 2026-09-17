@@ -85,10 +85,11 @@ Report ID: {report_id}
 def drift_output_too_long(env, report_id):
     return ('''
 {header}
-Drift output too large to display.  See action logs [here](https://github.com/{repo}/actions/runs/{run_id}).
+Drift output too large to display.  See action logs [here]({server_url}/{repo}/actions/runs/{run_id}).
 ---
 Report ID: {report_id}
 ''').format(header=ISSUE_HEADER,
+            server_url=env['GITHUB_SERVER_URL'],
             repo=env['GITHUB_REPOSITORY'],
             run_id=env['GITHUB_RUN_ID'],
             report_id=report_id)
@@ -96,7 +97,8 @@ Report ID: {report_id}
 
 def find_matching_issue(env, report_id):
     report_id_line = 'Report ID: ' + report_id
-    url = 'https://api.github.com/repos/{repo}/issues'.format(
+    url = '{api_url}/repos/{repo}/issues'.format(
+        api_url=env['GITHUB_API_URL'],
         repo=env['GITHUB_REPOSITORY'])
     headers = {
         'User-Agent': 'Terrateam Action',
@@ -131,7 +133,9 @@ def create_issue(state, report_id, issue_body, title=TITLE, compact_view=False):
     if compact_view:
         issue_body = compact_issue_body(issue_body)
 
-    url = 'https://api.github.com/repos/{repo}/issues'.format(repo=state.env['GITHUB_REPOSITORY'])
+    url = '{api_url}/repos/{repo}/issues'.format(
+        api_url=state.env['GITHUB_API_URL'],
+        repo=state.env['GITHUB_REPOSITORY'])
     headers = {
         'User-Agent': 'Terrateam Action',
         'Authorization': 'token ' + state.env['TERRATEAM_GITHUB_TOKEN']}
