@@ -73,8 +73,10 @@ action runs:
   at release time to name that release's image by digest, and the release tag
   points at the commit that carries it.
 
-Pin to an arbitrary commit on `main` instead and you get the FIPS image that was
-current at the previous release, because only release commits carry a fresh pin.
+The release commit lives on the tag, not on `main`. On `main`, `fips/action.yml`
+keeps a movable `action-fips:v1` reference, so pinning an arbitrary `main` commit
+gives you the newest release of the v1 line rather than a frozen image. Pin a
+release tag, or the commit that tag points at, to freeze it.
 
 ### Prebuilt images
 
@@ -93,8 +95,10 @@ every merge. A prerelease publishes `:v1.5.0-rc.1` only, and never moves `:v1`.
 ### Cutting a release
 
 Run the `release` workflow from the Actions tab. It always operates on the head
-of `main`, whatever ref you dispatch it from. A stable release pushes one commit
-to `main`, which carries the new FIPS image pin, and tags that commit.
+of `main`, whatever ref you dispatch it from. It builds and pushes the images,
+writes the new FIPS image pin into `fips/action.yml`, commits that on top of the
+`main` head it built, and pushes the tag. The tag carries the commit, so the
+workflow never writes to `main` and needs no exception from the branch ruleset.
 
 ## Configuration
 

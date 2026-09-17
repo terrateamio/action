@@ -14,9 +14,10 @@ name: release
 # resolve ambiguously. The moving tag this workflow publishes is an IMAGE tag,
 # not a git tag.
 #
-# A stable release pushes one commit to `main`, because the FIPS action carries
-# an image reference that has to be frozen per release. The dispatching account
-# therefore needs to be able to push to `main`.
+# A release commits the FIPS image pin and tags that commit. The commit is NOT
+# pushed to `main`: a repository ruleset requires a pull request for `main`, so
+# a direct push is rejected. The tag carries the commit instead, so the release
+# needs no write access to any branch.
 on:
   workflow_dispatch:
     inputs:
@@ -127,9 +128,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
       -
         # fips/action.yml runs a PREBUILT image, so a ref pin only freezes the
-        # FIPS action if the reference in the file is immutable. The tag pushed
-        # below points at this commit, which is what makes `@v1.4.0` and a SHA
-        # pin mean the same thing for FIPS as they do for the main action.
+        # FIPS action if the reference in the file is immutable. This edit stays
+        # in the working tree and is committed to the release commit only, which
+        # is what makes `@v1.4.0` and a SHA pin mean the same thing for FIPS as
+        # they do for the main action. The copy on main stays movable.
         name: Pin the fips action to this release
         if: ${{ !inputs.dry_run }}
         env:
@@ -146,15 +148,19 @@ jobs:
         # After the images, so that a failed build leaves no tag behind and the
         # release can be retried with the same number.
         #
-        # The push is atomic: if main moved while this ran, neither the branch
-        # nor the tag lands, and a retry rebuilds from the new head and produces
-        # a consistent result. A prerelease pushes ONLY the tag, so that main
-        # never carries a reference to an rc image.
-        name: Push the release commit and tag
+        # Only the tag is pushed. Pushing a tag carries the commit it points at,
+        # so the release commit lands without a branch update. Its parent is the
+        # head of main that was built, so `git tag --contains <sha>` still says
+        # which release carries a given commit.
+        #
+        # main keeps the moving `action-fips:vN` reference. A consumer who pins
+        # a main commit therefore runs the newest release of that line. Only a
+        # release tag, or the commit it points at, freezes the FIPS image. A
+        # prerelease needs no special case, because main is never written to.
+        name: Tag the release
         if: ${{ !inputs.dry_run }}
         env:
           VERSION: ${{ steps.version.outputs.semver_tag }}
-          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -166,11 +172,7 @@ jobs:
             git commit -m "Release ${VERSION}"
           fi
           git tag -a "${VERSION}" -m "Release ${VERSION}"
-          if [ "${IS_PRERELEASE}" = 'true' ]; then
-            git push origin "refs/tags/${VERSION}"
-          else
-            git push --atomic origin "HEAD:main" "refs/tags/${VERSION}"
-          fi
+          git push origin "refs/tags/${VERSION}"
       -
         name: Create the GitHub Release
         if: ${{ !inputs.dry_run }}
