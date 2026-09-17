@@ -10,7 +10,7 @@ inputs:
     default: 'https://app.terrateam.io'
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/terrateamio/action-fips:v1'
+  image: 'docker://ghcr.io/terrateamio/action-fips:v1.1.0@sha256:14fa801287a65233cb93466890b6ce298a5064024071b7fb66d19f83fc72b799'
   args:
     - '${{ inputs.work-token }}'
     - '${{ inputs.api-base-url }}'
