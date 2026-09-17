@@ -1,16 +1,18 @@
 name: fips-pin
-# Guards the image reference in fips/action.yml.
+# Guards the FIPS base image reference in Dockerfile.fips.
 #
-# The FIPS action runs a PREBUILT image rather than building from the tree, so
-# that one line decides whether pinning this repository by tag or by commit SHA
-# freezes what the FIPS action runs. The release workflow writes it. This check
-# makes sure nothing puts a movable tag back.
+# The base image is the FIPS-specific artefact: Wolfi plus OpenSSL compiled in
+# FIPS mode. The base-fips workflow builds it on demand and tags it with a Unix
+# timestamp. Dockerfile.fips is the only place that records which build the
+# action uses.
+#
+# The action images are not checked here. Their digests are published to users
+# when they pull the image, and nothing in this repository encodes them.
 #
 # Two severities, on purpose:
-#   error  - the reference does not name a digest.
-#   notice - a newer image exists on the same major line. main is EXPECTED to
-#            trail the newest release between releases, so this never fails. It
-#            is a convenience, and on a pull request it becomes a comment.
+#   error  - the reference has no digest, or its tag and digest disagree.
+#   notice - a newer base build exists. Moving to it is a decision, so this
+#            never fails. On a pull request it becomes a comment.
 on:
   pull_request:
   push:
@@ -30,34 +32,37 @@ jobs:
         name: Checkout
         uses: actions/checkout@v7
       -
-        # Fails only when the reference is not pinned by digest.
-        name: Check the fips pin
+        # Fails only on a missing digest or a tag that contradicts the digest.
+        name: Check the fips base pin
         id: pin
-        run: ./scripts/check_fips_pin
+        run: ./scripts/check_fips_base_pin
       -
         name: Report
         if: ${{ always() && steps.pin.outcome == 'success' }}
         env:
           PINNED_REF: ${{ steps.pin.outputs.pinned_ref }}
-          MAJOR_TAG: ${{ steps.pin.outputs.major_tag }}
-          LATEST_DIGEST: ${{ steps.pin.outputs.latest_digest }}
+          LATEST_REF: ${{ steps.pin.outputs.latest_ref }}
           STALE: ${{ steps.pin.outputs.stale }}
         run: |
           set -euo pipefail
           {
-            echo '### FIPS image pin'
+            echo '### FIPS base image pin'
             echo
             echo '```'
             echo "${PINNED_REF}"
             echo '```'
             if [ "${STALE}" = 'true' ]; then
-              echo "A newer image exists for \`${MAJOR_TAG}\`: \`${LATEST_DIGEST}\`"
+              echo 'A newer base build exists:'
+              echo
+              echo '```'
+              echo "${LATEST_REF}"
+              echo '```'
             else
-              echo "Up to date with \`${MAJOR_TAG}\`."
+              echo 'This is the newest base build.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "${STALE}" = 'true' ]; then
-            echo "::notice title=A newer FIPS image exists::${MAJOR_TAG} now resolves to ${LATEST_DIGEST}"
+            echo "::notice title=A newer FIPS base build exists::${LATEST_REF}"
           fi
       -
         # A fork pull request gets a read-only token, so this cannot be allowed
@@ -70,8 +75,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           PINNED_REF: ${{ steps.pin.outputs.pinned_ref }}
-          MAJOR_TAG: ${{ steps.pin.outputs.major_tag }}
-          LATEST_DIGEST: ${{ steps.pin.outputs.latest_digest }}
+          LATEST_REF: ${{ steps.pin.outputs.latest_ref }}
           STALE: ${{ steps.pin.outputs.stale }}
         run: |
           set -euo pipefail
@@ -91,23 +95,22 @@ jobs:
           fi
           BODY=$(cat <<COMMENT
           ${MARKER}
-          **A newer FIPS image is available.** This does not block the pull request.
+          **A newer FIPS base image exists.** This does not block the pull request.
 
-          \`fips/action.yml\` pins:
+          \`Dockerfile.fips\` pins:
 
           \`\`\`
           ${PINNED_REF}
           \`\`\`
 
-          \`${MAJOR_TAG}\` now resolves to:
+          The newest base build is:
 
           \`\`\`
-          ${LATEST_DIGEST}
+          ${LATEST_REF}
           \`\`\`
 
-          \`main\` is expected to trail the newest release until the release
-          workflow opens its pin pull request. Change this line by hand only if
-          you mean to move the FIPS action off that schedule.
+          Moving to it is a decision, not an obligation. To take it, replace the
+          whole \`ARG BASE_IMAGE=\` line with the second reference above.
           COMMENT
           )
           if [ -n "${ID}" ]; then

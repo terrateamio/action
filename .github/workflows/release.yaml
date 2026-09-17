@@ -19,11 +19,11 @@ name: release
 # a direct push is rejected. The tag carries the commit instead, so the release
 # needs no write access to any branch.
 #
-# A stable release then opens a pull request that lands the same pin on `main`.
-# Dependabot moves a SHA pin that carries no tag to the HEAD OF MAIN, never to a
-# release commit, so most SHA-pinned consumers live on `main` commits. `main`
-# therefore has to name an immutable image too. It trails the newest release
-# until that pull request merges, which is the point of the fips-pin check.
+# This workflow writes nothing into the tree. The tag points at the `main`
+# commit that was built, so a tag and a `main` commit are the same thing. The
+# image digests it publishes are not recorded here: users get them from the
+# registry when they pull. The only digest this repository pins is the FIPS
+# base image in Dockerfile.fips, which the fips-pin check guards.
 on:
   workflow_dispatch:
     inputs:
@@ -49,7 +49,6 @@ on:
 permissions:
   contents: write
   packages: write
-  pull-requests: write
 concurrency:
   group: release-main
   cancel-in-progress: false
@@ -126,7 +125,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
       -
         name: Build and push fips action
-        id: build_fips
         uses: docker/build-push-action@v7
         with:
           push: ${{ !inputs.dry_run }}
@@ -134,38 +132,13 @@ jobs:
           tags: ${{ steps.tags.outputs.action_fips }}
           platforms: linux/amd64,linux/arm64
       -
-        # fips/action.yml runs a PREBUILT image, so a ref pin only freezes the
-        # FIPS action if the reference in the file is immutable. This edit stays
-        # in the working tree and is committed to the release commit only, which
-        # is what makes `@v1.4.0` and a SHA pin mean the same thing for FIPS as
-        # they do for the main action. The copy on main stays movable.
-        name: Pin the fips action to this release
-        if: ${{ !inputs.dry_run }}
-        env:
-          VERSION: ${{ steps.version.outputs.semver_tag }}
-          DIGEST: ${{ steps.build_fips.outputs.digest }}
-        run: |
-          set -euo pipefail
-          test -n "${DIGEST}"
-          REF="docker://ghcr.io/terrateamio/action-fips:${VERSION}@${DIGEST}"
-          sed -i -E "s|^(  image: ')docker://ghcr\.io/terrateamio/action-fips:[^']*(')\$|\1${REF}\2|" fips/action.yml
-          # A sed that matched nothing is silent, so check the result.
-          grep -qF "image: '${REF}'" fips/action.yml
-      -
         # After the images, so that a failed build leaves no tag behind and the
         # release can be retried with the same number.
         #
-        # Only the tag is pushed. Pushing a tag carries the commit it points at,
-        # so the release commit lands without a branch update. Its parent is the
-        # head of main that was built, so `git tag --contains <sha>` still says
-        # which release carries a given commit.
-        #
-        # main keeps the moving `action-fips:vN` reference. A consumer who pins
-        # a main commit therefore runs the newest release of that line. Only a
-        # release tag, or the commit it points at, freezes the FIPS image. A
-        # prerelease needs no special case, because main is never written to.
+        # The tag names the `main` commit that was checked out, unmodified. Only
+        # the tag is pushed, so the workflow needs no write access to `main` and
+        # no exception from the branch ruleset.
         name: Tag the release
-        id: tag
         if: ${{ !inputs.dry_run }}
         env:
           VERSION: ${{ steps.version.outputs.semver_tag }}
@@ -173,16 +146,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          # `committed` tells the pull request step below whether there is
-          # anything to propose. A re-run over an unchanged pin has nothing.
-          if git diff --quiet -- fips/action.yml; then
-            echo 'fips/action.yml already carries this pin'
-            echo 'committed=false' >> "$GITHUB_OUTPUT"
-          else
-            git add fips/action.yml
-            git commit -m "Release ${VERSION}"
-            echo 'committed=true' >> "$GITHUB_OUTPUT"
-          fi
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "refs/tags/${VERSION}"
       -
@@ -208,32 +171,3 @@ jobs:
             ARGS+=(--latest)
           fi
           gh release create "${VERSION}" "${ARGS[@]}"
-      -
-        # The branch is the release commit itself, so the pull request carries
-        # exactly the line the tag carries. A prerelease is skipped, because
-        # main must never name an rc image.
-        #
-        # Known wrinkle: a pull request opened with GITHUB_TOKEN does not start
-        # other workflows, so ci and fips-pin do not run on it. Close and reopen
-        # it if a required check blocks the merge.
-        name: Open the pull request that pins main
-        if: ${{ !inputs.dry_run && steps.version.outputs.is_prerelease != 'true' && steps.tag.outputs.committed == 'true' }}
-        env:
-          VERSION: ${{ steps.version.outputs.semver_tag }}
-          DIGEST: ${{ steps.build_fips.outputs.digest }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          BRANCH="pin-fips-${VERSION}"
-          git push origin "HEAD:refs/heads/${BRANCH}"
-          gh pr create \
-            --base main \
-            --head "${BRANCH}" \
-            --title "Pin the fips action to ${VERSION}" \
-            --body "Release ${VERSION} published \`ghcr.io/terrateamio/action-fips:${VERSION}@${DIGEST}\`.
-
-          This lands the same reference on \`main\`. Until it merges, a consumer
-          who pins a \`main\` commit runs the previous release's FIPS image.
-
-          The tag \`${VERSION}\` already carries this commit. Merging changes
-          nothing that consumers of the tag can see."

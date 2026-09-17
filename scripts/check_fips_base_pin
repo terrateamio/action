@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+set -euf -o pipefail
+
+# Check the FIPS base image reference in Dockerfile.fips.
+#
+# The base image is the FIPS-specific artefact: Wolfi plus OpenSSL compiled in
+# FIPS mode. It is built by the base-fips workflow on demand, tagged with a Unix
+# timestamp, and deliberately has no moving tag. This file is the only place
+# that says which build the action uses, so it is worth guarding.
+#
+# The action images (action, action-fips) are NOT checked. Their digests are
+# published to users when they pull the image; nothing in this repository
+# encodes them.
+#
+# Three jobs, at two severities:
+#
+#   1. The reference MUST name a digest. A registry tag can be re-pushed, so a
+#      bare tag would let a rebuilt base change what a pinned commit runs.
+#      Error.
+#
+#   2. The tag and the digest MUST agree. Docker uses the digest and ignores
+#      the tag, so a hand-edited line that names one build and pins another
+#      runs one thing while reading as another. Error.
+#
+#   3. If a newer base build exists, say so. Moving to it is a decision, not an
+#      obligation, so this never fails. Base tags are Unix timestamps, so
+#      "newer" is the largest numeric tag in the registry.
+#
+# The registry is read anonymously, because the packages are public. Any lookup
+# that fails is skipped rather than fatal, so a registry outage cannot block a
+# pull request.
+#
+# Outputs (GITHUB_OUTPUT):
+#   pinned_ref    - the full reference found in the file
+#   pinned_tag    - the tag it names
+#   pinned_digest - the digest it names
+#   latest_tag    - the newest tag in the registry, or empty
+#   latest_ref    - the whole line's worth of newest reference, or empty
+#   stale         - true when latest_tag is known and newer
+
+FILE="${1:-Dockerfile.fips}"
+
+ACCEPT='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'
+
+fail () {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+emit () {
+  [[ -n "${GITHUB_OUTPUT:-}" ]] && echo "$1" >> "${GITHUB_OUTPUT}"
+  return 0
+}
+
+[[ -f "${FILE}" ]] || fail "${FILE} not found"
+
+REF=$(sed -n 's/^ARG BASE_IMAGE=//p' "${FILE}")
+[[ -n "${REF}" ]] || fail "no \`ARG BASE_IMAGE=\` line in ${FILE}"
+
+if [[ ! "${REF}" =~ ^([^@[:space:]]+):([^@:/[:space:]]+)@(sha256:[0-9a-f]{64})$ ]]; then
+  cat >&2 <<MSG
+Error: ${FILE} must pin the base image by digest.
+
+  found:    ${REF}
+  expected: ARG BASE_IMAGE=<name>:<tag>@sha256:<64 hex>
+
+A registry tag can be re-pushed, so a bare tag lets a rebuilt base change what a
+pinned commit of this action runs. The base-fips workflow prints the whole line
+to paste in its job summary.
+MSG
+  exit 1
+fi
+
+NAME="${BASH_REMATCH[1]}"
+PINNED_TAG="${BASH_REMATCH[2]}"
+PINNED_DIGEST="${BASH_REMATCH[3]}"
+
+echo "Pinned: ${NAME}:${PINNED_TAG}@${PINNED_DIGEST}"
+emit "pinned_ref=${REF}"
+emit "pinned_tag=${PINNED_TAG}"
+emit "pinned_digest=${PINNED_DIGEST}"
+
+skip () {
+  echo "$1" >&2
+  emit "latest_tag="
+  emit "latest_ref="
+  emit "stale=false"
+  exit 0
+}
+
+case "${NAME}" in
+  ghcr.io/*) REPO="${NAME#ghcr.io/}" ;;
+  *) skip "Not a ghcr.io image. Skipping the registry checks." ;;
+esac
+
+TOKEN=$(curl -fsS --max-time 30 "https://ghcr.io/token?scope=repository:${REPO}:pull&service=ghcr.io" \
+        | sed -n 's/.*"token":"\([^"]*\)".*/\1/p') || TOKEN=""
+[[ -n "${TOKEN}" ]] || skip "Could not get a registry token. Skipping the registry checks."
+
+# Prints the digest a reference resolves to, or nothing.
+resolve () {
+  curl -fsS --max-time 30 -o /dev/null -D - \
+    -H "Authorization: Bearer ${TOKEN}" -H "Accept: ${ACCEPT}" \
+    "https://ghcr.io/v2/${REPO}/manifests/$1" 2>/dev/null \
+  | tr -d '\r' | sed -n 's/^[Dd]ocker-[Cc]ontent-[Dd]igest: //p' || true
+}
+
+TAGGED=$(resolve "${PINNED_TAG}")
+if [[ -n "${TAGGED}" && "${TAGGED}" != "${PINNED_DIGEST}" ]]; then
+  cat >&2 <<MSG
+Error: ${FILE} names a tag and a digest that disagree.
+
+  tag:    ${NAME}:${PINNED_TAG}  ->  ${TAGGED}
+  digest: ${PINNED_DIGEST}
+
+Docker uses the digest and ignores the tag, so this line would run one base
+image while reading as another. Copy the whole line from the base-fips job
+summary rather than editing half of it.
+MSG
+  exit 1
+fi
+[[ -n "${TAGGED}" ]] && echo "Tag and digest agree."
+
+# Per-architecture tags such as 1789476574-amd64 are build intermediates, and
+# tags like `latest` or `bullseye-...` are not timestamps. Only plain numbers
+# name a published multi-arch base.
+TAGS=$(curl -fsS --max-time 30 -H "Authorization: Bearer ${TOKEN}" \
+         "https://ghcr.io/v2/${REPO}/tags/list?n=1000" 2>/dev/null) || TAGS=""
+[[ -n "${TAGS}" ]] || skip "Could not list tags for ${NAME}. Skipping the freshness check."
+
+LATEST_TAG=$(printf '%s' "${TAGS}" \
+  | tr ',' '\n' | sed -n 's/.*"\([0-9][0-9]*\)".*/\1/p' \
+  | sort -n | tail -1)
+[[ -n "${LATEST_TAG}" ]] || skip "No timestamp tags for ${NAME}. Skipping the freshness check."
+
+if [[ ! "${PINNED_TAG}" =~ ^[0-9]+$ ]]; then
+  skip "Pinned tag ${PINNED_TAG} is not a timestamp. Skipping the freshness check."
+fi
+
+emit "latest_tag=${LATEST_TAG}"
+
+if [[ "${LATEST_TAG}" -le "${PINNED_TAG}" ]]; then
+  echo "Up to date. ${LATEST_TAG} is the newest base build."
+  emit "latest_ref="
+  emit "stale=false"
+  exit 0
+fi
+
+LATEST_DIGEST=$(resolve "${LATEST_TAG}")
+if [[ -n "${LATEST_DIGEST}" ]]; then
+  LATEST_REF="${NAME}:${LATEST_TAG}@${LATEST_DIGEST}"
+else
+  LATEST_REF="${NAME}:${LATEST_TAG}"
+fi
+
+echo "A newer base build exists: ${LATEST_REF}"
+emit "latest_ref=${LATEST_REF}"
+emit "stale=true"
