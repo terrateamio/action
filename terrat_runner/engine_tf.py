@@ -277,10 +277,15 @@ class Engine:
             state.path,
             state.workflow['engine']['name'])
 
+        # The JSON plan does not redact: an attribute the human readable plan
+        # shows as (sensitive value) is set as `after_sensitive` but still
+        # carries its value in `after`.  Only the parsed value is used, so keep
+        # it out of the log.
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': [self.tf_cmd, 'show', '-json', '${TERRATEAM_PLAN_FILE}']
+                'cmd': [self.tf_cmd, 'show', '-json', '${TERRATEAM_PLAN_FILE}'],
+                'log_output': False
             })
 
         if proc.returncode == 0:
