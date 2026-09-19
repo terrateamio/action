@@ -186,10 +186,13 @@ class Engine:
             state.workflow['engine']['name'])
 
         if self.outputs_args:
+            # Outputs can carry values that are marked sensitive, so keep them
+            # out of the log like the tf engine does.
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.outputs_args
+                    'cmd': self.outputs_args,
+                    'log_output': False
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())

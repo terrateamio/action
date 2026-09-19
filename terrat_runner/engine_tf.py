@@ -378,10 +378,15 @@ class Engine:
                 state.path,
                 state.workflow['engine']['name'])
 
+            # `output -json` does not redact: a sensitive output is marked
+            # `"sensitive": true` but still carries its value in `value`, where
+            # the human readable `output` shows <sensitive>.  Only the captured
+            # stdout is used, so keep it out of the log.
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': [self.tf_cmd, 'output', '-json']
+                    'cmd': [self.tf_cmd, 'output', '-json'],
+                    'log_output': False
                 })
 
             return (proc.returncode == 0, stdout, stderr)
