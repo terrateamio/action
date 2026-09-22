@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:1788854514@sha256:23ec3f9be514189d2738c66687939c7cd9056cd6bdba071becaf27ecd1cf2803
+ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:1790075266@sha256:52b4ea63c3be3955caa1efdba7969dd79ffbe4d1fc0f04a9ea2662a8858d0551
 FROM ${BASE_IMAGE}
 
 COPY entrypoint.sh /entrypoint.sh
