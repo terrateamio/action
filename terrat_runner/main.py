@@ -12,6 +12,7 @@ import work_apply
 import work_build_config
 import work_build_tree
 import work_exec
+import work_index
 import work_manifest
 import work_plan
 import work_unsafe_apply
@@ -143,7 +144,7 @@ WORK_MANIFEST_DISPATCH = {
     'plan': lambda state: tf_operation(state, work_plan.Exec()),
     'apply': lambda state: tf_operation(state, work_apply.Exec()),
     'unsafe-apply': lambda state: tf_operation(state, work_unsafe_apply.Exec()),
-    'index': lambda state: ensure_merged(state, lambda s: s.runtime.work_index(s)),
+    'index': lambda state: ensure_merged(state, work_index.run),
     'build-config': lambda state: ensure_merged(state, work_build_config.run),
     'build-tree': lambda state: ensure_merged(state, work_build_tree.run),
 }
