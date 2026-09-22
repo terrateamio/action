@@ -155,8 +155,10 @@ RUN python3 -m venv /opt/checkov && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
 
 # The latest release, which the stategraph proxy on PATH runs. The proxy replaces it when
-# STATEGRAPH_VERSION asks for another version.
-RUN VERSION=$(curl -fsSL https://api.github.com/repos/stategraph/releases/releases/latest | jq -r .tag_name) && \
+# STATEGRAPH_VERSION asks for another version. The version comes from the github.com
+# redirect, not api.github.com, whose unauthenticated rate limit shared runners exhaust.
+RUN URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/stategraph/releases/releases/latest) && \
+    VERSION="${URL##*/}" && \
     ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     curl -fsSL -o /tmp/stategraph.tar.gz "https://github.com/stategraph/releases/releases/download/${VERSION}/stategraph-${VERSION}-linux-${ARCH}.tar.gz" && \
     tar -C /tmp -xzf /tmp/stategraph.tar.gz stategraph && \
