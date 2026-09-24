@@ -284,6 +284,9 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
+                # Machine-consumed JSON: sensitive values are NOT redacted in
+                # Terraform's JSON output, so never echo it to the runner log.
+                'log_output': False,
                 'cmd': [self.tf_cmd, 'show', '-json', '${TERRATEAM_PLAN_FILE}'],
                 'log_output': False
             })
@@ -326,6 +329,9 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
+                    # Machine-consumed JSON: sensitive values are NOT redacted in
+                    # Terraform's JSON output, so never echo it to the runner log.
+                    'log_output': False,
                     'cmd': [self.tf_cmd, 'plan', '-detailed-exitcode', '-json', '-refresh=false'
                             ] + config.get('extra_args', [])
                 })
@@ -385,6 +391,9 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
+                    # Machine-consumed JSON: sensitive values are NOT redacted in
+                    # Terraform's JSON output, so never echo it to the runner log.
+                    'log_output': False,
                     'cmd': [self.tf_cmd, 'output', '-json'],
                     'log_output': False
                 })
