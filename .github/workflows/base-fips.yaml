@@ -20,11 +20,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      stategraph: ${{ steps.stategraph.outputs.version }}
     steps:
       -
         name: Generate tag
         id: tag
         run: echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+      -
+        # Passed to the builds as an argument. Looked up inside the Dockerfile, the
+        # install step never changes and BuildKit serves the last release from cache.
+        # Looked up once, here, so that both architectures carry the same release.
+        name: Resolve the latest stategraph release
+        id: stategraph
+        run: |
+          set -euo pipefail
+          URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/stategraph/releases/releases/latest)
+          VERSION="${URL##*/}"
+          test -n "${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
   build:
     needs: tag
     runs-on: ${{ matrix.runner }}
@@ -58,6 +71,8 @@ jobs:
           file: Dockerfile.base.fips
           tags: ${{ env.IMAGE }}:${{ needs.tag.outputs.tag }}-${{ matrix.arch }}
           platforms: linux/${{ matrix.arch }}
+          build-args: |
+            STATEGRAPH_LATEST_VERSION=${{ needs.tag.outputs.stategraph }}
           cache-from: type=gha,scope=base-fips-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=base-fips-${{ matrix.arch }}
   manifest:
@@ -93,6 +108,7 @@ jobs:
         name: Print the Dockerfile pin
         env:
           TAG: ${{ needs.tag.outputs.tag }}
+          STATEGRAPH: ${{ needs.tag.outputs.stategraph }}
         run: |
           set -euo pipefail
           DIGEST=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}:${TAG}")
@@ -101,4 +117,5 @@ jobs:
             echo '```'
             echo "ARG BASE_IMAGE=${IMAGE}:${TAG}@${DIGEST}"
             echo '```'
+            echo "stategraph ${STATEGRAPH}"
           } >> "$GITHUB_STEP_SUMMARY"
