@@ -84,10 +84,15 @@ RUN python3 -m venv /opt/checkov && \
     /opt/checkov/bin/pip install --no-cache-dir checkov==${CHECKOV_VERSION} && \
     ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov
 
-# The latest release, which the stategraph proxy on PATH runs. The proxy replaces it when
-# STATEGRAPH_VERSION asks for another version. The version comes from the github.com
-# redirect, not api.github.com, whose unauthenticated rate limit shared runners exhaust.
-RUN URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/stategraph/releases/releases/latest) && \
+# The release the stategraph proxy on PATH runs. The proxy replaces it when
+# STATEGRAPH_VERSION asks for another version. The base workflows pass the latest release
+# as STATEGRAPH_LATEST_VERSION, because a step that looks the release up has the same text
+# on every build, so BuildKit serves it from cache and a rebuild keeps the first build's
+# release. Without the argument the step looks it up, from the github.com redirect, not
+# api.github.com, whose unauthenticated rate limit shared runners exhaust.
+ARG STATEGRAPH_LATEST_VERSION=
+RUN echo "STATEGRAPH_LATEST_VERSION: ${STATEGRAPH_LATEST_VERSION}" && \
+    URL="${STATEGRAPH_LATEST_VERSION:-$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/stategraph/releases/releases/latest)}" && \
     VERSION="${URL##*/}" && \
     ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     curl -fsSL -o /tmp/stategraph.tar.gz "https://github.com/stategraph/releases/releases/download/${VERSION}/stategraph-${VERSION}-linux-${ARCH}.tar.gz" && \
