@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import engine_custom
+import engine_stategraph
 import engine_tf
 import workflow_step_plan
 
@@ -247,6 +248,36 @@ class CustomEngineResourceSummaryTest(unittest.TestCase):
             run.return_value = (SimpleNamespace(returncode=0), '[1, 2]', '')
 
             self.assertIsNone(engine.resource_summary(self._state(), {}))
+
+
+class StategraphEngineResourceSummaryTest(unittest.TestCase):
+    def _state(self):
+        return SimpleNamespace(path='foo', workflow={'engine': {'name': 'stategraph'}})
+
+    def test_counts_the_plan_json_from_stategraph_tf_show(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0),
+                                json.dumps(ResourceSummaryTest.PLAN_JSON), '')
+
+            self.assertEqual(
+                engine_stategraph.resource_summary(self._state(), {}),
+                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+
+        self.assertEqual(run.call_args[0][1]['cmd'],
+                         ['stategraph', 'tf', 'show', '--json', '${TERRATEAM_PLAN_FILE}'])
+        self.assertFalse(run.call_args[0][1]['log_output'])
+
+    def test_returns_none_when_stategraph_tf_show_fails(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=1), 'out', 'err')
+
+            self.assertIsNone(engine_stategraph.resource_summary(self._state(), {}))
+
+    def test_returns_none_when_stategraph_tf_show_prints_bad_json(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'not json', '')
+
+            self.assertIsNone(engine_stategraph.resource_summary(self._state(), {}))
 
 
 if __name__ == '__main__':

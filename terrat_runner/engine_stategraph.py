@@ -1,8 +1,10 @@
+import json
 import logging
 import os
 
 import cmd
 import engine
+import engine_tf
 
 
 def _run(state, cmd_list):
@@ -44,11 +46,36 @@ def diff(state, config):
 
 
 def diff_json(state, config):
-    return None
+    logging.info('DIFF_JSON : %s : engine=stategraph', state.path)
+    # The JSON plan does not redact sensitive values, so keep it out of the
+    # log.  Stategraph emits the same plan JSON representation as
+    # `terraform show -json`.
+    (proc, stdout, stderr) = cmd.run_with_output(
+        state,
+        {
+            'cmd': ['stategraph', 'tf', 'show', '--json', '${TERRATEAM_PLAN_FILE}'],
+            'log_output': False
+        })
+
+    if proc.returncode == 0:
+        try:
+            return (True, json.loads(stdout))
+        except json.JSONDecodeError as exn:
+            return (False, stdout, str(exn))
+
+    return (False, stdout, stderr)
 
 
 def resource_summary(state, config):
-    return None
+    logging.info('RESOURCE_SUMMARY : %s : engine=stategraph', state.path)
+    res = diff_json(state, config)
+    # diff_json returns (True, plan_json) on success and a 3-tuple
+    # (False, stdout, stderr) on failure.
+    if len(res) != 2:
+        return None
+
+    (_success, plan_json) = res
+    return engine_tf._resource_summary_from_plan_json(plan_json)
 
 
 def apply(state, config):
