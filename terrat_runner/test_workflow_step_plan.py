@@ -250,6 +250,25 @@ class CustomEngineResourceSummaryTest(unittest.TestCase):
             self.assertIsNone(engine.resource_summary(self._state(), {}))
 
 
+class StategraphEnginePlanTest(unittest.TestCase):
+    def _plan_cmd(self, config):
+        state = SimpleNamespace(path='foo', workspace='default')
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=2), 'out', 'err')
+            engine_stategraph.plan(state, config)
+
+        return run.call_args[0][1]['cmd']
+
+    def test_extra_args_default_skips_costs_and_security(self):
+        self.assertEqual(self._plan_cmd({})[-2:], ['--skip-costs', '--skip-security'])
+
+    def test_extra_args_in_the_config_replace_the_default(self):
+        plan_cmd = self._plan_cmd({'extra_args': ['--foo']})
+        self.assertEqual(plan_cmd[-1], '--foo')
+        self.assertNotIn('--skip-costs', plan_cmd)
+        self.assertNotIn('--skip-security', plan_cmd)
+
+
 class StategraphEngineResourceSummaryTest(unittest.TestCase):
     def _state(self):
         return SimpleNamespace(path='foo', workflow={'engine': {'name': 'stategraph'}})

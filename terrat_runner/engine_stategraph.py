@@ -33,7 +33,9 @@ def plan(state, config):
                 '--out', '${TERRATEAM_PLAN_FILE}',
                 '--detailed-exitcode',
                 '--workspace', state.workspace]
-    plan_cmd += config.get('extra_args', [])
+    # Cost and security analysis are opt-in: a step config that sets
+    # extra_args replaces this default.
+    plan_cmd += config.get('extra_args', ['--skip-costs', '--skip-security'])
     (proc, stdout, stderr) = cmd.run_with_output(state, {'cmd': plan_cmd})
     # --detailed-exitcode: 0 = no changes, 2 = changes, anything else = error.
     success = proc.returncode in [0, 2]
