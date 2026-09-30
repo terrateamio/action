@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import engine_custom
+import engine_stategraph
 import engine_tf
 import workflow_step_plan
 
@@ -247,6 +248,92 @@ class CustomEngineResourceSummaryTest(unittest.TestCase):
             run.return_value = (SimpleNamespace(returncode=0), '[1, 2]', '')
 
             self.assertIsNone(engine.resource_summary(self._state(), {}))
+
+
+class StategraphEnginePlanTest(unittest.TestCase):
+    def _plan_cmd(self, config):
+        state = SimpleNamespace(path='foo', workspace='default')
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=2), 'out', 'err')
+            engine_stategraph.plan(state, config)
+
+        return run.call_args[0][1]['cmd']
+
+    def test_extra_args_default_skips_costs_and_security(self):
+        self.assertEqual(self._plan_cmd({})[-2:], ['--skip-costs', '--skip-security'])
+
+    def test_extra_args_in_the_config_replace_the_default(self):
+        plan_cmd = self._plan_cmd({'extra_args': ['--foo']})
+        self.assertEqual(plan_cmd[-1], '--foo')
+        self.assertNotIn('--skip-costs', plan_cmd)
+        self.assertNotIn('--skip-security', plan_cmd)
+
+
+class StategraphEngineDiffTest(unittest.TestCase):
+    PLAN_TEXT = '\n'.join([
+        '  # null_resource.foo will be created',
+        '  + resource "null_resource" "foo" {',
+        '      + id = (known after apply)',
+        '    }',
+    ])
+
+    def _state(self):
+        return SimpleNamespace(path='foo', workflow={'engine': {'name': 'stategraph'}})
+
+    def test_formats_the_output_of_stategraph_tf_show_as_a_diff(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), self.PLAN_TEXT, '')
+
+            self.assertEqual(
+                engine_stategraph.diff(self._state(), {}),
+                (True,
+                 '\n'.join([
+                     '  # null_resource.foo will be created',
+                     '+   resource "null_resource" "foo" {',
+                     '+       id = (known after apply)',
+                     '    }',
+                 ]),
+                 ''))
+
+        self.assertEqual(run.call_args[0][1]['cmd'],
+                         ['stategraph', 'tf', 'show', '${TERRATEAM_PLAN_FILE}'])
+
+    def test_returns_the_output_unformatted_when_stategraph_tf_show_fails(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=1), '  + out', 'err')
+
+            self.assertEqual(engine_stategraph.diff(self._state(), {}),
+                             (False, '  + out', 'err'))
+
+
+class StategraphEngineResourceSummaryTest(unittest.TestCase):
+    def _state(self):
+        return SimpleNamespace(path='foo', workflow={'engine': {'name': 'stategraph'}})
+
+    def test_counts_the_plan_json_from_stategraph_tf_show(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0),
+                                json.dumps(ResourceSummaryTest.PLAN_JSON), '')
+
+            self.assertEqual(
+                engine_stategraph.resource_summary(self._state(), {}),
+                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+
+        self.assertEqual(run.call_args[0][1]['cmd'],
+                         ['stategraph', 'tf', 'show', '--json', '${TERRATEAM_PLAN_FILE}'])
+        self.assertFalse(run.call_args[0][1]['log_output'])
+
+    def test_returns_none_when_stategraph_tf_show_fails(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=1), 'out', 'err')
+
+            self.assertIsNone(engine_stategraph.resource_summary(self._state(), {}))
+
+    def test_returns_none_when_stategraph_tf_show_prints_bad_json(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), 'not json', '')
+
+            self.assertIsNone(engine_stategraph.resource_summary(self._state(), {}))
 
 
 if __name__ == '__main__':
