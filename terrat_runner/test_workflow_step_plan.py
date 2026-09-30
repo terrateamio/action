@@ -269,6 +269,43 @@ class StategraphEnginePlanTest(unittest.TestCase):
         self.assertNotIn('--skip-security', plan_cmd)
 
 
+class StategraphEngineDiffTest(unittest.TestCase):
+    PLAN_TEXT = '\n'.join([
+        '  # null_resource.foo will be created',
+        '  + resource "null_resource" "foo" {',
+        '      + id = (known after apply)',
+        '    }',
+    ])
+
+    def _state(self):
+        return SimpleNamespace(path='foo', workflow={'engine': {'name': 'stategraph'}})
+
+    def test_formats_the_output_of_stategraph_tf_show_as_a_diff(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), self.PLAN_TEXT, '')
+
+            self.assertEqual(
+                engine_stategraph.diff(self._state(), {}),
+                (True,
+                 '\n'.join([
+                     '  # null_resource.foo will be created',
+                     '+   resource "null_resource" "foo" {',
+                     '+       id = (known after apply)',
+                     '    }',
+                 ]),
+                 ''))
+
+        self.assertEqual(run.call_args[0][1]['cmd'],
+                         ['stategraph', 'tf', 'show', '${TERRATEAM_PLAN_FILE}'])
+
+    def test_returns_the_output_unformatted_when_stategraph_tf_show_fails(self):
+        with mock.patch('engine_stategraph.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=1), '  + out', 'err')
+
+            self.assertEqual(engine_stategraph.diff(self._state(), {}),
+                             (False, '  + out', 'err'))
+
+
 class StategraphEngineResourceSummaryTest(unittest.TestCase):
     def _state(self):
         return SimpleNamespace(path='foo', workflow={'engine': {'name': 'stategraph'}})

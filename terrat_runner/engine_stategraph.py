@@ -44,7 +44,19 @@ def plan(state, config):
 
 
 def diff(state, config):
-    return None
+    logging.info('DIFF : %s : engine=stategraph', state.path)
+    (proc, stdout, stderr) = cmd.run_with_output(
+        state,
+        {
+            'cmd': ['stategraph', 'tf', 'show', '${TERRATEAM_PLAN_FILE}']
+        })
+
+    # Stategraph renders the plan in the same format as `terraform show`, so
+    # it is formatted the same way.
+    if proc.returncode == 0:
+        stdout = engine_tf.format_diff(stdout)
+
+    return (proc.returncode == 0, stdout, stderr)
 
 
 def diff_json(state, config):
