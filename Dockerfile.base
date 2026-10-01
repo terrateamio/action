@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=debian:trixie-20260202-slim
+ARG BASE_IMAGE=debian:trixie-20260918-slim
 FROM ${BASE_IMAGE}
 
 RUN apt-get update \
@@ -9,9 +9,8 @@ RUN apt-get update \
 	ca-certificates \
 	curl \
 	git \
-	git-lfs \
 	gnupg \
-	groff \
+	groff-base \
 	jq \
 	less \
 	libcap2 \
@@ -26,6 +25,17 @@ RUN apt-get update \
 	python3-yaml \
 	unzip \
 	&& rm -rf /var/lib/apt/lists/*
+
+# `git lfs install --system` writes the git-lfs filter entries to /etc/gitconfig.
+# `aws help` renders through /usr/bin/groff, which groff-base provides.
+ARG GIT_LFS_VERSION=v3.8.0
+RUN ARCH=$(dpkg --print-architecture) && \
+    mkdir /tmp/git-lfs && \
+    curl -fsSL -o /tmp/git-lfs/git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/${GIT_LFS_VERSION}/git-lfs-linux-${ARCH}-${GIT_LFS_VERSION}.tar.gz" && \
+    tar -C /tmp/git-lfs --strip-components=1 -xzf /tmp/git-lfs/git-lfs.tar.gz && \
+    mv /tmp/git-lfs/git-lfs /usr/bin/git-lfs && \
+    git lfs install --system && \
+    rm -rf /tmp/git-lfs
 
 ARG TENV_LATEST_VERSION=v4.15.1
 RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
@@ -60,7 +70,7 @@ RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     mv /tmp/infracost-linux-${ARCH} /usr/local/bin/infracost && \
     rm -f /tmp/infracost-linux-${ARCH}.tar.gz
 
-ENV CONFTEST_VERSION=0.70.0
+ENV CONFTEST_VERSION=0.71.0
 RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
     mkdir /tmp/conftest && \
     curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
