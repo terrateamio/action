@@ -9,7 +9,7 @@ import repo_config
 import retry
 
 TRIES = 3
-INITIAL_SLEEP = 1
+INITIAL_SLEEP = 5
 BACKOFF = 1.5
 
 
