@@ -3,10 +3,20 @@
 set -e
 set -u
 
+# oci-cli is baked into the base image in the /opt/oci venv (see
+# Dockerfile.base), so the /usr/local/bin/oci symlink normally exists. The
+# on-demand install below remains as a fallback for older base images. It must
+# go in a venv either way: a raw `pip install` fails on Debian trixie (PEP 668
+# externally-managed-environment). The venv persists for the life of the
+# container, so subsequent invocations exec it directly.
+OCI_VENV=/opt/oci
+
 if [ -f /usr/local/bin/oci ]; then
     exec /usr/local/bin/oci "$@"
+elif [ -x "${OCI_VENV}/bin/oci" ]; then
+    exec "${OCI_VENV}/bin/oci" "$@"
 else
-    flock /tmp/oci-cli-install pip install oci-cli 1>&2
-    exec /usr/local/bin/oci "$@"
+    flock /tmp/oci-cli-install \
+        bash -c "python3 -m venv '${OCI_VENV}' && '${OCI_VENV}/bin/pip' install oci-cli" 1>&2
+    exec "${OCI_VENV}/bin/oci" "$@"
 fi
-

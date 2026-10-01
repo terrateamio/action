@@ -37,11 +37,3 @@ jobs:
           file: Dockerfile
           tags: ghcr.io/terrateamio/action:v1
           platforms: linux/amd64,linux/arm64
-      -
-        name: Build fips action
-        uses: docker/build-push-action@v7
-        with:
-          push: false
-          file: Dockerfile.fips
-          tags: ghcr.io/terrateamio/action-fips:v1
-          platforms: linux/amd64,linux/arm64
