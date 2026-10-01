@@ -83,10 +83,13 @@ class Engine:
             state.workflow['engine']['name'])
 
         if self.diff_json_args:
+            # A JSON plan can carry values that the human readable plan
+            # redacts, so keep it out of the log like the tf engine does.
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.diff_json_args
+                    'cmd': self.diff_json_args,
+                    'log_output': False
                 })
 
             if proc.returncode == 0:
@@ -183,10 +186,13 @@ class Engine:
             state.workflow['engine']['name'])
 
         if self.outputs_args:
+            # Outputs can carry values that are marked sensitive, so keep them
+            # out of the log like the tf engine does.
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.outputs_args
+                    'cmd': self.outputs_args,
+                    'log_output': False
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if command -v apk > /dev/null; then
+    flock /tmp/gcloud.install apk add --no-cache google-cloud-sdk
+    exit 0
+fi
+
 flock /tmp/gcloud.install apt update
 flock /tmp/gcloud.install apt -y install apt-transport-https ca-certificates gnupg curl
 curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | flock /tmp/gcloud.install gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg

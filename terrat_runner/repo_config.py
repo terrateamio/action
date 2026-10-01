@@ -219,10 +219,6 @@ def get_plan_storage(config):
     return _get(storage, 'plans', {'method': 'terrateam'})
 
 
-def get_indexer(config):
-    return _get(config, 'indexer', {'enabled': False})
-
-
 def get_config_builder(config):
     return _get(config, 'config_builder', {'enabled': False})
 
