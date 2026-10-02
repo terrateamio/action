@@ -20,4 +20,9 @@ else
     fi
 fi
 
+# The venv above may predate the crypt.py that Dockerfile.base writes, or have
+# just been rebuilt without it.
+echo 'from legacycrypt import *' \
+    > "$("${ANSIBLE_VENV}/bin/python" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')/crypt.py"
+
 exec "${ANSIBLE_VENV}/bin/ansible-playbook" "$@"

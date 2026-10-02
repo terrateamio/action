@@ -124,11 +124,14 @@ RUN echo "STATEGRAPH_LATEST_VERSION: ${STATEGRAPH_LATEST_VERSION}" && \
 ENV ANSIBLE_VERSION=2.15.7
 # legacycrypt and bcrypt back the password_hash filter. The stdlib crypt module
 # that password_hash uses is removed in Python 3.13, and legacycrypt supplies it
-# again; bcrypt supplies the bcrypt schemes. Keep this list in sync with
-# proxy/bin/ansible-playbook, which rebuilds this venv at runtime.
+# again, under its own name, so crypt.py re-exports it as the crypt that
+# password_hash imports; bcrypt supplies the bcrypt schemes. Keep this list in
+# sync with proxy/bin/ansible-playbook, which rebuilds this venv at runtime.
 RUN python3 -m venv /opt/ansible && \
     /opt/ansible/bin/pip install ansible-core==${ANSIBLE_VERSION} \
         ansible pywinrm legacycrypt bcrypt && \
+    echo 'from legacycrypt import *' \
+        > "$(/opt/ansible/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')/crypt.py" && \
     ln -s /opt/ansible/bin/ansible-galaxy /usr/local/bin/ansible-galaxy && \
     ln -s /opt/ansible/bin/ansible-playbook /usr/local/bin/ansible-playbook
 
