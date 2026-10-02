@@ -48,17 +48,6 @@ def run(state, config):
                              state=state,
                              step='run',
                              success=success)
-    except cmd.MissingEnvVar as exn:
-        logging.error('Missing environment variable: %s', exn.args[0])
-        payload = {
-            'cmd': config['cmd'],
-            'text': 'ERROR: Missing environment variable: {}'.format(exn.args[0]),
-            'visible_on': visible_on
-        }
-        return workflow.make(payload=payload,
-                             state=state,
-                             step='run',
-                             success=False)
     except FileNotFoundError:
         logging.exception('Could not find program to run %r', config['cmd'])
         payload = {
