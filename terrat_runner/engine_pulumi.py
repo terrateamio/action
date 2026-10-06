@@ -4,6 +4,21 @@ import cmd
 import engine
 
 
+# Pulumi's `preview` summary looks like:
+#
+#     Resources:
+#         + 1 to create
+#         ~ 2 to update
+#         12 unchanged
+def _has_changes(stdout):
+    _, _, summary = stdout.rpartition('Resources:')
+    for kw in (' to create', ' to update', ' to delete',
+               ' to replace', ' to import'):
+        if kw in summary:
+            return True
+    return False
+
+
 def init(state, config):
     logging.info(
         'INIT : %s : engine=%s',
@@ -70,7 +85,10 @@ def plan(state, config):
     with open(state.env['TERRATEAM_PLAN_FILE'], 'w') as f:
         f.write('{}')
 
-    return (proc.returncode == 0, stdout, stderr)
+    success = proc.returncode == 0
+    has_changes = success and _has_changes(stdout)
+
+    return (success, has_changes, stdout, stderr)
 
 
 def unsafe_apply(state, config):
