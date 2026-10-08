@@ -3,26 +3,29 @@
 set -e
 set -u
 
-# ansible-core is baked into /opt/ansible (see Dockerfile.base). Default to that
-# version; if the caller pins a different ANSIBLE_VERSION, swap the venv to it at
-# runtime. Same pattern as proxy/bin/checkov and proxy/bin/conftest.
-ANSIBLE_VERSION="${ANSIBLE_VERSION:-2.15.7}"
+# ansible goes in a venv: a raw `pip install` fails on Debian trixie (PEP 668
+# externally-managed-environment). The venv persists for the life of the
+# container, so subsequent invocations exec it directly. passlib backs the
+# password_hash filter, which looks for the stdlib crypt module that Python 3.13
+# removed.
+ANSIBLE_VERSION="${ANSIBLE_VERSION:-}"
 ANSIBLE_VENV=/opt/ansible
+ANSIBLE_CORE=ansible-core
+
+if [[ -n "${ANSIBLE_VERSION}" ]]; then
+    ANSIBLE_CORE="ansible-core==${ANSIBLE_VERSION}"
+fi
 
 if [[ ! -x "${ANSIBLE_VENV}/bin/ansible-playbook" ]]; then
     flock /tmp/ansible-playbook-install \
-        bash -c "python3 -m venv '${ANSIBLE_VENV}' && '${ANSIBLE_VENV}/bin/pip' install 'ansible-core==${ANSIBLE_VERSION}' ansible pywinrm legacycrypt bcrypt" 1>&2
-else
-    INSTALLED_VERSION=$("${ANSIBLE_VENV}/bin/ansible-playbook" --version 2>/dev/null | grep -oP 'core \K[0-9.]+' | head -n1 || echo "")
+        bash -c "python3 -m venv '${ANSIBLE_VENV}' && '${ANSIBLE_VENV}/bin/pip' install '${ANSIBLE_CORE}' ansible pywinrm passlib" 1>&2
+elif [[ -n "${ANSIBLE_VERSION}" ]]; then
+    INSTALLED_VERSION=$("${ANSIBLE_VENV}/bin/ansible-playbook" --version 2>/dev/null \
+        | sed -n 's/^ansible-playbook \[core \([0-9.]*\)\].*/\1/p' | head -n1 || echo "")
     if [[ "${INSTALLED_VERSION}" != "${ANSIBLE_VERSION}" ]]; then
         flock /tmp/ansible-playbook-install \
-            "${ANSIBLE_VENV}/bin/pip" install --upgrade "ansible-core==${ANSIBLE_VERSION}" ansible pywinrm legacycrypt bcrypt 1>&2
+            "${ANSIBLE_VENV}/bin/pip" install --upgrade "${ANSIBLE_CORE}" ansible pywinrm passlib 1>&2
     fi
 fi
-
-# The venv above may predate the crypt.py that Dockerfile.base writes, or have
-# just been rebuilt without it.
-echo 'from legacycrypt import *' \
-    > "$("${ANSIBLE_VENV}/bin/python" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')/crypt.py"
 
 exec "${ANSIBLE_VENV}/bin/ansible-playbook" "$@"
