@@ -445,12 +445,15 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
             - terraform_sources: List of local terraform module paths (from terraform.source)
             - dependencies: List of Terragrunt dependency paths (from dependency blocks)
             - extra_deps: List of extra dependency paths (from locals.extra_atlantis_dependencies)
+            - file_reads: List of files read by the file and its includes, through
+              read_terragrunt_config(), sops_decrypt_file(), file() and the like
     """
     result = {
         "includes": [],
         "terraform_sources": [],
         "dependencies": [],
-        "extra_deps": []
+        "extra_deps": [],
+        "file_reads": []
     }
 
     # Includes are followed, so stop if a parent chain ever comes back around.
@@ -473,11 +476,17 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
         import lark
 
         with open(file_path, 'r') as f:
-            try:
-                parsed = hcl2.load(f)
-            except lark.exceptions.LarkError as e:
-                log(f"HCL parse error in {file_path}: {e}", "WARN")
-                return result
+            content = f.read()
+        try:
+            parsed = hcl2.loads(content)
+        except lark.exceptions.LarkError as e:
+            log(f"HCL parse error in {file_path}: {e}", "WARN")
+            return result
+
+        # Terragrunt evaluates an include in the including unit's context, and base_dir
+        # stays the unit's directory down the include chain, so relative paths and
+        # get_terragrunt_dir() both resolve against the unit.
+        result['file_reads'].extend(referenced_paths(content, base_dir, file_path))
 
         # Extract include blocks
         if 'include' in parsed:
@@ -498,6 +507,7 @@ def parse_terragrunt_dependencies(file_path: str, base_dir: str, root_path: Opti
                         _visited
                     )
                     result['includes'].extend(parent['includes'])
+                    result['file_reads'].extend(parent['file_reads'])
                     inherited_sources.extend(parent['terraform_sources'])
 
         # Extract terraform.source for local modules
@@ -936,11 +946,14 @@ def collect_module_closure(root_path: str, sources: Iterable[str]) -> Set[str]:
 # path.module / path.root / path.cwd each resolve to a directory on disk. For static
 # discovery every one is treated as the directory being scanned, which is exact for
 # path.module (the module's own directory) and a reasonable best effort for the others.
-TF_PATH_REF_RE = re.compile(r'\$\{\s*path\.(?:module|root|cwd)\s*\}')
+# In a terragrunt.hcl, and in what it includes, get_terragrunt_dir() is the unit's
+# directory, which is the one scanned there.
+TF_PATH_REF_RE = re.compile(r'\$\{\s*(?:path\.(?:module|root|cwd)|get_terragrunt_dir\(\s*\))\s*\}')
 
 # Functions whose first argument is a path to a local file the module reads at plan or
-# apply time. Editing that file changes what the module produces, so it has to be
-# tracked. Longer names are matched first so, e.g., filemd5( is not consumed as file(.
+# apply time, and the Terragrunt ones a terragrunt.hcl reads a file with. Editing that
+# file changes what the unit produces, so it has to be tracked. Longer names are
+# matched first so, e.g., filemd5( is not consumed as file(.
 TF_FILE_FUNCS = (
     'templatefile',
     'file',
@@ -952,6 +965,9 @@ TF_FILE_FUNCS = (
     'filesha1',
     'filesha256',
     'filesha512',
+    'read_terragrunt_config',
+    'read_tfvars_file',
+    'sops_decrypt_file',
 )
 TF_FILE_FUNC_RE = re.compile(
     r'\b(?:' + '|'.join(sorted(TF_FILE_FUNCS, key=len, reverse=True)) + r')\s*\(\s*(?:"([^"]*)"|\'([^\']*)\')'
@@ -1002,22 +1018,35 @@ def find_referenced_files(root_path: str, directory: str) -> Set[str]:
             log(f"Cannot read {directory}/{name}: {e}", "WARN")
             continue
 
-        for match in TF_FILE_FUNC_RE.finditer(content):
-            path_value = match.group(1) if match.group(1) is not None else match.group(2)
-            if not path_value:
-                continue
+        found.update(referenced_paths(content, directory, f"{directory}/{name}"))
 
-            # Drop the path.* tokens, then any separator they left behind, so the
-            # remainder is relative to the directory being scanned.
-            cleaned = TF_PATH_REF_RE.sub('', path_value).lstrip('/')
-            if '${' in cleaned:
-                log(f"Skipping dynamic file reference in {directory}/{name}: {path_value}", "DEBUG")
-                continue
+    return found
 
-            resolved = resolve_relative_path(directory, cleaned)
-            if resolved:
-                found.add(resolved)
-                log(f"  Found referenced file: {path_value} -> {resolved}", "DEBUG")
+
+def referenced_paths(content: str, directory: str, source: str) -> List[str]:
+    """
+    Return the local files the file-reading calls in content reference, resolved
+    against directory to repository-relative paths. A path that still contains an
+    interpolation once the TF_PATH_REF_RE tokens are dropped is skipped.
+    """
+    found = []
+
+    for match in TF_FILE_FUNC_RE.finditer(content):
+        path_value = match.group(1) if match.group(1) is not None else match.group(2)
+        if not path_value:
+            continue
+
+        # Drop the path.* tokens, then any separator they left behind, so the
+        # remainder is relative to the directory being scanned.
+        cleaned = TF_PATH_REF_RE.sub('', path_value).lstrip('/')
+        if '${' in cleaned:
+            log(f"Skipping dynamic file reference in {source}: {path_value}", "DEBUG")
+            continue
+
+        resolved = resolve_relative_path(directory, cleaned)
+        if resolved:
+            found.append(resolved)
+            log(f"  Found referenced file: {path_value} -> {resolved}", "DEBUG")
 
     return found
 
@@ -1104,6 +1133,11 @@ def generate_terrateam_config(
                 for referenced in sorted(find_referenced_files(root_path, scan_dir)):
                     file_patterns.append(referenced)
 
+            # And files the unit's terragrunt.hcl, or anything it includes, reads
+            # through read_terragrunt_config(), sops_decrypt_file(), file() and the like.
+            for read in sorted(set(deps.get("file_reads", []))):
+                file_patterns.append(read)
+
         # Add extra dependencies
         for extra in deps.get("extra_deps", []):
             file_patterns.append(extra)
@@ -1155,8 +1189,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help=(
             "Scan each unit's own .tf files (and the local modules they reach) for "
             "module sources and file references such as templatefile()/file(), and "
-            "track those files. Without this flag only terraform.source modules "
-            "declared in terragrunt.hcl are followed."
+            "its terragrunt.hcl and includes for files read through "
+            "read_terragrunt_config()/sops_decrypt_file() and the like, and track "
+            "those files. Without this flag only terraform.source modules declared "
+            "in terragrunt.hcl are followed."
         )
     )
     parser.add_argument(
