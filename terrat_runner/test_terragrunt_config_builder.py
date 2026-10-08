@@ -307,6 +307,12 @@ class TerragruntFileReadsTest(unittest.TestCase):
         self.assertNotIn('prod/app/region.hcl', self.file_patterns())
 
 
+class LockFileTest(unittest.TestCase):
+    def test_every_unit_tracks_its_lock_file(self):
+        for dir_config in generate(['prod/vpc', 'prod/app'])['dirs'].values():
+            self.assertIn('${DIR}/.terraform.lock.hcl', dir_config['when_modified']['file_patterns'])
+
+
 class MainTest(unittest.TestCase):
     def run_main(self, argv):
         stdout = io.StringIO()
@@ -339,7 +345,9 @@ class MainTest(unittest.TestCase):
 
     def test_no_exclude_file_pattern_leaves_stdout_alone(self):
         patterns = self.run_main([])['dirs']['prod/vpc']['when_modified']['file_patterns']
-        self.assertEqual(patterns, ['${DIR}/terragrunt.hcl', '${DIR}/*.tf', '${DIR}/*.tfvars'])
+        self.assertEqual(
+            patterns,
+            ['${DIR}/terragrunt.hcl', '${DIR}/*.tf', '${DIR}/*.tfvars', '${DIR}/.terraform.lock.hcl'])
 
     def test_an_empty_glob_never_reaches_the_dirs(self):
         with mock.patch.object(builder, 'log', wraps=builder.log) as log:

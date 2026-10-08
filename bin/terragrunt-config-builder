@@ -1096,11 +1096,13 @@ def generate_terrateam_config(
     for dir_path in terragrunt_dirs:
         deps = all_dependencies.get(dir_path, {})
 
-        # Build file_patterns list
+        # Build file_patterns list. The lock file is the unit's as much as its .tf
+        # files are: a provider bump lands there alone, and has to plan.
         file_patterns = [
             "${DIR}/terragrunt.hcl",
             "${DIR}/*.tf",
             "${DIR}/*.tfvars",
+            "${DIR}/.terraform.lock.hcl",
         ]
 
         # Add parent config files (includes)
