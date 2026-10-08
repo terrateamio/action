@@ -271,6 +271,48 @@ class GenerateConfigExclusionsTest(unittest.TestCase):
         self.assertEqual(excluded, plain)
 
 
+class TerragruntFileReadsTest(unittest.TestCase):
+    def paths(self, content, directory='prod/app'):
+        with mock.patch.object(builder, 'log'):
+            return builder.referenced_paths(content, directory, 'terragrunt.hcl')
+
+    def test_terragrunt_functions_are_file_reads(self):
+        self.assertEqual(
+            self.paths('a = sops_decrypt_file("secret.json")\n'
+                       'b = read_terragrunt_config("../region.hcl")\n'
+                       'c = read_tfvars_file("common.tfvars")'),
+            ['prod/app/secret.json', 'prod/region.hcl', 'prod/app/common.tfvars'])
+
+    def test_get_terragrunt_dir_is_the_scanned_directory(self):
+        self.assertEqual(
+            self.paths('r = try(read_terragrunt_config("${get_terragrunt_dir()}/region.hcl").locals.region, "eu-west-1")'),
+            ['prod/app/region.hcl'])
+
+    def test_file_inside_a_longer_name_is_not_matched_on_its_own(self):
+        self.assertEqual(self.paths('s = sops_decrypt_file("secret.json")'), ['prod/app/secret.json'])
+
+    def test_a_dynamic_path_is_skipped(self):
+        self.assertEqual(self.paths('s = sops_decrypt_file("${local.name}.json")'), [])
+
+    def file_patterns(self, **kwargs):
+        deps = {'prod/app': {'file_reads': ['prod/app/region.hcl']}}
+        with mock.patch.object(builder, 'log'):
+            config = builder.generate_terrateam_config({}, ['prod/app'], deps, {}, '/repo', **kwargs)
+        return config['dirs']['prod/app']['when_modified']['file_patterns']
+
+    def test_reads_are_tracked_with_scan_tf_files(self):
+        self.assertIn('prod/app/region.hcl', self.file_patterns(scan_tf_files=True))
+
+    def test_reads_are_not_tracked_without_it(self):
+        self.assertNotIn('prod/app/region.hcl', self.file_patterns())
+
+
+class LockFileTest(unittest.TestCase):
+    def test_every_unit_tracks_its_lock_file(self):
+        for dir_config in generate(['prod/vpc', 'prod/app'])['dirs'].values():
+            self.assertIn('${DIR}/.terraform.lock.hcl', dir_config['when_modified']['file_patterns'])
+
+
 class MainTest(unittest.TestCase):
     def run_main(self, argv):
         stdout = io.StringIO()
@@ -303,7 +345,9 @@ class MainTest(unittest.TestCase):
 
     def test_no_exclude_file_pattern_leaves_stdout_alone(self):
         patterns = self.run_main([])['dirs']['prod/vpc']['when_modified']['file_patterns']
-        self.assertEqual(patterns, ['${DIR}/terragrunt.hcl', '${DIR}/*.tf', '${DIR}/*.tfvars'])
+        self.assertEqual(
+            patterns,
+            ['${DIR}/terragrunt.hcl', '${DIR}/*.tf', '${DIR}/*.tfvars', '${DIR}/.terraform.lock.hcl'])
 
     def test_an_empty_glob_never_reaches_the_dirs(self):
         with mock.patch.object(builder, 'log', wraps=builder.log) as log:
