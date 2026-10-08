@@ -9,10 +9,10 @@ name: release
 # A consumer pinned to a commit SHA is the case that was completely inert: the
 # update checker gives up immediately when the repository has no tags.
 #
-# `v1` is a legacy BRANCH and is being deprecated. Do not create a tag named v1
-# while the branch exists: a branch and a tag of the same name make `@v1`
-# resolve ambiguously. The moving tag this workflow publishes is an IMAGE tag,
-# not a git tag.
+# `v1` is a moving git tag. It tracks the latest stable release of the v1 line
+# and is advanced after the version tag is pushed, so `@v1` and the image tag
+# `:v1` always name the same commit. A prerelease does not move it. A v2.0.0
+# release moves `v2` and leaves `v1` at the last v1 release.
 #
 # A release commits the FIPS image pin and tags that commit. The commit is NOT
 # pushed to `main`: a repository ruleset requires a pull request for `main`, so
@@ -148,6 +148,20 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "refs/tags/${VERSION}"
+      -
+        # After the version tag, so that the major tag never points at a commit
+        # that carries no release. The major tag is forced because it moves on
+        # every stable release. It is left where it is for a prerelease.
+        name: Move the major tag
+        if: ${{ !inputs.dry_run && steps.version.outputs.is_prerelease != 'true' }}
+        env:
+          VERSION: ${{ steps.version.outputs.semver_tag }}
+          MAJOR_TAG: ${{ steps.version.outputs.major_tag }}
+        run: |
+          set -euo pipefail
+          COMMIT="$(git rev-parse "${VERSION}^{commit}")"
+          git tag -f "${MAJOR_TAG}" "${COMMIT}"
+          git push --force origin "refs/tags/${MAJOR_TAG}"
       -
         name: Create the GitHub Release
         if: ${{ !inputs.dry_run }}
