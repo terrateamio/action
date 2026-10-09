@@ -11,6 +11,9 @@ name: build-base
 # Fix: the base image is now tagged with a Unix timestamp (e.g. action-base:1234567890)
 # and the Dockerfile is updated to reference that specific tag. This ensures that
 # pinning to an action commit SHA truly isolates users from future base image changes.
+#
+# The Dockerfile pins the tag AND the digest, because a registry tag can still be
+# re-pushed. The last step of this workflow prints the line to paste.
 on:
   workflow_dispatch:
 jobs:
@@ -24,6 +27,17 @@ jobs:
         name: Generate tag
         id: tag
         run: echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+      -
+        # Passed to the build as an argument. Looked up inside the Dockerfile, the
+        # install step never changes and BuildKit serves the last release from cache.
+        name: Resolve the latest stategraph release
+        id: stategraph
+        run: |
+          set -euo pipefail
+          URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/stategraph/releases/releases/latest)
+          VERSION="${URL##*/}"
+          test -n "${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -39,6 +53,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       -
         name: Build and push base
+        id: build
         uses: docker/build-push-action@v7
         with:
           push: true
@@ -47,5 +62,21 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            STATEGRAPH_LATEST_VERSION=${{ steps.stategraph.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      -
+        name: Print the Dockerfile pin
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          STATEGRAPH: ${{ steps.stategraph.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "${DIGEST}"
+          {
+            echo '```'
+            echo "ARG BASE_IMAGE=ghcr.io/terrateamio/action-base:${TAG}@${DIGEST}"
+            echo '```'
+            echo "stategraph ${STATEGRAPH}"
+          } >> "$GITHUB_STEP_SUMMARY"

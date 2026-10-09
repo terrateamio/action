@@ -1,3 +1,4 @@
+import json
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -189,6 +190,90 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(
             run.call_args[0][1]['cmd'],
             ['terraform', 'apply', '-auto-approve', '-target=module.foo'])
+
+
+class DiffJsonTest(unittest.TestCase):
+    def _state(self):
+        return SimpleNamespace(
+            path='.',
+            workflow={'engine': {'name': 'terraform'}}
+        )
+
+    def test_diff_json_does_not_log_output(self):
+        # The JSON plan carries values that the human readable plan redacts, so
+        # it must never reach the job log.
+        engine = engine_tf.make(override_tf_cmd='terraform')
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), '{}', '')
+
+            result = engine.diff_json(self._state(), {})
+
+        self.assertEqual(result, (True, {}))
+        self.assertEqual(
+            run.call_args[0][1]['cmd'],
+            ['terraform', 'show', '-json', '${TERRATEAM_PLAN_FILE}'])
+        self.assertIs(run.call_args[0][1]['log_output'], False)
+
+    def test_resource_summary_still_counts_with_output_suppressed(self):
+        # run_with_output captures stdout through a pipe regardless of
+        # log_output, so the counts are unaffected.
+        engine = engine_tf.make(override_tf_cmd='terraform')
+        plan_json = {
+            'resource_changes': [
+                {'change': {'actions': ['create']}},
+                {'change': {'actions': ['update']}},
+                {'change': {'actions': ['delete', 'create']}},
+            ]
+        }
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), json.dumps(plan_json), '')
+
+            summary = engine.resource_summary(self._state(), {})
+
+        self.assertEqual(
+            summary,
+            {'created': 1, 'updated': 1, 'deleted': 0, 'replaced': 1})
+        self.assertIs(run.call_args[0][1]['log_output'], False)
+
+
+class OutputsTest(unittest.TestCase):
+    def _state(self):
+        return SimpleNamespace(
+            path='.',
+            workflow={'engine': {'name': 'terraform'}}
+        )
+
+    def test_outputs_does_not_log_output(self):
+        # `output -json` carries the value of an output marked sensitive in
+        # cleartext, so it must never reach the job log.
+        engine = engine_tf.make(override_tf_cmd='terraform')
+        outputs_json = json.dumps({
+            'password': {'sensitive': True, 'type': 'string', 'value': 'hunter2'}
+        })
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), outputs_json, '')
+
+            result = engine.outputs(self._state(), {})
+
+        # The captured stdout is still returned for the apply step to parse.
+        self.assertEqual(result, (True, outputs_json, ''))
+        self.assertEqual(
+            run.call_args[0][1]['cmd'],
+            ['terraform', 'output', '-json'])
+        self.assertIs(run.call_args[0][1]['log_output'], False)
+
+    def test_outputs_not_run_when_collect_disabled(self):
+        engine = engine_tf.make(override_tf_cmd='terraform',
+                                outputs={'collect': False})
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            result = engine.outputs(self._state(), {})
+
+        self.assertIsNone(result)
+        run.assert_not_called()
 
 
 if __name__ == '__main__':

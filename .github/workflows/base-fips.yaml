@@ -5,7 +5,9 @@ name: build-base-fips
 # GitHub Actions rebuilds the Docker image from the Dockerfile at that commit.
 #
 # The base image is tagged with a Unix timestamp (e.g. action-base-fips:1234567890)
-# and Dockerfile.fips is updated to reference that specific tag.
+# and Dockerfile.fips is updated to reference that specific tag. It pins the tag
+# AND the digest, because a registry tag can still be re-pushed. The last step of
+# the manifest job prints the line to paste.
 #
 # Each architecture builds on a runner of its own architecture. The image compiles
 # OpenSSL twice, which is why this does not go through QEMU like base.yaml.
@@ -18,11 +20,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      stategraph: ${{ steps.stategraph.outputs.version }}
     steps:
       -
         name: Generate tag
         id: tag
         run: echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+      -
+        # Passed to the builds as an argument. Looked up inside the Dockerfile, the
+        # install step never changes and BuildKit serves the last release from cache.
+        # Looked up once, here, so that both architectures carry the same release.
+        name: Resolve the latest stategraph release
+        id: stategraph
+        run: |
+          set -euo pipefail
+          URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/stategraph/releases/releases/latest)
+          VERSION="${URL##*/}"
+          test -n "${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
   build:
     needs: tag
     runs-on: ${{ matrix.runner }}
@@ -56,6 +71,8 @@ jobs:
           file: Dockerfile.base.fips
           tags: ${{ env.IMAGE }}:${{ needs.tag.outputs.tag }}-${{ matrix.arch }}
           platforms: linux/${{ matrix.arch }}
+          build-args: |
+            STATEGRAPH_LATEST_VERSION=${{ needs.tag.outputs.stategraph }}
           cache-from: type=gha,scope=base-fips-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=base-fips-${{ matrix.arch }}
   manifest:
@@ -85,3 +102,20 @@ jobs:
         run: docker buildx imagetools inspect "${IMAGE}:${TAG}"
         env:
           TAG: ${{ needs.tag.outputs.tag }}
+      -
+        # The published digest is the one the manifest job just composed, not
+        # either per-arch build's, so it has to be read back off the registry.
+        name: Print the Dockerfile pin
+        env:
+          TAG: ${{ needs.tag.outputs.tag }}
+          STATEGRAPH: ${{ needs.tag.outputs.stategraph }}
+        run: |
+          set -euo pipefail
+          DIGEST=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}:${TAG}")
+          test -n "${DIGEST}"
+          {
+            echo '```'
+            echo "ARG BASE_IMAGE=${IMAGE}:${TAG}@${DIGEST}"
+            echo '```'
+            echo "stategraph ${STATEGRAPH}"
+          } >> "$GITHUB_STEP_SUMMARY"

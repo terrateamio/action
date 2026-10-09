@@ -1,8 +1,21 @@
 name: ci
+# Verification only. This builds both Dockerfiles on every push so that a broken
+# build is caught at merge time, and pushes nothing.
+#
+# Only `main`, because release.yaml cuts releases from main, so main is what has
+# to be known good. The legacy `v1` branch is being deprecated and is no longer
+# built here.
+#
+# Publishing lives in release.yaml, which is dispatch only. Consequence worth
+# knowing: ghcr.io/terrateamio/action:v1 now tracks RELEASES rather than a
+# branch, so it no longer changes on every merge.
+#
+# The workflow and job names are deliberately unchanged, because they may be
+# named as required status checks.
 on:
   push:
     branches:
-      - 'v1'
+      - 'main'
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -17,25 +30,18 @@ jobs:
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       -
-        name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      -
-        name: Build and push action
+        name: Build action
         uses: docker/build-push-action@v7
         with:
-          push: true
+          push: false
           file: Dockerfile
           tags: ghcr.io/terrateamio/action:v1
           platforms: linux/amd64,linux/arm64
       -
-        name: Build and push fips action
+        name: Build fips action
         uses: docker/build-push-action@v7
         with:
-          push: true
+          push: false
           file: Dockerfile.fips
           tags: ghcr.io/terrateamio/action-fips:v1
           platforms: linux/amd64,linux/arm64
