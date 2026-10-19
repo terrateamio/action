@@ -7,8 +7,13 @@ import engine
 import engine_tf
 
 
-def _run(state, cmd_list):
-    (proc, stdout, stderr) = cmd.run_with_output(state, {'cmd': cmd_list})
+def _run(state, config, cmd_list):
+    (proc, stdout, stderr) = cmd.run_with_output(
+        state,
+        {
+            'cmd': cmd_list,
+            'log_output': config.get('log_output', True)
+        })
     return (proc.returncode == 0, stdout, stderr)
 
 
@@ -24,7 +29,7 @@ def init(state, config):
                 'No stategraph.json found in %s. Run `stategraph states create` or '
                 '`stategraph import tf` and commit the result before opening a PR.'
                 % state.working_dir)
-    return _run(state, ['stategraph', 'info'])
+    return _run(state, config, ['stategraph', 'info'])
 
 
 def plan(state, config):
@@ -36,7 +41,12 @@ def plan(state, config):
     # Cost and security analysis are opt-in: a step config that sets
     # extra_args replaces this default.
     plan_cmd += config.get('extra_args', ['--skip-costs', '--skip-security'])
-    (proc, stdout, stderr) = cmd.run_with_output(state, {'cmd': plan_cmd})
+    (proc, stdout, stderr) = cmd.run_with_output(
+        state,
+        {
+            'cmd': plan_cmd,
+            'log_output': config.get('log_output', True)
+        })
     # --detailed-exitcode: 0 = no changes, 2 = changes, anything else = error.
     success = proc.returncode in [0, 2]
     has_changes = proc.returncode == 2
@@ -48,7 +58,8 @@ def diff(state, config):
     (proc, stdout, stderr) = cmd.run_with_output(
         state,
         {
-            'cmd': ['stategraph', 'tf', 'show', '${TERRATEAM_PLAN_FILE}']
+            'cmd': ['stategraph', 'tf', 'show', '${TERRATEAM_PLAN_FILE}'],
+            'log_output': config.get('log_output', True)
         })
 
     # Stategraph renders the plan in the same format as `terraform show`, so
@@ -95,6 +106,7 @@ def resource_summary(state, config):
 def apply(state, config):
     logging.info('APPLY : %s : engine=stategraph', state.path)
     return _run(state,
+                config,
                 ['stategraph', 'tf', 'apply', '${TERRATEAM_PLAN_FILE}']
                 + config.get('extra_args', []))
 

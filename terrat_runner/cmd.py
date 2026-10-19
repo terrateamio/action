@@ -48,7 +48,11 @@ def run(state, config):
     if config.get('log_output', True):
         return subprocess.run(cmd, cwd=state.working_dir, env=env)
     else:
-        return subprocess.run(cmd, cwd=state.working_dir, env=env, stdout=subprocess.DEVNULL)
+        return subprocess.run(cmd,
+                              cwd=state.working_dir,
+                              env=env,
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
 
 
 def _handle_line(state, config, name, stream, line):

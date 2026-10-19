@@ -33,7 +33,8 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': ['flyctl', 'apps', 'create', '--name', self.app_name]
+                'cmd': ['flyctl', 'apps', 'create', '--name', self.app_name],
+                'log_output': config.get('log_output', True)
             })
 
         return (proc.returncode==0, stdout, stderr)
@@ -49,7 +50,8 @@ class Engine:
             state,
             {
                 'cmd': ['flyctl', 'deploy', '--app', self.app_name
-                        ] + config.get('extra_args', [])
+                        ] + config.get('extra_args', []),
+                'log_output': config.get('log_output', True)
             })
 
     def diff(self, state, config):
@@ -73,7 +75,8 @@ class Engine:
             state,
             {
                 'cmd': ['flyctl', 'config', 'show', '--app', self.app_name
-                        ] + config.get('extra_args', [])
+                        ] + config.get('extra_args', []),
+                'log_output': config.get('log_output', True)
             })
 
         if proc.returncode == 0:
