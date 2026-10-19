@@ -3,12 +3,10 @@ name: ci
 # build is caught at merge time, and pushes nothing.
 #
 # Only `main`, because release.yaml cuts releases from main, so main is what has
-# to be known good. The legacy `v1` branch is being deprecated and is no longer
-# built here.
+# to be known good.
 #
-# Publishing lives in release.yaml, which is dispatch only. Consequence worth
-# knowing: ghcr.io/terrateamio/action:v1 now tracks RELEASES rather than a
-# branch, so it no longer changes on every merge.
+# Publishing lives in release.yaml, which is dispatch only. The image tag
+# ghcr.io/terrateamio/action:v1 follows releases.
 #
 # The workflow and job names are deliberately unchanged, because they may be
 # named as required status checks.
