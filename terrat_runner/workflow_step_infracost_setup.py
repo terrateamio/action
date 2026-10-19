@@ -182,7 +182,8 @@ def run(state, config):
                 diff = json.load(f)
 
             logging.info('INFRACOST : DIFF')
-            if state.env.get('TERRATEAM_INFRACOST_COMPACT_LOG', '').lower() in ('1', 'true'):
+            if (not config.get('log_output', True)
+                    or state.env.get('TERRATEAM_INFRACOST_COMPACT_LOG', '').lower() in ('1', 'true')):
                 logging.info('INFRACOST : DIFF : projects=%d prev=$%s curr=$%s diff=$%s',
                              len(diff.get('projects', [])),
                              diff.get('pastTotalMonthlyCost', '0'),

@@ -63,5 +63,30 @@ class PlanStorageTest(unittest.TestCase):
         self.assertEqual(repo_config.get_plan_storage(workflow), storage['plans'])
 
 
+class PlanLogOutputTest(unittest.TestCase):
+    def test_defaults_to_true(self):
+        self.assertTrue(repo_config.get_plan_log_output({}))
+        self.assertTrue(repo_config.get_plan_log_output({'workflows': [{'tag_query': ''}]}))
+
+    def test_false_when_any_workflow_plan_step_sets_it(self):
+        config = {
+            'workflows': [
+                {'tag_query': 'a', 'plan': [{'type': 'init'}, {'type': 'plan'}]},
+                {'tag_query': 'b', 'plan': [{'type': 'init'}, {'type': 'plan', 'log_output': False}]},
+            ]
+        }
+
+        self.assertFalse(repo_config.get_plan_log_output(config))
+
+    def test_ignores_other_steps(self):
+        config = {
+            'workflows': [
+                {'tag_query': '', 'plan': [{'type': 'init', 'log_output': False}, {'type': 'plan'}]},
+            ]
+        }
+
+        self.assertTrue(repo_config.get_plan_log_output(config))
+
+
 if __name__ == '__main__':
     unittest.main()

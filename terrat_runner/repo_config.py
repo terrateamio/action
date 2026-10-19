@@ -171,6 +171,14 @@ def get_default_workflow(repo_config):
     }
 
 
+def get_plan_log_output(repo_config):
+    for workflow in _get(repo_config, 'workflows', []):
+        for step in _get(workflow, 'plan', []):
+            if step.get('type') == 'plan' and not step.get('log_output', True):
+                return False
+    return True
+
+
 def get_default_tf_version(repo_config):
     return repo_config.get('default_tf_version')
 

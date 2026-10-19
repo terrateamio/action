@@ -185,6 +185,55 @@ class ResourceSummaryTest(unittest.TestCase):
         self.assertNotIn('resource_summary', result.payload)
 
 
+class PlanLogOutputTest(unittest.TestCase):
+    def _run_tf_plan(self, config):
+        engine = engine_tf.Engine('tf', 'terraform')
+        state = SimpleNamespace(
+            engine=engine,
+            path='foo',
+            workflow={'engine': {'name': 'tf'}, 'storage': {'plans': {'method': 'none'}}},
+            env={
+                'TERRATEAM_DIR': 'foo',
+                'TERRATEAM_WORKSPACE': 'default',
+                'TERRATEAM_PLAN_FILE': '/tmp/plan.out',
+            })
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run, \
+             mock.patch('workflow_step_plan._store_plan') as store_plan, \
+             mock.patch('workflow_step_plan.os.path.exists') as exists:
+            run.return_value = (SimpleNamespace(returncode=0), '', '')
+            store_plan.return_value = (True, '')
+            exists.return_value = True
+            result = workflow_step_plan.run(state, config)
+
+        self.assertTrue(result.success)
+        return [c[0][1] for c in run.call_args_list]
+
+    def test_log_output_false_reaches_every_plan_command(self):
+        calls = self._run_tf_plan({'mode': 'fast-and-loose', 'log_output': False})
+
+        self.assertEqual([c['cmd'][1] for c in calls], ['plan', 'plan', 'show'])
+        for c in calls:
+            self.assertIs(c['log_output'], False)
+
+    def test_log_output_defaults_to_true(self):
+        calls = self._run_tf_plan({})
+
+        self.assertEqual([c['cmd'][1] for c in calls], ['plan', 'show'])
+        for c in calls:
+            self.assertIs(c['log_output'], True)
+
+    def test_show_json_is_never_logged(self):
+        engine = engine_tf.Engine('tf', 'terraform')
+        state = SimpleNamespace(path='foo', workflow={'engine': {'name': 'tf'}})
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), '{}', '')
+            engine.diff_json(state, {'log_output': True})
+
+        self.assertIs(run.call_args[0][1]['log_output'], False)
+
+
 class CustomEngineResourceSummaryTest(unittest.TestCase):
     SUMMARY = {'created': 1, 'updated': 2, 'deleted': 3, 'replaced': 4}
 
