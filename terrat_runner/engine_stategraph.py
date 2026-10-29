@@ -5,6 +5,7 @@ import os
 import cmd
 import engine
 import engine_tf
+import requests_retry
 
 
 def _run(state, config, cmd_list):
@@ -120,6 +121,33 @@ def outputs(state, config):
     return None
 
 
+def tx(state, config):
+    """The Stategraph transaction behind TERRATEAM_PLAN_FILE, as the server
+    records it: id, state, created_at and completed_at.  None when the plan
+    opened no transaction (no changes), or when it cannot be read"""
+    try:
+        with open(state.env['TERRATEAM_PLAN_FILE']) as f:
+            tx_id = json.load(f).get('tx_id')
+    except (OSError, ValueError) as exn:
+        logging.warning('TX : %s : PLAN_FILE_UNREADABLE : %s', state.path, exn)
+        return None
+    if not tx_id:
+        return None
+    url = state.env['STATEGRAPH_API_BASE'].rstrip('/') + '/api/v1/tx/' + tx_id
+    headers = {'authorization': 'bearer ' + state.env['STATEGRAPH_API_KEY']}
+    try:
+        res = requests_retry.get(url, headers=headers)
+    except Exception as exn:
+        logging.warning('TX : %s : FETCH_FAILED : tx=%s : %s', state.path, tx_id, exn)
+        return None
+    if res.status_code != 200:
+        logging.warning('TX : %s : FETCH_FAILED : tx=%s : status=%d',
+                        state.path, tx_id, res.status_code)
+        return None
+    tx_obj = res.json()['tx']
+    return {k: tx_obj.get(k) for k in ('id', 'state', 'created_at', 'completed_at')}
+
+
 def make(**engine_config):
     return engine.Engine(
         name='stategraph',
@@ -130,4 +158,5 @@ def make(**engine_config):
         diff_json=diff_json,
         resource_summary=resource_summary,
         unsafe_apply=unsafe_apply,
-        outputs=outputs)
+        outputs=outputs,
+        tx=tx)

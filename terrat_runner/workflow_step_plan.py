@@ -257,6 +257,12 @@ def run(state, config):
         if resource_summary is not None:
             payload['resource_summary'] = resource_summary
 
+    # The transaction behind the plan, for an engine that has one.
+    if state.engine.tx is not None:
+        tx = state.engine.tx(state, config)
+        if tx is not None:
+            payload['tx'] = tx
+
     return workflow.Result2(
         payload=payload,
         state=state,
