@@ -68,6 +68,15 @@ def _load_plan(state, dir_path, workspace, plan_path):
         return (True, None, True)
 
 
+def _with_tx(state, config, payload):
+    # The transaction the apply committed, or failed to, for an engine that has one.
+    if state.engine.tx is not None:
+        tx = state.engine.tx(state, config)
+        if tx is not None:
+            payload['tx'] = tx
+    return payload
+
+
 def run(state, config):
     visible_on = config.get('visible_on', 'always')
 
@@ -93,10 +102,10 @@ def run(state, config):
 
     if not success:
         return workflow.make(
-            payload={
+            payload=_with_tx(state, config, {
                 'text': '\n'.join([stderr, stdout]),
                 'visible_on': visible_on
-            },
+            }),
             state=state,
             step=state.engine.name + '/apply',
             success=False)
@@ -114,20 +123,20 @@ def run(state, config):
         outputs = json.loads(outputs_stdout)
         if outputs:
             return workflow.Result2(
-                payload={
+                payload=_with_tx(state, config, {
                     'text': stdout,
                     'outputs': outputs,
                     'visible_on': visible_on,
-                },
+                }),
                 state=state,
                 step=state.engine.name + '/apply',
                 success=True)
         else:
             return workflow.Result2(
-                payload={
+                payload=_with_tx(state, config, {
                     'text': stdout,
                     'visible_on': visible_on,
-                },
+                }),
                 state=state,
                 step=state.engine.name + '/apply',
                 success=True)
