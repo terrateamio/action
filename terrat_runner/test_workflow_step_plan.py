@@ -98,15 +98,30 @@ class ResourceSummaryTest(unittest.TestCase):
     def test_counts_are_split_per_action_with_replacements_in_their_own_bucket(self):
         self.assertEqual(
             engine_tf._resource_summary_from_plan_json(self.PLAN_JSON),
-            {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+            {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2, 'imported': 0})
+
+    def test_imports_count_alongside_their_action(self):
+        plan_json = {
+            'resource_changes': [
+                {'change': {'actions': ['no-op'], 'importing': {'id': 'a'}}},
+                {'change': {'actions': ['update'], 'importing': {'id': 'b'}}},
+                {'change': {'actions': ['create', 'delete'], 'importing': {'id': 'c'}}},
+                {'change': {'actions': ['no-op'], 'importing': {'identity': {'name': 'd'}}}},
+                {'change': {'actions': ['create'], 'importing': None}},
+                {'change': {'actions': ['update']}},
+            ],
+        }
+        self.assertEqual(
+            engine_tf._resource_summary_from_plan_json(plan_json),
+            {'created': 1, 'updated': 2, 'deleted': 0, 'replaced': 1, 'imported': 4})
 
     def test_plan_without_resource_changes_counts_zeros(self):
         self.assertEqual(
             engine_tf._resource_summary_from_plan_json({}),
-            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0})
+            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0, 'imported': 0})
         self.assertEqual(
             engine_tf._resource_summary_from_plan_json({'resource_changes': []}),
-            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0})
+            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0, 'imported': 0})
 
     def test_unparseable_plan_json_is_none(self):
         self.assertIsNone(engine_tf._resource_summary_from_plan_json(None))
@@ -130,7 +145,7 @@ class ResourceSummaryTest(unittest.TestCase):
             diff_json.return_value = (True, self.PLAN_JSON)
             self.assertEqual(
                 engine.resource_summary(state, config),
-                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2, 'imported': 0})
 
     def _run_with_summary(self, engine):
         state = SimpleNamespace(
@@ -366,7 +381,7 @@ class StategraphEngineResourceSummaryTest(unittest.TestCase):
 
             self.assertEqual(
                 engine_stategraph.resource_summary(self._state(), {}),
-                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2, 'imported': 0})
 
         self.assertEqual(run.call_args[0][1]['cmd'],
                          ['stategraph', 'tf', 'show', '--json', '${TERRATEAM_PLAN_FILE}'])

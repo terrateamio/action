@@ -127,17 +127,23 @@ def _resource_summary_from_plan_json(plan_json):
     """Count per-resource changes from a `terraform show -json` plan.
 
     A replacement (['create', 'delete'] or ['delete', 'create']) counts in the
-    'replaced' bucket only -- the four buckets are disjoint, unlike tofu's
-    aggregate 'Plan: N to add, ...' line where a replacement counts in both
-    add and destroy.  A plan with no resource changes (for example an
+    'replaced' bucket only -- the four action buckets are disjoint, unlike
+    tofu's aggregate 'Plan: N to add, ...' line where a replacement counts in
+    both add and destroy.  'imported' counts every resource change that
+    carries an 'importing' object, whatever its action, as the 'N to import'
+    figure of that line does: an import that also updates counts in both
+    'imported' and 'updated'.  A plan with no resource changes (for example an
     output-only change) yields all zeros, which is a real result, not an
     absence of one.
     """
-    summary = {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0}
+    summary = {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0, 'imported': 0}
     if not isinstance(plan_json, dict):
         return None
     for resource_change in plan_json.get('resource_changes') or []:
-        actions = (resource_change.get('change') or {}).get('actions') or []
+        change = resource_change.get('change') or {}
+        if isinstance(change.get('importing'), dict):
+            summary['imported'] += 1
+        actions = change.get('actions') or []
         if actions == ['create']:
             summary['created'] += 1
         elif actions == ['update']:
