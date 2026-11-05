@@ -9,8 +9,8 @@ import repo_config
 import retry
 
 TRIES = 3
-INITIAL_SLEEP = 5
-BACKOFF = 1.5
+INITIAL_SLEEP = 10
+BACKOFF = 2
 
 
 # Opens a Terraform heredoc string value, e.g. `foo = <<-EOT` or `foo =
