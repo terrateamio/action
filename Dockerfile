@@ -4,6 +4,7 @@ FROM ${BASE_IMAGE}
 COPY entrypoint.sh /entrypoint.sh
 COPY entrypoint_gitlab.sh /entrypoint_gitlab.sh
 COPY entrypoint_github.sh /entrypoint_github.sh
+COPY post_entrypoint_github.sh /post_entrypoint_github.sh
 COPY terrat_runner /terrat_runner
 
 COPY proxy/bin /usr/local/proxy/bin
