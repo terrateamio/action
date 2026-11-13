@@ -234,7 +234,7 @@ class DiffJsonTest(unittest.TestCase):
 
         self.assertEqual(
             summary,
-            {'created': 1, 'updated': 1, 'deleted': 0, 'replaced': 1})
+            {'created': 1, 'updated': 1, 'deleted': 0, 'replaced': 1, 'imported': 0})
         self.assertIs(run.call_args[0][1]['log_output'], False)
 
 

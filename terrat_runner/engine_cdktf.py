@@ -35,7 +35,8 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': ['cdktf', 'get']
+                'cmd': ['cdktf', 'get'],
+                'log_output': config.get('log_output', True)
             })
 
         if proc.returncode != 0:
@@ -44,7 +45,8 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': ['cdktf', 'synth']
+                'cmd': ['cdktf', 'synth'],
+                'log_output': config.get('log_output', True)
             })
 
         if proc.returncode != 0:

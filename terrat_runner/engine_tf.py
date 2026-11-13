@@ -127,17 +127,23 @@ def _resource_summary_from_plan_json(plan_json):
     """Count per-resource changes from a `terraform show -json` plan.
 
     A replacement (['create', 'delete'] or ['delete', 'create']) counts in the
-    'replaced' bucket only -- the four buckets are disjoint, unlike tofu's
-    aggregate 'Plan: N to add, ...' line where a replacement counts in both
-    add and destroy.  A plan with no resource changes (for example an
+    'replaced' bucket only -- the four action buckets are disjoint, unlike
+    tofu's aggregate 'Plan: N to add, ...' line where a replacement counts in
+    both add and destroy.  'imported' counts every resource change that
+    carries an 'importing' object, whatever its action, as the 'N to import'
+    figure of that line does: an import that also updates counts in both
+    'imported' and 'updated'.  A plan with no resource changes (for example an
     output-only change) yields all zeros, which is a real result, not an
     absence of one.
     """
-    summary = {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0}
+    summary = {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0, 'imported': 0}
     if not isinstance(plan_json, dict):
         return None
     for resource_change in plan_json.get('resource_changes') or []:
-        actions = (resource_change.get('change') or {}).get('actions') or []
+        change = resource_change.get('change') or {}
+        if isinstance(change.get('importing'), dict):
+            summary['imported'] += 1
+        actions = change.get('actions') or []
         if actions == ['create']:
             summary['created'] += 1
         elif actions == ['update']:
@@ -181,7 +187,8 @@ class Engine:
                         '/tmp/tf-init.lock',
                         self.tf_cmd,
                         'init'
-                    ] + config.get('extra_args', [])
+                    ] + config.get('extra_args', []),
+                    'log_output': config.get('log_output', True)
                 }),
             retry.finite_tries(TRIES, lambda result: result[0].returncode == 0),
             retry.betwixt_sleep_with_backoff(INITIAL_SLEEP, BACKOFF))
@@ -206,14 +213,16 @@ class Engine:
             (proc, select_stdout, select_stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.workspace_cmd(state, 'select', state.workspace)
+                    'cmd': self.workspace_cmd(state, 'select', state.workspace),
+                    'log_output': config.get('log_output', True)
                 })
 
             if proc.returncode != 0:
                 (proc, new_stdout, new_stderr) = cmd.run_with_output(
                     state,
                     {
-                        'cmd': self.workspace_cmd(state, 'new', state.workspace)
+                        'cmd': self.workspace_cmd(state, 'new', state.workspace),
+                        'log_output': config.get('log_output', True)
                     })
 
                 if proc.returncode != 0:
@@ -233,7 +242,8 @@ class Engine:
             state,
             {
                 'cmd': [self.tf_cmd, 'apply'
-                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}']
+                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}'],
+                'log_output': config.get('log_output', True)
             })
 
         return (proc.returncode == 0, stdout, stderr)
@@ -248,7 +258,8 @@ class Engine:
             state,
             {
                 'cmd': [self.tf_cmd, 'apply', '-auto-approve'
-                        ] + config.get('extra_args', [])
+                        ] + config.get('extra_args', []),
+                'log_output': config.get('log_output', True)
             })
 
         return (proc.returncode == 0, stdout, stderr)
@@ -262,7 +273,8 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': [self.tf_cmd, 'show', '${TERRATEAM_PLAN_FILE}']
+                'cmd': [self.tf_cmd, 'show', '${TERRATEAM_PLAN_FILE}'],
+                'log_output': config.get('log_output', True)
             })
 
         if proc.returncode == 0:
@@ -327,7 +339,8 @@ class Engine:
                 state,
                 {
                     'cmd': [self.tf_cmd, 'plan', '-detailed-exitcode', '-json', '-refresh=false'
-                            ] + config.get('extra_args', [])
+                            ] + config.get('extra_args', []),
+                    'log_output': config.get('log_output', True)
                 })
 
             targets = []
@@ -351,7 +364,8 @@ class Engine:
                     '-detailed-exitcode',
                     '-out',
                     '${TERRATEAM_PLAN_FILE}'
-                ] + targets + config.get('extra_args', [])
+                ] + targets + config.get('extra_args', []),
+                'log_output': config.get('log_output', True)
             })
 
         return (proc.returncode in [0, 2], proc.returncode == 2, stdout, stderr)
@@ -366,7 +380,8 @@ class Engine:
             state,
             {
                 'cmd': [self.tf_cmd, 'apply', '-auto-approve'
-                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}']
+                        ] + config.get('extra_args', []) + ['${TERRATEAM_PLAN_FILE}'],
+                'log_output': config.get('log_output', True)
             })
 
         return (proc.returncode == 0, stdout, stderr)

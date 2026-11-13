@@ -98,15 +98,30 @@ class ResourceSummaryTest(unittest.TestCase):
     def test_counts_are_split_per_action_with_replacements_in_their_own_bucket(self):
         self.assertEqual(
             engine_tf._resource_summary_from_plan_json(self.PLAN_JSON),
-            {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+            {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2, 'imported': 0})
+
+    def test_imports_count_alongside_their_action(self):
+        plan_json = {
+            'resource_changes': [
+                {'change': {'actions': ['no-op'], 'importing': {'id': 'a'}}},
+                {'change': {'actions': ['update'], 'importing': {'id': 'b'}}},
+                {'change': {'actions': ['create', 'delete'], 'importing': {'id': 'c'}}},
+                {'change': {'actions': ['no-op'], 'importing': {'identity': {'name': 'd'}}}},
+                {'change': {'actions': ['create'], 'importing': None}},
+                {'change': {'actions': ['update']}},
+            ],
+        }
+        self.assertEqual(
+            engine_tf._resource_summary_from_plan_json(plan_json),
+            {'created': 1, 'updated': 2, 'deleted': 0, 'replaced': 1, 'imported': 4})
 
     def test_plan_without_resource_changes_counts_zeros(self):
         self.assertEqual(
             engine_tf._resource_summary_from_plan_json({}),
-            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0})
+            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0, 'imported': 0})
         self.assertEqual(
             engine_tf._resource_summary_from_plan_json({'resource_changes': []}),
-            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0})
+            {'created': 0, 'updated': 0, 'deleted': 0, 'replaced': 0, 'imported': 0})
 
     def test_unparseable_plan_json_is_none(self):
         self.assertIsNone(engine_tf._resource_summary_from_plan_json(None))
@@ -130,7 +145,7 @@ class ResourceSummaryTest(unittest.TestCase):
             diff_json.return_value = (True, self.PLAN_JSON)
             self.assertEqual(
                 engine.resource_summary(state, config),
-                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2, 'imported': 0})
 
     def _run_with_summary(self, engine):
         state = SimpleNamespace(
@@ -183,6 +198,55 @@ class ResourceSummaryTest(unittest.TestCase):
         result = self._run_with_summary(engine)
         resource_summary.assert_not_called()
         self.assertNotIn('resource_summary', result.payload)
+
+
+class PlanLogOutputTest(unittest.TestCase):
+    def _run_tf_plan(self, config):
+        engine = engine_tf.Engine('tf', 'terraform')
+        state = SimpleNamespace(
+            engine=engine,
+            path='foo',
+            workflow={'engine': {'name': 'tf'}, 'storage': {'plans': {'method': 'none'}}},
+            env={
+                'TERRATEAM_DIR': 'foo',
+                'TERRATEAM_WORKSPACE': 'default',
+                'TERRATEAM_PLAN_FILE': '/tmp/plan.out',
+            })
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run, \
+             mock.patch('workflow_step_plan._store_plan') as store_plan, \
+             mock.patch('workflow_step_plan.os.path.exists') as exists:
+            run.return_value = (SimpleNamespace(returncode=0), '', '')
+            store_plan.return_value = (True, '')
+            exists.return_value = True
+            result = workflow_step_plan.run(state, config)
+
+        self.assertTrue(result.success)
+        return [c[0][1] for c in run.call_args_list]
+
+    def test_log_output_false_reaches_every_plan_command(self):
+        calls = self._run_tf_plan({'mode': 'fast-and-loose', 'log_output': False})
+
+        self.assertEqual([c['cmd'][1] for c in calls], ['plan', 'plan', 'show'])
+        for c in calls:
+            self.assertIs(c['log_output'], False)
+
+    def test_log_output_defaults_to_true(self):
+        calls = self._run_tf_plan({})
+
+        self.assertEqual([c['cmd'][1] for c in calls], ['plan', 'show'])
+        for c in calls:
+            self.assertIs(c['log_output'], True)
+
+    def test_show_json_is_never_logged(self):
+        engine = engine_tf.Engine('tf', 'terraform')
+        state = SimpleNamespace(path='foo', workflow={'engine': {'name': 'tf'}})
+
+        with mock.patch('engine_tf.cmd.run_with_output') as run:
+            run.return_value = (SimpleNamespace(returncode=0), '{}', '')
+            engine.diff_json(state, {'log_output': True})
+
+        self.assertIs(run.call_args[0][1]['log_output'], False)
 
 
 class CustomEngineResourceSummaryTest(unittest.TestCase):
@@ -317,7 +381,7 @@ class StategraphEngineResourceSummaryTest(unittest.TestCase):
 
             self.assertEqual(
                 engine_stategraph.resource_summary(self._state(), {}),
-                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2})
+                {'created': 2, 'updated': 1, 'deleted': 1, 'replaced': 2, 'imported': 0})
 
         self.assertEqual(run.call_args[0][1]['cmd'],
                          ['stategraph', 'tf', 'show', '--json', '${TERRATEAM_PLAN_FILE}'])

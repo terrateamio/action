@@ -39,7 +39,8 @@ class Exec(work_exec.ExecInterface):
                     {
                         'type': 'infracost_setup',
                         'currency': cost_estimation_config['currency'],
-                        'ignore_errors': True
+                        'ignore_errors': True,
+                        'log_output': rc.get_plan_log_output(state.repo_config)
                     }
                 )
 

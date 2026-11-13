@@ -35,7 +35,8 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.init_args + config.get('extra_args', [])
+                    'cmd': self.init_args + config.get('extra_args', []),
+                    'log_output': config.get('log_output', True)
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())
@@ -52,7 +53,8 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.apply_args + config.get('extra_args', [])
+                    'cmd': self.apply_args + config.get('extra_args', []),
+                    'log_output': config.get('log_output', True)
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())
@@ -69,7 +71,8 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.diff_args
+                    'cmd': self.diff_args,
+                    'log_output': config.get('log_output', True)
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())
@@ -105,8 +108,8 @@ class Engine:
     def resource_summary(self, state, config):
         # Run the custom summary program.  The program prints JSON with the
         # same shape as the tf resource_summary result: one object with the
-        # keys 'created', 'updated', 'deleted', and 'replaced', each an
-        # integer count.  If the program is not set, or it fails, or its
+        # keys 'created', 'updated', 'deleted', 'replaced', and 'imported',
+        # each an integer count.  If the program is not set, or it fails, or its
         # output is not a JSON object, return None so the plan step drops the
         # summary.
         if not self.resource_summary_args:
@@ -120,7 +123,8 @@ class Engine:
         (proc, stdout, stderr) = cmd.run_with_output(
             state,
             {
-                'cmd': self.resource_summary_args
+                'cmd': self.resource_summary_args,
+                'log_output': config.get('log_output', True)
             })
 
         if proc.returncode != 0:
@@ -155,7 +159,8 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.plan_args + config.get('extra_args', [])
+                    'cmd': self.plan_args + config.get('extra_args', []),
+                    'log_output': config.get('log_output', True)
                 })
 
             return (proc.returncode in [0, 2], proc.returncode == 0, stdout.strip(), stderr.strip())
@@ -172,7 +177,8 @@ class Engine:
             (proc, stdout, stderr) = cmd.run_with_output(
                 state,
                 {
-                    'cmd': self.unsafe_apply_args + config.get('extra_args', [])
+                    'cmd': self.unsafe_apply_args + config.get('extra_args', []),
+                    'log_output': config.get('log_output', True)
                 })
 
             return (proc.returncode == 0, stdout.strip(), stderr.strip())
