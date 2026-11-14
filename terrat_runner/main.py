@@ -293,6 +293,17 @@ def run(args, env):
     env['TERRATEAM_RUN_KIND_DATA'] = json.dumps(wm.get('run_kind_data', {}))
     env['TERRATEAM_BASE_REF'] = wm.get('base_ref', '')
 
+    # Export each run parameter under its own name, unchanged: the published
+    # contract says the parameter name is the environment variable name.  The
+    # key is absent when the run has no parameters, so read it the optional way.
+    # A parameter is not masked.  The run comment publishes every value, so
+    # masking hides nothing, and it would hide unrelated uses of a value in the
+    # logs and in the step results.  A SECRETS_CONTEXT, VARIABLES_CONTEXT or
+    # ENVIRONMENT_CONTEXT value with the same name wins, because that merge runs
+    # below this block.
+    for name, value in (wm.get('parameters') or {}).items():
+        env[name] = str(value)
+
     # Set log level to error because when we run things in parallel,
     # sometimes the logging around the lockfile breaks parsing underlying
     # commands (for example terragrunt getting tofu version)
