@@ -276,5 +276,43 @@ class OutputsTest(unittest.TestCase):
         run.assert_not_called()
 
 
+class PlanOptionsArgsTest(unittest.TestCase):
+    def test_no_plan_options_is_no_args(self):
+        self.assertEqual(engine_tf.plan_options_args({}), [])
+        self.assertEqual(engine_tf.plan_options_args({'plan_options': {}}), [])
+        self.assertEqual(engine_tf.plan_options_args(None), [])
+
+    def test_every_flag_builds_one_argument(self):
+        wm = {
+            'plan_options': {
+                'destroy': True,
+                'refresh_only': True,
+                'targets': ['aws_s3_bucket.logs', 'aws_iam_role.app'],
+                'replaces': ['aws_instance.web'],
+                'vars': {'tier': 'premium'},
+                'var_files': ['prod.tfvars'],
+            }
+        }
+        self.assertEqual(
+            engine_tf.plan_options_args(wm),
+            [
+                '-destroy',
+                '-refresh-only',
+                '-target=aws_s3_bucket.logs',
+                '-target=aws_iam_role.app',
+                '-replace=aws_instance.web',
+                '-var=tier=premium',
+                '-var-file=prod.tfvars',
+            ])
+
+    def test_a_value_is_one_argument_with_no_shell_meaning(self):
+        # A resource address or a value is a single argv element, so a ';' or a
+        # '$' it holds reaches the command as text, not as shell syntax.
+        wm = {'plan_options': {'targets': ['x;id'], 'vars': {'v': '${HOME}'}}}
+        self.assertEqual(
+            engine_tf.plan_options_args(wm),
+            ['-target=x;id', '-var=v=${HOME}'])
+
+
 if __name__ == '__main__':
     unittest.main()
