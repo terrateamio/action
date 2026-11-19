@@ -23,6 +23,9 @@ class Runtime(object):
         sys.stdout.write(output)
         sys.stdout.flush()
 
+    def is_debug(self, env):
+        return env.get('CI_DEBUG_TRACE') == 'true'
+
     def update_workflow_steps(self, run_type, steps):
         return steps
 
