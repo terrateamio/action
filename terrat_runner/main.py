@@ -215,6 +215,14 @@ def transform_tf_vars(env):
     env.update(new_keys)
 
 
+# The repo config can be megabytes for a large repository, and GitHub's live log
+# view stops streaming partway through output that size.  Log it only when
+# asked for, with TERRATEAM_LOG_REPO_CONFIG or the runtime's debug logging.
+def should_log_repo_config(runtime, env):
+    return (env.get('TERRATEAM_LOG_REPO_CONFIG', '').lower() in ('1', 'true')
+            or runtime.is_debug(env))
+
+
 def run(args, env):
     logging.debug('LOADING : WORK_MANIFEST')
 
@@ -245,12 +253,10 @@ def run(args, env):
     if args.runtime == 'github':
         logging.info('Starting GitHub runtime')
         runtime = github_actions.Runtime()
-        runtime.group_output('Repository Configuration', json.dumps(rc, indent=2))
         runtime.set_secret(wm['token'])
     elif args.runtime == 'gitlab':
         logging.info('Starting GitLab runtime')
         runtime = gitlab_ci.Runtime()
-        runtime.group_output('Repository Configuration', json.dumps(rc, indent=2))
         runtime.set_secret(wm['token'])
     else:
         raise Exception('Unknown runtime: {}'.format(args.runtime))
@@ -355,6 +361,9 @@ def run(args, env):
 
     transform_tf_vars(env)
     state = state._replace(env=env)
+
+    if should_log_repo_config(runtime, env):
+        runtime.group_output('Repository Configuration', json.dumps(rc, indent=2))
 
     logging.debug('RESULT_VERSION : %r', result_version)
     logging.debug('EXEC : %s', wm['type'])

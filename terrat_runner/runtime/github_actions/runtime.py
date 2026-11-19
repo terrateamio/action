@@ -54,6 +54,11 @@ class Runtime(object):
         sys.stdout.write('::endgroup::\n')
         sys.stdout.flush()
 
+    def is_debug(self, env):
+        # The runner sets RUNNER_DEBUG to 1 when debug logging is enabled, for
+        # example by re-running a job with debug logging.
+        return env.get('RUNNER_DEBUG') == '1'
+
     def update_workflow_steps(self, run_type, steps):
         return [{'type': 'update_terrateam_github_token'}] + steps
 
