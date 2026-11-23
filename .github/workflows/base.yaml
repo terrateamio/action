@@ -26,7 +26,9 @@ jobs:
       -
         name: Generate tag
         id: tag
-        run: echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+        run: |
+          echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "os_refresh=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
       -
         # Passed to the build as an argument. Looked up inside the Dockerfile, the
         # install step never changes and BuildKit serves the last release from cache.
@@ -63,6 +65,7 @@ jobs:
           build-args: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
             STATEGRAPH_LATEST_VERSION=${{ steps.stategraph.outputs.version }}
+            OS_REFRESH=${{ steps.tag.outputs.os_refresh }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       -

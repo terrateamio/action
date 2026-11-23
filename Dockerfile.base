@@ -1,7 +1,11 @@
 ARG BASE_IMAGE=debian:trixie-20261104-slim
 FROM ${BASE_IMAGE}
 
-RUN apt-get update \
+# The base workflows pass the build date as OS_REFRESH. A new value makes BuildKit run
+# this layer, and every layer after it, again.
+ARG OS_REFRESH=
+RUN echo "OS_REFRESH: ${OS_REFRESH}" && \
+	apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	apt-utils \
@@ -44,7 +48,7 @@ RUN echo "TENV_LATEST_VERSION: ${TENV_LATEST_VERSION}" && \
     dpkg -i "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb" && \
     rm -f "tenv_${TENV_LATEST_VERSION}_${ARCH}.deb"
 
-ARG TOFU_VERSIONS=1.12.11
+ARG TOFU_VERSIONS=1.12.12
 ARG TERRAFORM_VERSIONS=
 # Install tofu and terraform versions dynamically based on TOFU_VERSIONS and TERRAFORM_VERSIONS. versions should be comma separated.
 RUN set -e; \
@@ -71,12 +75,27 @@ RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
     rm -f /tmp/infracost-linux-${ARCH}.tar.gz
 
 ENV CONFTEST_VERSION=0.71.1
-RUN ARCH=$(uname -m | sed 's/aarch64/arm64/g') && \
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/g' | sed 's/aarch64/arm64/g') && \
+    GO_VERSION=1.27.4 && \
+    case "${ARCH}" in \
+        amd64) GO_SHA256=7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840 ;; \
+        arm64) GO_SHA256=3392582988a273a87ab5043ee1b2c9c17a2c3c00580bf9326c47a2e0aaaeac92 ;; \
+        *) echo "no Go checksum for ${ARCH}" >&2; exit 1 ;; \
+    esac && \
     mkdir /tmp/conftest && \
-    curl -fsSL -o /tmp/conftest/conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_${ARCH}.tar.gz" && \
-    tar -C /tmp/conftest -xzf /tmp/conftest/conftest.tar.gz && \
-    mv /tmp/conftest/conftest /usr/local/bin/conftest && \
-    rm -rf /tmp/conftest
+    curl -fsSL -o /tmp/conftest/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" && \
+    echo "${GO_SHA256}  /tmp/conftest/go.tar.gz" | sha256sum -c - && \
+    tar -C /tmp/conftest -xzf /tmp/conftest/go.tar.gz && \
+    export GOROOT=/tmp/conftest/go GOPATH=/tmp/conftest/gopath GOCACHE=/tmp/conftest/gocache \
+        GOTOOLCHAIN=local GOFLAGS=-modcacherw CGO_ENABLED=0 GODEBUG= && \
+    /tmp/conftest/go/bin/go mod download "github.com/open-policy-agent/conftest@v${CONFTEST_VERSION}" && \
+    cd "${GOPATH}/pkg/mod/github.com/open-policy-agent/conftest@v${CONFTEST_VERSION}" && \
+    /tmp/conftest/go/bin/go build -trimpath \
+        -ldflags "-s -w -X github.com/open-policy-agent/conftest/internal/version.Version=${CONFTEST_VERSION}" \
+        -o /usr/local/bin/conftest . && \
+    cd / && \
+    rm -rf /tmp/conftest && \
+    conftest --version
 
 ENV OPA_VERSION=1.7.1
 
