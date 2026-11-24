@@ -20,12 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      os_refresh: ${{ steps.tag.outputs.os_refresh }}
       stategraph: ${{ steps.stategraph.outputs.version }}
     steps:
       -
         name: Generate tag
         id: tag
-        run: echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+        run: |
+          echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "os_refresh=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
       -
         # Passed to the builds as an argument. Looked up inside the Dockerfile, the
         # install step never changes and BuildKit serves the last release from cache.
@@ -73,6 +76,7 @@ jobs:
           platforms: linux/${{ matrix.arch }}
           build-args: |
             STATEGRAPH_LATEST_VERSION=${{ needs.tag.outputs.stategraph }}
+            OS_REFRESH=${{ needs.tag.outputs.os_refresh }}
           cache-from: type=gha,scope=base-fips-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=base-fips-${{ matrix.arch }}
   manifest:
