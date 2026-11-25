@@ -13,6 +13,28 @@ INITIAL_SLEEP = 10
 BACKOFF = 2
 
 
+def plan_options_args(work_manifest):
+    # The plan flags the run set, as the server resolved them, built into plan
+    # arguments one element per flag.  A value is never spliced into a command
+    # string, so a resource address or a variable value carries no shell
+    # meaning.  The field is absent for a run that set no flag.
+    opts = (work_manifest or {}).get('plan_options') or {}
+    args = []
+    if opts.get('destroy'):
+        args.append('-destroy')
+    if opts.get('refresh_only'):
+        args.append('-refresh-only')
+    for address in opts.get('targets') or []:
+        args.append('-target=' + address)
+    for address in opts.get('replaces') or []:
+        args.append('-replace=' + address)
+    for name, value in (opts.get('vars') or {}).items():
+        args.append('-var=' + name + '=' + value)
+    for path in opts.get('var_files') or []:
+        args.append('-var-file=' + path)
+    return args
+
+
 # Opens a Terraform heredoc string value, e.g. `foo = <<-EOT` or `foo =
 # <<EOT`, capturing the delimiter so we can find the matching closing line.
 # The delimiter is an arbitrary HCL identifier (EOT is just conventional).
@@ -364,7 +386,7 @@ class Engine:
                     '-detailed-exitcode',
                     '-out',
                     '${TERRATEAM_PLAN_FILE}'
-                ] + targets + config.get('extra_args', []),
+                ] + targets + plan_options_args(state.work_manifest) + config.get('extra_args', []),
                 'log_output': config.get('log_output', True)
             })
 
